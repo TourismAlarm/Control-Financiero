@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun } from 'lucide-react';
 
 const STORAGE_KEY = 'controlFinancieroEstado';
 const HISTORY_KEY = 'controlFinancieroHistorial';
+const THEME_KEY = 'controlFinancieroTheme';
 
 export default function ControlFinanciero() {
   const fileInputRef = useRef(null);
@@ -17,6 +18,9 @@ export default function ControlFinanciero() {
 
   // Estado para notificaciones
   const [notificacion, setNotificacion] = useState({ show: false, mensaje: '', tipo: 'success' });
+
+  // Estado para modo oscuro
+  const [darkMode, setDarkMode] = useState(false);
 
   // Datos principales
   const [ingresos, setIngresos] = useState([]);
@@ -94,6 +98,20 @@ export default function ControlFinanciero() {
       console.error('Error guardando historial', e);
     }
   }, [historialMensual]);
+
+  // Cargar y guardar tema
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    if (savedTheme === 'dark') {
+      setDarkMode(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(THEME_KEY, darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   // Notificaciones
   const mostrarNotificacion = (mensaje, tipo = 'success') => {
@@ -300,111 +318,159 @@ export default function ControlFinanciero() {
   };
 
   return (
-    <div className="min-h-screen p-4 bg-slate-50">
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'}`}>
       {notificacion.show && (
         <div
-          className={`fixed top-4 right-4 p-3 rounded shadow ${
+          className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl z-50 transform transition-all duration-300 animate-in slide-in-from-right ${
             notificacion.tipo === 'success' ? 'bg-green-500' : notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-blue-500'
           }`}
         >
-          <span className="text-white">{notificacion.mensaje}</span>
+          <span className="text-white font-medium">{notificacion.mensaje}</span>
         </div>
       )}
 
-      <header className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-2">Control Financiero</h1>
-        <p className="text-sm text-gray-600 mb-4">
-          Usuario: <strong>{nombreUsuario || 'Anónimo'}</strong> — Mes: <strong>{mesActual}</strong>
-        </p>
+      <header className={`sticky top-0 z-40 backdrop-blur-lg ${darkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center gap-2`}>
+                💰 Control Financiero
+              </h1>
+              <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                <span className="font-medium">{nombreUsuario || 'Anónimo'}</span> • <span>{mesActual}</span>
+              </p>
+            </div>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+                darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? <Sun size={24} /> : <Moon size={24} />}
+            </button>
+          </div>
+        </div>
       </header>
 
-      <main className="max-w-4xl mx-auto space-y-6">
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Añadir ingreso</h2>
-          <div className="flex gap-2">
+      <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        {/* Resumen Cards - Movido arriba */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-green-600 to-green-700' : 'bg-gradient-to-br from-green-400 to-green-500'}`}>
+            <p className="text-white/80 text-sm font-medium mb-2">💰 Ingresos</p>
+            <p className="text-white text-3xl font-bold">{totalIngresos.toFixed(2)} €</p>
+          </div>
+          <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-red-600 to-red-700' : 'bg-gradient-to-br from-red-400 to-red-500'}`}>
+            <p className="text-white/80 text-sm font-medium mb-2">💸 Gastos</p>
+            <p className="text-white text-3xl font-bold">{totalGastos.toFixed(2)} €</p>
+          </div>
+          <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-blue-600 to-blue-700' : 'bg-gradient-to-br from-blue-400 to-blue-500'}`}>
+            <p className="text-white/80 text-sm font-medium mb-2">💵 Balance</p>
+            <p className="text-white text-3xl font-bold">{saldoDisponible.toFixed(2)} €</p>
+          </div>
+          <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
+            <p className="text-white/80 text-sm font-medium mb-2">🏦 Deudas</p>
+            <p className="text-white text-3xl font-bold">{totalDeudas.toFixed(2)} €</p>
+          </div>
+        </div>
+
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>✨ Añadir Ingreso</h2>
+          <div className="flex gap-3 flex-wrap">
             <input
               aria-label="concepto"
               placeholder="Concepto"
               value={nuevoIngreso.concepto}
               onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, concepto: e.target.value })}
-              className="border p-2 rounded flex-1"
+              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+              }`}
             />
             <input
               aria-label="monto"
               placeholder="Monto"
               value={nuevoIngreso.monto}
               onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, monto: e.target.value })}
-              className="border p-2 rounded w-32"
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+              }`}
             />
-            <button onClick={añadirIngreso} className="bg-blue-600 text-white px-3 rounded inline-flex items-center gap-2">
-              <Plus size={16} /> Añadir
+            <button
+              onClick={añadirIngreso}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300"
+            >
+              <Plus size={20} /> Añadir
             </button>
           </div>
         </section>
 
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Ingresos</h2>
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Ingresos</h2>
           {ingresos.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay ingresos registrados.</p>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay ingresos registrados.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {ingresos.map((i) => (
-                <li key={i.id} className="flex justify-between items-center border p-2 rounded">
+                <li key={i.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                   <div>
-                    <div className="font-medium">{i.concepto}</div>
-                    <div className="text-sm text-gray-500">{i.tipo}</div>
+                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{i.concepto}</div>
+                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{i.tipo}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="font-bold">{(i.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarIngreso(i.id)} className="text-red-600">
-                      <Trash2 size={16} />
+                  <div className="flex items-center gap-3">
+                    <div className={`font-bold text-lg ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{(i.monto || 0).toFixed(2)} €</div>
+                    <button onClick={() => eliminarIngreso(i.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-3 text-sm text-gray-700">
-            Total ingresos: <strong>{totalIngresos.toFixed(2)} €</strong>
+          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            Total ingresos: <strong className={darkMode ? 'text-green-400' : 'text-green-600'}>{totalIngresos.toFixed(2)} €</strong>
           </div>
         </section>
 
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Historial mensual</h2>
-          <div className="flex gap-2">
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📅 Historial mensual</h2>
+          <div className="flex gap-3 flex-wrap">
             <button
               onClick={guardarHistorial}
-              className="bg-purple-600 text-white px-3 py-2 rounded inline-flex items-center gap-2"
+              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300"
             >
-              <Save size={16} /> Guardar mes
+              <Save size={18} /> Guardar mes
             </button>
-            <button onClick={exportarDatos} className="bg-green-600 text-white px-3 py-2 rounded inline-flex items-center gap-2">
-              <Download size={16} /> Exportar
+            <button onClick={exportarDatos} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <Download size={18} /> Exportar
             </button>
             <button
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              className="bg-gray-200 px-3 py-2 rounded inline-flex items-center gap-2"
+              className={`px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
             >
-              <Upload size={16} /> Importar
+              <Upload size={18} /> Importar
             </button>
             <input ref={fileInputRef} type="file" accept="application/json" onChange={importarDatos} className="hidden" />
           </div>
 
           {historialMensual.length === 0 ? (
-            <p className="text-sm text-gray-500 mt-3">Aún no hay registros. Guarda el mes actual para empezar.</p>
+            <p className={`text-sm mt-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Aún no hay registros. Guarda el mes actual para empezar.</p>
           ) : (
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-4 space-y-3">
               {[...historialMensual].slice().reverse().map((h) => (
-                <li key={h.id} className="border rounded p-2 flex justify-between items-center">
+                <li key={h.id} className={`p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2 flex justify-between items-center`}>
                   <div>
-                    <div className="font-medium">{h.mes}</div>
-                    <div className="text-xs text-gray-500">Guardado: {new Date(h.fechaGuardado).toLocaleString()}</div>
+                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{h.mes}</div>
+                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Guardado: {new Date(h.fechaGuardado).toLocaleString()}</div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => restaurarHistorial(h.id)} className="px-2 py-1 border rounded text-sm">
+                    <button onClick={() => restaurarHistorial(h.id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}`}>
                       Restaurar
                     </button>
-                    <button onClick={() => eliminarHistorial(h.id)} className="px-2 py-1 border rounded text-sm text-red-600">
+                    <button onClick={() => eliminarHistorial(h.id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 ${darkMode ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400' : 'bg-red-100 hover:bg-red-200 text-red-600'}`}>
                       Eliminar
                     </button>
                   </div>
@@ -415,192 +481,232 @@ export default function ControlFinanciero() {
         </section>
 
         {/* Gastos Fijos */}
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Gastos Fijos</h2>
-          <div className="flex gap-2 mb-3">
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🏠 Gastos Fijos</h2>
+          <div className="flex gap-3 flex-wrap mb-4">
             <input
               placeholder="Concepto"
               value={nuevoGastoFijo.concepto}
               onChange={(e) => setNuevoGastoFijo({ ...nuevoGastoFijo, concepto: e.target.value })}
-              className="border p-2 rounded flex-1"
+              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
+                  : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
+              }`}
             />
             <input
               placeholder="Monto"
               value={nuevoGastoFijo.monto}
               onChange={(e) => setNuevoGastoFijo({ ...nuevoGastoFijo, monto: e.target.value })}
-              className="border p-2 rounded w-32"
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
+                  : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
+              }`}
             />
-            <button onClick={añadirGastoFijo} className="bg-red-600 text-white px-3 rounded inline-flex items-center gap-2">
-              <Plus size={16} /> Añadir
+            <button onClick={añadirGastoFijo} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <Plus size={20} /> Añadir
             </button>
           </div>
           {gastosFijos.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay gastos fijos registrados.</p>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay gastos fijos registrados.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {gastosFijos.map((g) => (
-                <li key={g.id} className="flex justify-between items-center border p-2 rounded">
-                  <div className="font-medium">{g.concepto}</div>
-                  <div className="flex items-center gap-2">
-                    <div className="font-bold">{(g.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarGastoFijo(g.id)} className="text-red-600">
-                      <Trash2 size={16} />
+                <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
+                  <div className="flex items-center gap-3">
+                    <div className={`font-bold text-lg ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
+                    <button onClick={() => eliminarGastoFijo(g.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-3 text-sm text-gray-700">
-            Total gastos fijos: <strong>{totalGastosFijos.toFixed(2)} €</strong>
+          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            Total gastos fijos: <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong>
           </div>
         </section>
 
         {/* Gastos Variables */}
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Gastos Variables</h2>
-          <div className="flex gap-2 mb-3">
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🛒 Gastos Variables</h2>
+          <div className="flex gap-3 flex-wrap mb-4">
             <input
               type="date"
               value={nuevoGastoVariable.fecha}
               onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, fecha: e.target.value })}
-              className="border p-2 rounded w-40"
+              className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+              }`}
             />
             <input
               placeholder="Concepto"
               value={nuevoGastoVariable.concepto}
               onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, concepto: e.target.value })}
-              className="border p-2 rounded flex-1"
+              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+              }`}
             />
             <input
               placeholder="Monto"
               value={nuevoGastoVariable.monto}
               onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, monto: e.target.value })}
-              className="border p-2 rounded w-32"
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+              }`}
             />
-            <button onClick={añadirGastoVariable} className="bg-orange-600 text-white px-3 rounded inline-flex items-center gap-2">
-              <Plus size={16} /> Añadir
+            <button onClick={añadirGastoVariable} className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <Plus size={20} /> Añadir
             </button>
           </div>
           {gastosVariables.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay gastos variables registrados.</p>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay gastos variables registrados.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {gastosVariables.map((g) => (
-                <li key={g.id} className="flex justify-between items-center border p-2 rounded">
+                <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                   <div>
-                    <div className="font-medium">{g.concepto}</div>
-                    <div className="text-xs text-gray-500">{g.fecha}</div>
+                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
+                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>📅 {g.fecha}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="font-bold">{(g.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarGastoVariable(g.id)} className="text-red-600">
-                      <Trash2 size={16} />
+                  <div className="flex items-center gap-3">
+                    <div className={`font-bold text-lg ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
+                    <button onClick={() => eliminarGastoVariable(g.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-3 text-sm text-gray-700">
-            Total gastos variables: <strong>{totalGastosVariables.toFixed(2)} €</strong>
+          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            Total gastos variables: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
           </div>
         </section>
 
         {/* Deudas */}
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Deudas</h2>
-          <div className="flex gap-2 mb-3">
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💳 Deudas</h2>
+          <div className="flex gap-3 flex-wrap mb-4">
             <input
               placeholder="Nombre de la deuda"
               value={nuevaDeuda.nombre}
               onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, nombre: e.target.value })}
-              className="border p-2 rounded flex-1"
+              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                  : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+              }`}
             />
             <input
               placeholder="Monto"
               value={nuevaDeuda.monto}
               onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, monto: e.target.value })}
-              className="border p-2 rounded w-32"
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                  : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+              }`}
             />
-            <button onClick={añadirDeuda} className="bg-purple-600 text-white px-3 rounded inline-flex items-center gap-2">
-              <Plus size={16} /> Añadir
+            <button onClick={añadirDeuda} className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <Plus size={20} /> Añadir
             </button>
           </div>
           {deudas.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay deudas registradas.</p>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay deudas registradas.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {deudas.map((d) => (
-                <li key={d.id} className="flex justify-between items-center border p-2 rounded">
-                  <div className="font-medium">{d.nombre}</div>
-                  <div className="flex items-center gap-2">
-                    <div className="font-bold">{(d.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarDeuda(d.id)} className="text-red-600">
-                      <Trash2 size={16} />
+                <li key={d.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
+                  <div className="flex items-center gap-3">
+                    <div className={`font-bold text-lg ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{(d.monto || 0).toFixed(2)} €</div>
+                    <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-3 text-sm text-gray-700">
-            Total deudas: <strong>{totalDeudas.toFixed(2)} €</strong>
+          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            Total deudas: <strong className={darkMode ? 'text-purple-400' : 'text-purple-600'}>{totalDeudas.toFixed(2)} €</strong>
           </div>
         </section>
 
         {/* Objetivos */}
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Objetivos de Ahorro</h2>
-          <div className="flex gap-2 mb-3">
+        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🎯 Objetivos de Ahorro</h2>
+          <div className="flex gap-3 flex-wrap mb-4">
             <input
               placeholder="Nombre del objetivo"
               value={nuevoObjetivo.nombre}
               onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, nombre: e.target.value })}
-              className="border p-2 rounded flex-1"
+              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
+                  : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
+              }`}
             />
             <input
               placeholder="Meta"
               value={nuevoObjetivo.meta}
               onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, meta: e.target.value })}
-              className="border p-2 rounded w-32"
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
+                  : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
+              }`}
             />
             <input
               placeholder="Actual"
               value={nuevoObjetivo.actual}
               onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, actual: e.target.value })}
-              className="border p-2 rounded w-32"
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
+                  : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
+              }`}
             />
-            <button onClick={añadirObjetivo} className="bg-teal-600 text-white px-3 rounded inline-flex items-center gap-2">
-              <Plus size={16} /> Añadir
+            <button onClick={añadirObjetivo} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <Plus size={20} /> Añadir
             </button>
           </div>
           {objetivos.length === 0 ? (
-            <p className="text-sm text-gray-500">No hay objetivos de ahorro.</p>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay objetivos de ahorro.</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-4">
               {objetivos.map((o) => {
                 const progreso = (o.actual / o.meta) * 100;
                 return (
-                  <li key={o.id} className="border p-3 rounded">
-                    <div className="flex justify-between items-center mb-2">
-                      <div className="font-medium">{o.nombre}</div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm">
+                  <li key={o.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <div className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{o.nombre}</div>
+                      <div className="flex items-center gap-3">
+                        <div className={`text-sm font-medium ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
                           {o.actual.toFixed(2)} / {o.meta.toFixed(2)} €
                         </div>
-                        <button onClick={() => eliminarObjetivo(o.id)} className="text-red-600">
-                          <Trash2 size={16} />
+                        <button onClick={() => eliminarObjetivo(o.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
                       <div
-                        className="bg-teal-600 h-2 rounded-full transition-all"
+                        className="bg-gradient-to-r from-teal-500 to-teal-600 h-3 rounded-full transition-all duration-500 ease-out"
                         style={{ width: `${Math.min(progreso, 100)}%` }}
                       />
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">{progreso.toFixed(0)}% completado</div>
+                    <div className={`text-sm mt-2 font-medium ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>{progreso.toFixed(0)}% completado</div>
                   </li>
                 );
               })}
@@ -608,23 +714,6 @@ export default function ControlFinanciero() {
           )}
         </section>
 
-        <section className="bg-white p-4 rounded shadow">
-          <h2 className="font-semibold mb-2">Resumen</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="p-3 bg-green-50 rounded">
-              Ingresos: <div className="font-bold">{totalIngresos.toFixed(2)} €</div>
-            </div>
-            <div className="p-3 bg-red-50 rounded">
-              Gastos: <div className="font-bold">{totalGastos.toFixed(2)} €</div>
-            </div>
-            <div className="p-3 bg-blue-50 rounded">
-              Balance: <div className="font-bold">{saldoDisponible.toFixed(2)} €</div>
-            </div>
-            <div className="p-3 bg-purple-50 rounded">
-              Deudas: <div className="font-bold">{totalDeudas.toFixed(2)} €</div>
-            </div>
-          </div>
-        </section>
       </main>
     </div>
   );
