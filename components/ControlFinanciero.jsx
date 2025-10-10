@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun } from 'lucide-react';
+import { signOut } from 'next-auth/react';
+import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut } from 'lucide-react';
 
 const STORAGE_KEY = 'controlFinancieroEstado';
 const HISTORY_KEY = 'controlFinancieroHistorial';
 const THEME_KEY = 'controlFinancieroTheme';
 
-export default function ControlFinanciero() {
+export default function ControlFinanciero({ session }) {
   const fileInputRef = useRef(null);
 
   // Estado inicial
@@ -337,18 +338,29 @@ export default function ControlFinanciero() {
                 💰 Control Financiero
               </h1>
               <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                <span className="font-medium">{nombreUsuario || 'Anónimo'}</span> • <span>{mesActual}</span>
+                <span className="font-medium">{session?.user?.name || nombreUsuario || 'Anónimo'}</span> • <span>{mesActual}</span>
               </p>
             </div>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
-                darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? <Sun size={24} /> : <Moon size={24} />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+                  darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? <Sun size={24} /> : <Moon size={24} />}
+              </button>
+              <button
+                onClick={() => signOut({ callbackUrl: '/auth/signin' })}
+                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+                  darkMode ? 'bg-red-600/20 text-red-400 hover:bg-red-600/30' : 'bg-red-100 text-red-600 hover:bg-red-200'
+                }`}
+                aria-label="Cerrar sesión"
+              >
+                <LogOut size={24} />
+              </button>
+            </div>
           </div>
         </div>
       </header>
