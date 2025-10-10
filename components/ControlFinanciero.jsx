@@ -29,286 +29,304 @@ index 8bdd027c6eb345b92a071edb3c831caf9d2f66be..2e63bd44fdf0b4928b46c68ff2de640f
    
    // Gastos fijos mensuales
    const [gastosFijos, setGastosFijos] = useState([]);
-   const [nuevoGastoFijo, setNuevoGastoFijo] = useState({ concepto: '', monto: '', categoria: 'Vivienda' });
-   
-   // Gastos variables (día a día)
-   const [gastosVariables, setGastosVariables] = useState([]);
-   const [nuevoGastoVariable, setNuevoGastoVariable] = useState({ 
-     fecha: new Date().toISOString().split('T')[0], 
-     concepto: '', 
-     monto: '', 
-     categoria: 'Alimentación' 
-   });
-   
-   // Deudas
-   const [deudas, setDeudas] = useState([]);
-   const [nuevaDeuda, setNuevaDeuda] = useState({ 
-     nombre: '', 
-     saldoInicial: '', 
-     saldoActual: '', 
-     cuotaMensual: '', 
-     interes: '', 
-     fechaFin: '' 
-   });
-   
-   // Objetivos de ahorro
-   const [objetivos, setObjetivos] = useState([]);
-   const [nuevoObjetivo, setNuevoObjetivo] = useState({ nombre: '', meta: '', actual: '' });
--  
-+
-+  const [historialMensual, setHistorialMensual] = useState([]);
-+
-   // Vista activa
-   const [vistaActiva, setVistaActiva] = useState('inicio');
-   const [mostrarBienvenida, setMostrarBienvenida] = useState(true);
-   
-   // Categorías predefinidas con iconos y colores
-   const categorias = [
-     { nombre: 'Alimentación', color: '#10b981', icono: '🍽️' },
-     { nombre: 'Transporte', color: '#3b82f6', icono: '🚗' },
-     { nombre: 'Vivienda', color: '#8b5cf6', icono: '🏠' },
-     { nombre: 'Servicios', color: '#f59e0b', icono: '📱' },
-     { nombre: 'Ocio', color: '#ec4899', icono: '🎮' },
-     { nombre: 'Salud', color: '#ef4444', icono: '💊' },
-     { nombre: 'Educación', color: '#14b8a6', icono: '📚' },
-     { nombre: 'Ropa', color: '#f97316', icono: '👕' },
-     { nombre: 'Deudas', color: '#dc2626', icono: '💳' },
-     { nombre: 'Otros', color: '#6b7280', icono: '📦' }
-   ];
--  
-+
-   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
--  
-+
-+  useEffect(() => {
-+    if (typeof window === 'undefined') {
-+      return;
-+    }
-+
-+    try {
-+      const datosGuardados = localStorage.getItem(STORAGE_KEY);
-+      if (datosGuardados) {
-+        const parsed = JSON.parse(datosGuardados);
-+        if (parsed && typeof parsed === 'object') {
-+          setNombreUsuario(parsed.nombreUsuario || '');
-+          setMesActual(parsed.mesActual || new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }));
-+          setIngresos(Array.isArray(parsed.ingresos) ? parsed.ingresos : []);
-+          setGastosFijos(Array.isArray(parsed.gastosFijos) ? parsed.gastosFijos : []);
-+          setGastosVariables(Array.isArray(parsed.gastosVariables) ? parsed.gastosVariables : []);
-+          setDeudas(Array.isArray(parsed.deudas) ? parsed.deudas : []);
-+          setObjetivos(Array.isArray(parsed.objetivos) ? parsed.objetivos : []);
-+
-+          if ([parsed.ingresos, parsed.gastosFijos, parsed.gastosVariables, parsed.deudas, parsed.objetivos]
-+            .some(lista => Array.isArray(lista) && lista.length > 0)) {
-+            setMostrarBienvenida(false);
-+          }
-+        }
-+      }
-+
-+      const historialGuardado = localStorage.getItem(HISTORY_KEY);
-+      if (historialGuardado) {
-+        const parsedHistorial = JSON.parse(historialGuardado);
-+        if (Array.isArray(parsedHistorial)) {
-+          setHistorialMensual(parsedHistorial);
-+        }
-+      }
-+    } catch (error) {
-+      console.error('Error al recuperar datos almacenados', error);
-+    }
-+  }, []);
-+
-+  useEffect(() => {
-+    if (typeof window === 'undefined') {
-+      return;
-+    }
-+
-+    try {
-+      const estadoActual = {
-+        nombreUsuario,
-+        mesActual,
-+        ingresos,
-+        gastosFijos,
-+        gastosVariables,
-+        deudas,
-+        objetivos
-+      };
-+      localStorage.setItem(STORAGE_KEY, JSON.stringify(estadoActual));
-+    } catch (error) {
-+      console.error('Error al guardar el estado actual', error);
-+    }
-+  }, [nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos]);
-+
-+  useEffect(() => {
-+    if (typeof window === 'undefined') {
-+      return;
-+    }
-+
-+    try {
-+      localStorage.setItem(HISTORY_KEY, JSON.stringify(historialMensual));
-+    } catch (error) {
-+      console.error('Error al guardar el historial mensual', error);
-+    }
-+  }, [historialMensual]);
-+
-   // Función para mostrar notificaciones
-   const mostrarNotificacion = (mensaje, tipo = 'success') => {
-     setNotificacion({ show: true, mensaje, tipo });
-     setTimeout(() => {
-       setNotificacion({ show: false, mensaje: '', tipo: 'success' });
-     }, 3000);
-   };
-   
-   // Calcular totales
-   const totalIngresos = ingresos.reduce((sum, i) => sum + parseFloat(i.monto || 0), 0);
-   const totalGastosFijos = gastosFijos.reduce((sum, g) => sum + parseFloat(g.monto || 0), 0);
-   const totalGastosVariables = gastosVariables.reduce((sum, g) => sum + parseFloat(g.monto || 0), 0);
-   const totalGastos = totalGastosFijos + totalGastosVariables;
-   const saldoDisponible = totalIngresos - totalGastos;
-   const totalDeudas = deudas.reduce((sum, d) => sum + parseFloat(d.saldoActual || 0), 0);
-   const tasaAhorro = totalIngresos > 0 ? ((saldoDisponible / totalIngresos) * 100) : 0;
-+
-+  const formatearFecha = (fechaISO) => {
-+    if (!fechaISO) return '-';
-+    const fecha = new Date(fechaISO);
-+    if (Number.isNaN(fecha.getTime())) return '-';
-+    return fecha.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-+  };
-+
-+  const historialOrdenado = [...historialMensual].sort((a, b) => {
-+    const fechaA = new Date(a.fechaGuardado || 0).getTime();
-+    const fechaB = new Date(b.fechaGuardado || 0).getTime();
-+    return fechaB - fechaA;
-+  });
-+
-+  const crearSnapshotMensual = () => {
-+    const clonarLista = (lista) => lista.map(item => ({ ...item }));
-+    const mesParaGuardar = (mesActual && mesActual.trim()) ||
-+      new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
-+
-+    return {
-+      id: Date.now(),
-+      mes: mesParaGuardar,
-+      fechaGuardado: new Date().toISOString(),
-+      nombreUsuario,
-+      ingresos: clonarLista(ingresos),
-+      gastosFijos: clonarLista(gastosFijos),
-+      gastosVariables: clonarLista(gastosVariables),
-+      deudas: clonarLista(deudas),
-+      objetivos: clonarLista(objetivos),
-+      totales: {
-+        totalIngresos,
-+        totalGastosFijos,
-+        totalGastosVariables,
-+        totalGastos,
-+        saldoDisponible,
-+        totalDeudas
-+      }
-+    };
-+  };
-+
-+  const guardarHistorialMensual = () => {
-+    const snapshot = crearSnapshotMensual();
-+    const mesNormalizado = snapshot.mes.toLowerCase();
-+    let mensaje = 'Historial mensual guardado';
-+
-+    setHistorialMensual(prev => {
-+      const indiceExistente = prev.findIndex(item => (item.mes || '').toLowerCase() === mesNormalizado);
-+
-+      if (indiceExistente !== -1) {
-+        mensaje = 'Historial del mes actualizado';
-+        const actualizado = [...prev];
-+        actualizado[indiceExistente] = {
-+          ...snapshot,
-+          id: actualizado[indiceExistente].id,
-+          fechaGuardado: snapshot.fechaGuardado
-+        };
-+        return actualizado;
-+      }
-+
-+      return [...prev, snapshot];
-+    });
-+
-+    mostrarNotificacion(mensaje, 'success');
-+  };
-+
-+  const restaurarHistorialMes = (id) => {
-+    const registro = historialMensual.find(item => item.id === id);
-+    if (!registro) {
-+      mostrarNotificacion('No se encontró el registro seleccionado', 'error');
-+      return;
-+    }
-+
-+    setNombreUsuario(registro.nombreUsuario || '');
-+    setMesActual(registro.mes || new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' }));
-+    setIngresos((registro.ingresos || []).map(item => ({ ...item })));
-+    setGastosFijos((registro.gastosFijos || []).map(item => ({ ...item })));
-+    setGastosVariables((registro.gastosVariables || []).map(item => ({ ...item })));
-+    setDeudas((registro.deudas || []).map(item => ({ ...item })));
-+    setObjetivos((registro.objetivos || []).map(item => ({ ...item })));
-+    setMostrarBienvenida(false);
-+
-+    mostrarNotificacion(`Datos de ${registro.mes} restaurados`, 'success');
-+  };
-+
-+  const eliminarHistorialMes = (id) => {
-+    let eliminado = false;
-+    setHistorialMensual(prev => {
-+      eliminado = prev.some(item => item.id === id);
-+      return prev.filter(item => item.id !== id);
-+    });
-+
-+    if (eliminado) {
-+      mostrarNotificacion('Registro eliminado del historial', 'info');
-+    }
-+  };
-   
-   // Funciones CRUD - Ingresos
-   const añadirIngreso = () => {
-     if (!nuevoIngreso.concepto || !nuevoIngreso.monto) {
-       mostrarNotificacion('Por favor completa todos los campos', 'error');
-       return;
-     }
-     if (parseFloat(nuevoIngreso.monto) <= 0) {
-       mostrarNotificacion('El monto debe ser mayor a 0', 'error');
-       return;
-     }
-     
-     setIngresos([...ingresos, { 
-       id: Date.now(), 
-       concepto: nuevoIngreso.concepto, 
-       monto: parseFloat(nuevoIngreso.monto),
-       tipo: nuevoIngreso.tipo
-     }]);
-     setNuevoIngreso({ concepto: '', monto: '', tipo: 'Fijo' });
-     mostrarNotificacion('Ingreso añadido correctamente', 'success');
-   };
-   
-   const eliminarIngreso = (id) => {
-     setIngresos(ingresos.filter(i => i.id !== id));
-     mostrarNotificacion('Ingreso eliminado', 'info');
-diff --git a/Index b/components/ControlFinanciero.jsx
-index 8bdd027c6eb345b92a071edb3c831caf9d2f66be..2e63bd44fdf0b4928b46c68ff2de640f6535294f 100644
---- a/Index
-+++ b/components/ControlFinanciero.jsx
-@@ -265,87 +437,89 @@ export default function ControlFinanciero() {
-     for (let i = 6; i >= 0; i--) {
-       const fecha = new Date(hoy);
-       fecha.setDate(fecha.getDate() - i);
-       const fechaStr = fecha.toISOString().split('T')[0];
-       const gastosDia = gastosVariables
-         .filter(g => g.fecha === fechaStr)
-         .reduce((sum, g) => sum + g.monto, 0);
-       dias.push({
-         dia: fecha.toLocaleDateString('es-ES', { weekday: 'short' }),
-         gastos: gastosDia
-       });
-     }
-     return dias;
-   };
-   
-   // Exportar datos
-   const exportarDatos = () => {
-     const datos = {
+  "use client";
+
+  import React, { useState, useRef, useEffect } from "react";
+  import {
+    Plus,
+    Trash2,
+    Download,
+    Upload,
+    Save,
+    Calendar,
+    AlertCircle,
+  } from "lucide-react";
+
+  const STORAGE_KEY = "controlFinancieroEstado";
+  const HISTORY_KEY = "controlFinancieroHistorial";
+
+  export default function ControlFinanciero() {
+    const fileInputRef = useRef(null);
+
+    const [nombreUsuario, setNombreUsuario] = useState("");
+    const [mesActual, setMesActual] = useState(
+      new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })
+    );
+
+    const [notificacion, setNotificacion] = useState({ show: false, mensaje: "", tipo: "success" });
+
+    // Datos principales
+    const [ingresos, setIngresos] = useState([]);
+    const [nuevoIngreso, setNuevoIngreso] = useState({ concepto: "", monto: "", tipo: "Fijo" });
+
+    const [gastosFijos, setGastosFijos] = useState([]);
+    const [gastosVariables, setGastosVariables] = useState([]);
+    const [deudas, setDeudas] = useState([]);
+    const [objetivos, setObjetivos] = useState([]);
+
+    const [historialMensual, setHistorialMensual] = useState([]);
+
+    const [mostrarBienvenida, setMostrarBienvenida] = useState(true);
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      try {
+        const datos = localStorage.getItem(STORAGE_KEY);
+        if (datos) {
+          const parsed = JSON.parse(datos);
+          setNombreUsuario(parsed.nombreUsuario || "");
+          setMesActual(parsed.mesActual || mesActual);
+          setIngresos(Array.isArray(parsed.ingresos) ? parsed.ingresos : []);
+          setGastosFijos(Array.isArray(parsed.gastosFijos) ? parsed.gastosFijos : []);
+          setGastosVariables(Array.isArray(parsed.gastosVariables) ? parsed.gastosVariables : []);
+          setDeudas(Array.isArray(parsed.deudas) ? parsed.deudas : []);
+          setObjetivos(Array.isArray(parsed.objetivos) ? parsed.objetivos : []);
+          if (
+            [parsed.ingresos, parsed.gastosFijos, parsed.gastosVariables, parsed.deudas, parsed.objetivos].some(
+              (l) => Array.isArray(l) && l.length > 0
+            )
+          ) {
+            setMostrarBienvenida(false);
+          }
+        }
+
+        const hist = localStorage.getItem(HISTORY_KEY);
+        if (hist) {
+          const parsedH = JSON.parse(hist);
+          if (Array.isArray(parsedH)) setHistorialMensual(parsedH);
+        }
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Error leyendo localStorage", e);
+      }
+    }, []);
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      try {
+        const estado = { nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Error guardando estado", e);
+      }
+    }, [nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos]);
+
+    useEffect(() => {
+      if (typeof window === "undefined") return;
+      try {
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(historialMensual));
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error("Error guardando historial", e);
+      }
+    }, [historialMensual]);
+
+    const mostrarNotificacion = (mensaje, tipo = "success") => {
+      setNotificacion({ show: true, mensaje, tipo });
+      setTimeout(() => setNotificacion({ show: false, mensaje: "", tipo: "success" }), 3000);
+    };
+
+    // Totales sencillos
+    const totalIngresos = ingresos.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+    const totalGastosFijos = gastosFijos.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+    const totalGastosVariables = gastosVariables.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+    const totalGastos = totalGastosFijos + totalGastosVariables;
+    const saldoDisponible = totalIngresos - totalGastos;
+
+    // CRUD - ingresos simple
+    const añadirIngreso = () => {
+      if (!nuevoIngreso.concepto || !nuevoIngreso.monto) return mostrarNotificacion("Completa concepto y monto", "error");
+      const monto = parseFloat(nuevoIngreso.monto);
+      if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion("Monto inválido", "error");
+      const nuevo = { id: Date.now(), concepto: nuevoIngreso.concepto, monto, tipo: nuevoIngreso.tipo };
+      setIngresos((p) => [...p, nuevo]);
+      setNuevoIngreso({ concepto: "", monto: "", tipo: "Fijo" });
+      setMostrarBienvenida(false);
+      mostrarNotificacion("Ingreso añadido", "success");
+    };
+
+    const eliminarIngreso = (id) => {
+      setIngresos((p) => p.filter((i) => i.id !== id));
+      mostrarNotificacion("Ingreso eliminado", "info");
+    };
+
+    // Export / Import
+    const exportarDatos = () => {
+      try {
+        const datos = { nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos, historialMensual, fechaExportacion: new Date().toISOString() };
+        const blob = new Blob([JSON.stringify(datos, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `control-financiero-${mesActual.replace(/\s/g, "-")}-${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        mostrarNotificacion("Datos exportados", "success");
+      } catch (e) {
+        mostrarNotificacion("Error exportando datos", "error");
+      }
+    };
+
+    const importarDatos = (ev) => {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const datos = JSON.parse(e.target.result);
+          setNombreUsuario(datos.nombreUsuario || "");
+          setMesActual(datos.mesActual || mesActual);
+          setIngresos(Array.isArray(datos.ingresos) ? datos.ingresos : []);
+          setGastosFijos(Array.isArray(datos.gastosFijos) ? datos.gastosFijos : []);
+          setGastosVariables(Array.isArray(datos.gastosVariables) ? datos.gastosVariables : []);
+          setDeudas(Array.isArray(datos.deudas) ? datos.deudas : []);
+          setObjetivos(Array.isArray(datos.objetivos) ? datos.objetivos : []);
+          setHistorialMensual(Array.isArray(datos.historialMensual) ? datos.historialMensual : []);
+          mostrarNotificacion("Datos importados", "success");
+          setMostrarBienvenida(false);
+        } catch (e) {
+          mostrarNotificacion("Archivo inválido", "error");
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    // Historial mensual básico
+    const crearSnapshot = () => ({
+      id: Date.now(),
+      mes: mesActual,
+      fechaGuardado: new Date().toISOString(),
+      nombreUsuario,
+      ingresos: ingresos.map((i) => ({ ...i })),
+      gastosFijos: gastosFijos.map((g) => ({ ...g })),
+      gastosVariables: gastosVariables.map((g) => ({ ...g })),
+      deudas: deudas.map((d) => ({ ...d })),
+      objetivos: objetivos.map((o) => ({ ...o })),
+      totales: { totalIngresos, totalGastos, saldoDisponible },
+    });
+
+    const guardarHistorial = () => {
+      const snap = crearSnapshot();
+      setHistorialMensual((p) => {
+        const index = p.findIndex((it) => (it.mes || "").toLowerCase() === (snap.mes || "").toLowerCase());
+        if (index !== -1) {
+          const copy = [...p];
+          copy[index] = { ...snap, id: copy[index].id };
+          mostrarNotificacion("Historial actualizado", "success");
+          return copy;
+        }
+        mostrarNotificacion("Historial guardado", "success");
+        return [...p, snap];
+      });
+    };
+
+    const restaurarHistorial = (id) => {
+      const reg = historialMensual.find((h) => h.id === id);
+      if (!reg) return mostrarNotificacion("Registro no encontrado", "error");
+      setNombreUsuario(reg.nombreUsuario || "");
+      setMesActual(reg.mes || mesActual);
+      setIngresos(Array.isArray(reg.ingresos) ? reg.ingresos : []);
+      setGastosFijos(Array.isArray(reg.gastosFijos) ? reg.gastosFijos : []);
+      setGastosVariables(Array.isArray(reg.gastosVariables) ? reg.gastosVariables : []);
+      setDeudas(Array.isArray(reg.deudas) ? reg.deudas : []);
+      setObjetivos(Array.isArray(reg.objetivos) ? reg.objetivos : []);
+      setMostrarBienvenida(false);
+      mostrarNotificacion(`Datos de ${reg.mes} restaurados`, "success");
+    };
+
+    const eliminarHistorial = (id) => {
+      setHistorialMensual((p) => p.filter((h) => h.id !== id));
+      mostrarNotificacion("Registro eliminado", "info");
+    };
+
+    return (
+      <div className="min-h-screen p-4 bg-slate-50">
+        {notificacion.show && (
+          <div className={`fixed top-4 right-4 p-3 rounded shadow ${notificacion.tipo === "success" ? "bg-green-500" : notificacion.tipo === "error" ? "bg-red-500" : "bg-blue-500"}`}>
+            <span className="text-white">{notificacion.mensaje}</span>
+          </div>
+        )}
+
+        <header className="max-w-4xl mx-auto">
+          <h1 className="text-2xl font-bold mb-2">Control Financiero</h1>
+          <p className="text-sm text-gray-600 mb-4">Usuario: <strong>{nombreUsuario || 'Anónimo'}</strong> — Mes: <strong>{mesActual}</strong></p>
+        </header>
+
+        <main className="max-w-4xl mx-auto space-y-6">
+          <section className="bg-white p-4 rounded shadow">
+            <h2 className="font-semibold mb-2">Añadir ingreso</h2>
+            <div className="flex gap-2">
+              <input aria-label="concepto" placeholder="Concepto" value={nuevoIngreso.concepto} onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, concepto: e.target.value })} className="border p-2 rounded flex-1" />
+              <input aria-label="monto" placeholder="Monto" value={nuevoIngreso.monto} onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, monto: e.target.value })} className="border p-2 rounded w-32" />
+              <button onClick={añadirIngreso} className="bg-blue-600 text-white px-3 rounded inline-flex items-center gap-2"><Plus size={16} /> Añadir</button>
+            </div>
+          </section>
+
+          <section className="bg-white p-4 rounded shadow">
+            <h2 className="font-semibold mb-2">Ingresos</h2>
+            {ingresos.length === 0 ? (
+              <p className="text-sm text-gray-500">No hay ingresos registrados.</p>
+            ) : (
+              <ul className="space-y-2">
+                {ingresos.map((i) => (
+                  <li key={i.id} className="flex justify-between items-center border p-2 rounded">
+                    <div>
+                      <div className="font-medium">{i.concepto}</div>
+                      <div className="text-sm text-gray-500">{i.tipo}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="font-bold">{(i.monto || 0).toFixed(2)} €</div>
+                      <button onClick={() => eliminarIngreso(i.id)} className="text-red-600"><Trash2 size={16} /></button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-3 text-sm text-gray-700">Total ingresos: <strong>{totalIngresos.toFixed(2)} €</strong></div>
+          </section>
+
+          <section className="bg-white p-4 rounded shadow">
+            <h2 className="font-semibold mb-2">Historial mensual</h2>
+            <div className="flex gap-2">
+              <button onClick={guardarHistorial} className="bg-purple-600 text-white px-3 py-2 rounded inline-flex items-center gap-2"><Save size={16} /> Guardar mes</button>
+              <button onClick={exportarDatos} className="bg-green-600 text-white px-3 py-2 rounded inline-flex items-center gap-2"><Download size={16} /> Exportar</button>
+              <button onClick={() => fileInputRef.current && fileInputRef.current.click()} className="bg-gray-200 px-3 py-2 rounded inline-flex items-center gap-2"><Upload size={16} /> Importar</button>
+              <input ref={fileInputRef} type="file" accept="application/json" onChange={importarDatos} className="hidden" />
+            </div>
+
+            {historialMensual.length === 0 ? (
+              <p className="text-sm text-gray-500 mt-3">Aún no hay registros. Guarda el mes actual para empezar.</p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {[...historialMensual].slice().reverse().map((h) => (
+                  <li key={h.id} className="border rounded p-2 flex justify-between items-center">
+                    <div>
+                      <div className="font-medium">{h.mes}</div>
+                      <div className="text-xs text-gray-500">Guardado: {new Date(h.fechaGuardado).toLocaleString()}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => restaurarHistorial(h.id)} className="px-2 py-1 border rounded text-sm">Restaurar</button>
+                      <button onClick={() => eliminarHistorial(h.id)} className="px-2 py-1 border rounded text-sm text-red-600">Eliminar</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className="bg-white p-4 rounded shadow">
+            <h2 className="font-semibold mb-2">Resumen</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="p-3 bg-green-50 rounded">Ingresos: <div className="font-bold">{totalIngresos.toFixed(2)} €</div></div>
+              <div className="p-3 bg-red-50 rounded">Gastos: <div className="font-bold">{totalGastos.toFixed(2)} €</div></div>
+              <div className="p-3 bg-blue-50 rounded">Balance: <div className="font-bold">{saldoDisponible.toFixed(2)} €</div></div>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  }
        nombreUsuario,
        mesActual,
        ingresos,
