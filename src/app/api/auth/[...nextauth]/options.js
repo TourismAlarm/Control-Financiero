@@ -2,6 +2,7 @@ import GoogleProvider from "next-auth/providers/google"
 import { createServerClient } from '@/lib/supabase-server'
 
 export const authOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
