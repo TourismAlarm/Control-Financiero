@@ -1,5 +1,5 @@
 import GoogleProvider from "next-auth/providers/google"
-import { createBrowserClient } from '@supabase/ssr'
+import { createServerClient } from '@/lib/supabase-server'
 
 export const authOptions = {
   providers: [
@@ -14,11 +14,8 @@ export const authOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
-        // Crear cliente de Supabase
-        const supabase = createBrowserClient(
-          process.env.NEXT_PUBLIC_SUPABASE_URL,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-        )
+        // Crear cliente de Supabase para el servidor
+        const supabase = createServerClient()
 
         console.log('🔵 NextAuth signIn callback - User ID:', user.id)
 
