@@ -1,13 +1,18 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut } from 'lucide-react';
+import { useSession, signOut } from 'next-auth/react';
+import { createClient } from '@/lib/supabase';
 
 const STORAGE_KEY = 'controlFinancieroEstado';
 const HISTORY_KEY = 'controlFinancieroHistorial';
 const THEME_KEY = 'controlFinancieroTheme';
 
 export default function ControlFinanciero() {
+  console.log('🟢 COMPONENTE RENDERIZADO - ControlFinanciero montado')
+
+  const { data: session } = useSession();
   const fileInputRef = useRef(null);
 
   // Estado inicial
@@ -112,6 +117,144 @@ export default function ControlFinanciero() {
     if (typeof window === 'undefined') return;
     localStorage.setItem(THEME_KEY, darkMode ? 'dark' : 'light');
   }, [darkMode]);
+
+  // Cargar datos desde Supabase
+  useEffect(() => {
+    console.log('🟣 useEffect de CARGA desde Supabase ejecutado!')
+
+    const cargarDatos = async () => {
+      console.log('🟣 Función cargarDatos iniciada')
+      console.log('🟣 Session en carga:', session)
+
+      if (!session?.user?.id) {
+        console.log('❌ No hay sesión, saliendo de cargarDatos')
+        return
+      }
+
+      console.log('🟣 User ID para cargar:', session.user.id)
+
+      try {
+        const supabase = createClient()
+        console.log('🟣 Buscando usuario...')
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id')
+          .eq('google_id', session.user.id)
+          .single()
+
+        console.log('🟣 Usuario encontrado en carga:', userData)
+        console.log('🟣 Error en búsqueda:', userError)
+
+        if (!userData) {
+          console.log('❌ No se encontró usuario')
+          return
+        }
+
+        console.log('🟣 Buscando datos financieros...')
+        const { data: financialData, error: financialError } = await supabase
+          .from('financial_data')
+          .select('*')
+          .eq('user_id', userData.id)
+          .eq('mes_actual', mesActual)
+          .single()
+
+        console.log('🟣 Datos financieros encontrados:', financialData)
+        console.log('🟣 Error al cargar datos:', financialError)
+
+        if (financialData) {
+          console.log('✅ CARGANDO DATOS EN EL ESTADO...')
+          setNombreUsuario(financialData.nombre_usuario || '')
+          setIngresos(financialData.ingresos || [])
+          setGastosFijos(financialData.gastos_fijos || [])
+          setGastosVariables(financialData.gastos_variables || [])
+          setDeudas(financialData.deudas || [])
+          setObjetivos(financialData.objetivos || [])
+          setHistorialMensual(financialData.historial_mensual || [])
+          setMostrarBienvenida(false)
+          console.log('✅ DATOS CARGADOS EN EL ESTADO')
+        } else {
+          console.log('⚠️ No hay datos financieros para este mes')
+        }
+      } catch (error) {
+        console.error('❌ Error cargando datos:', error)
+      }
+    }
+
+    cargarDatos()
+  }, [session, mesActual])
+
+  // Guardar datos en Supabase
+  useEffect(() => {
+    console.log('🟢 useEffect de GUARDADO ejecutado!')
+    console.log('🟢 Session actual:', session)
+    console.log('🟢 NombreUsuario:', nombreUsuario)
+    console.log('🟢 Ingresos length:', ingresos.length)
+
+    // Debounce: esperar 1 segundo antes de guardar
+    const timeoutId = setTimeout(() => {
+      const guardarDatos = async () => {
+        console.log('🔵 Iniciando guardado de datos (después de debounce)...')
+        console.log('🔵 Session:', session)
+
+        if (!session?.user?.id) {
+          console.log('❌ No hay sesión de usuario')
+          return
+        }
+
+        console.log('🔵 User ID de sesión:', session.user.id)
+
+        try {
+          const supabase = createClient()
+          console.log('🔵 Buscando usuario en Supabase...')
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('id')
+            .eq('google_id', session.user.id)
+            .single()
+
+          console.log('🔵 Usuario encontrado:', userData)
+          console.log('🔵 Error al buscar usuario:', userError)
+
+          if (!userData) {
+            console.log('❌ Usuario no encontrado en Supabase')
+            return
+          }
+
+          console.log('🔵 Preparando datos para guardar...')
+          const datosAGuardar = {
+            user_id: userData.id,
+            nombre_usuario: nombreUsuario,
+            mes_actual: mesActual,
+            ingresos,
+            gastos_fijos: gastosFijos,
+            gastos_variables: gastosVariables,
+            deudas,
+            objetivos,
+            historial_mensual: historialMensual,
+            updated_at: new Date().toISOString()
+          }
+          console.log('🔵 Datos a guardar:', datosAGuardar)
+
+          console.log('🔵 Ejecutando upsert...')
+          const { data, error } = await supabase
+            .from('financial_data')
+            .upsert(datosAGuardar, {
+              onConflict: 'user_id,mes_actual'
+            })
+
+          console.log('✅ Datos guardados exitosamente:', data)
+          console.log('❌ Error al guardar:', error)
+        } catch (error) {
+          console.error('❌ Error guardando datos:', error)
+        }
+      }
+
+      guardarDatos()
+    }, 1000) // Esperar 1 segundo
+
+    // Cleanup: cancelar el timeout si el componente se desmonta o las dependencias cambian
+    return () => clearTimeout(timeoutId)
+  }, [session, nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos, historialMensual]);
 
   // Notificaciones
   const mostrarNotificacion = (mensaje, tipo = 'success') => {
@@ -340,15 +483,27 @@ export default function ControlFinanciero() {
                 <span className="font-medium">{nombreUsuario || 'Anónimo'}</span> • <span>{mesActual}</span>
               </p>
             </div>
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
-                darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? <Sun size={24} /> : <Moon size={24} />}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setDarkMode(!darkMode)}
+                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+                  darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? <Sun size={24} /> : <Moon size={24} />}
+              </button>
+              <button
+                onClick={() => signOut({ callbackUrl: '/auth/signin' })}
+                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 flex items-center gap-2 ${
+                  darkMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-red-500 text-white hover:bg-red-600'
+                }`}
+                aria-label="Cerrar sesión"
+              >
+                <LogOut size={20} />
+                <span className="text-sm font-medium">Salir</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
