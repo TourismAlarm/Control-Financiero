@@ -38,6 +38,6 @@ export default function Home() {
     return null;
   }
 
-  console.log('✅ PAGE.TSX - Renderizando ControlFinanciero')
-  return <ControlFinanciero />;
+  console.log('✅ PAGE.TSX - Renderizando ControlFinanciero con session')
+  return <ControlFinanciero session={session} />;
 }
