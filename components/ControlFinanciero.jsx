@@ -8,11 +8,11 @@ const STORAGE_KEY = 'controlFinancieroEstado';
 const HISTORY_KEY = 'controlFinancieroHistorial';
 const THEME_KEY = 'controlFinancieroTheme';
 
-export default function ControlFinanciero({ session }) {
+export default function ControlFinanciero({ user }) {
   const fileInputRef = useRef(null);
 
   // Estado inicial
-  const [nombreUsuario, setNombreUsuario] = useState('');
+  const [nombreUsuario, setNombreUsuario] = useState(user?.name || 'Anónimo');
   const [mesActual, setMesActual] = useState(
     new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
   );
@@ -338,7 +338,7 @@ export default function ControlFinanciero({ session }) {
                 💰 Control Financiero
               </h1>
               <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                <span className="font-medium">{session?.user?.name || nombreUsuario || 'Anónimo'}</span> • <span>{mesActual}</span>
+                <span className="font-medium">{user?.name || nombreUsuario}</span> • <span>{mesActual}</span>
               </p>
             </div>
             <div className="flex items-center gap-2">
