@@ -3,7 +3,9 @@
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
-import ControlFinanciero from '@/components/ControlFinanciero';
+import dynamic from 'next/dynamic';
+
+const ControlFinanciero = dynamic(() => import('../../components/ControlFinanciero'), { ssr: false });
 
 export default function Home() {
   console.log('🔵 PAGE.TSX - Componente Home renderizado')
