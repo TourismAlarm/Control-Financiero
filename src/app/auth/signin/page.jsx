@@ -3,6 +3,12 @@
 import { signIn } from 'next-auth/react';
 
 export default function SignIn() {
+  const handleLogin = () => {
+    console.log('🔵 Click en botón de login detectado');
+    console.log('🔵 Llamando a signIn("google")...');
+    signIn('google', { callbackUrl: '/' });
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-md w-full mx-4">
@@ -18,7 +24,7 @@ export default function SignIn() {
 
           <div className="space-y-4">
             <button
-              onClick={() => signIn('google', { callbackUrl: '/' })}
+              onClick={handleLogin}
               className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-200 hover:border-gray-300 text-gray-700 px-6 py-4 rounded-xl font-semibold shadow-md hover:shadow-lg transform hover:scale-105 transition-all duration-300"
             >
               <svg className="w-6 h-6" viewBox="0 0 24 24">

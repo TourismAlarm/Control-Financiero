@@ -81,15 +81,17 @@ export default function ControlFinanciero({ user }) {
   // Cargar datos de Supabase
   useEffect(() => {
     if (user?.email) {
-      loadFinancialData(user.email).then(data => {
-        if (data) {
+      loadFinancialData(user.email).then(response => {
+        if (response?.financialData) {
+          const data = response.financialData;
           setNombreUsuario(data.nombreUsuario || user?.name || 'Anónimo');
-          setMesActual(data.mesActual);
-          setIngresos(data.ingresos);
-          setGastosFijos(data.gastosFijos);
-          setGastosVariables(data.gastosVariables);
-          setDeudas(data.deudas);
-          setObjetivos(data.objetivos);
+          setMesActual(data.mes_actual || mesActual);
+          setIngresos(Array.isArray(data.ingresos) ? data.ingresos : []);
+          setGastosFijos(Array.isArray(data.gastos_fijos) ? data.gastos_fijos : []);
+          setGastosVariables(Array.isArray(data.gastos_variables) ? data.gastos_variables : []);
+          setDeudas(Array.isArray(data.deudas) ? data.deudas : []);
+          setObjetivos(Array.isArray(data.objetivos) ? data.objetivos : []);
+          setHistorialMensual(Array.isArray(response.historial) ? response.historial : []);
           setMostrarBienvenida(false);
         }
       });
