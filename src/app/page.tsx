@@ -3,7 +3,7 @@
 import { useSession } from 'next-auth/react';
 import dynamic from 'next/dynamic';
 
-const ControlFinanciero = dynamic(() => import('../../components/ControlFinanciero'), { ssr: false });
+const ControlFinanciero = dynamic(() => import('@/components/ControlFinanciero'), { ssr: false });
 
 export default function Home() {
   const { data: session, status } = useSession();
@@ -19,5 +19,5 @@ export default function Home() {
     );
   }
 
-  return <ControlFinanciero user={session?.user || null} />;
+  return <ControlFinanciero />;
 }
