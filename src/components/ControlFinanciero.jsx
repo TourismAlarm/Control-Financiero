@@ -139,28 +139,13 @@ export default function ControlFinanciero() {
 
       try {
         const supabase = createClient()
-        console.log('🟣 Buscando usuario...')
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id')
-          .eq('google_id', session.user.id)
-          .single()
-
-        console.log('🟣 Usuario encontrado en carga:', userData)
-        console.log('🟣 Error en búsqueda:', userError)
-
-        if (!userData) {
-          console.log('❌ No se encontró usuario')
-          return
-        }
-
         console.log('🟣 Buscando datos financieros...')
         const { data: financialData, error: financialError } = await supabase
           .from('financial_data')
           .select('*')
-          .eq('user_id', userData.id)
+          .eq('user_id', session.user.id)
           .eq('mes_actual', mesActual)
-          .single()
+          .maybeSingle()
 
         console.log('🟣 Datos financieros encontrados:', financialData)
         console.log('🟣 Error al cargar datos:', financialError)
@@ -214,33 +199,15 @@ export default function ControlFinanciero() {
 
         try {
           const supabase = createClient()
-          console.log('🔵 Buscando usuario en Supabase...')
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('id')
-            .eq('google_id', session.user.id)
-            .single()
-
-          console.log('🔵 Usuario encontrado:', userData)
-          console.log('🔵 Error al buscar usuario:', userError)
-
-          if (!userData) {
-            console.log('❌ Usuario no encontrado en Supabase')
-            return
-          }
-
           console.log('🔵 Preparando datos para guardar...')
           const datosAGuardar = {
-            user_id: userData.id,
-            nombre_usuario: nombreUsuario,
+            user_id: session.user.id,
             mes_actual: mesActual,
             ingresos,
             gastos_fijos: gastosFijos,
             gastos_variables: gastosVariables,
             deudas,
-            objetivos,
-            historial_mensual: historialMensual,
-            updated_at: new Date().toISOString()
+            objetivos
           }
           console.log('🔵 Datos a guardar:', datosAGuardar)
 

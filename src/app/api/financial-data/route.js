@@ -7,7 +7,7 @@ import { createServerClient } from '@/lib/supabase-server';
 export async function GET(request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
@@ -64,7 +64,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
@@ -89,7 +89,7 @@ export async function POST(request) {
         onConflict: 'user_id,mes_actual'
       })
       .select()
-      .single();
+      .maybeSingle();
 
     if (financialError) {
       console.error('Error guardando datos financieros:', financialError);
@@ -113,9 +113,9 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: financialData 
+    return NextResponse.json({
+      success: true,
+      data: financialData
     });
 
   } catch (error) {
