@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase';
 import {
   generateAmortizationTable,
   calculateRemainingBalance,
@@ -16,7 +16,7 @@ import {
  */
 export default function useLoans() {
   const { data: session } = useSession();
-  const supabase = createClientComponentClient();
+  const supabase = createClient();
 
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
