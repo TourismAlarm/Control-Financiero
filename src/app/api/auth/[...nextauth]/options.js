@@ -1,5 +1,19 @@
 import GoogleProvider from "next-auth/providers/google"
-import { createServerClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
+
+// Cliente simple de Supabase para operaciones administrativas en callbacks
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
+    }
+  )
+}
 
 export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -15,8 +29,8 @@ export const authOptions = {
   callbacks: {
     async signIn({ user, account, profile }) {
       try {
-        // Crear cliente de Supabase para el servidor
-        const supabase = createServerClient()
+        // Usar cliente admin para operaciones del servidor
+        const supabase = getSupabaseAdmin()
 
         console.log('🔵 NextAuth signIn callback - User ID:', user.id)
 
