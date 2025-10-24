@@ -1,14 +1,28 @@
 'use client';
 
 import { useSession } from 'next-auth/react';
-import dynamic from 'next/dynamic';
-
-const ControlFinanciero = dynamic(() => import('@/components/ControlFinanciero'), { ssr: false });
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import ControlFinanciero from '@/components/ControlFinanciero';
 
 export default function Home() {
+  console.log('🔵 PAGE.TSX - Componente Home renderizado')
+
   const { data: session, status } = useSession();
+  const router = useRouter();
+
+  console.log('🔵 PAGE.TSX - Status:', status)
+  console.log('🔵 PAGE.TSX - Session:', session)
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      console.log('🔴 PAGE.TSX - Usuario no autenticado, redirigiendo a signin')
+      router.push('/auth/signin');
+    }
+  }, [status, router]);
 
   if (status === 'loading') {
+    console.log('🟡 PAGE.TSX - Mostrando pantalla de carga')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <div className="text-center">
@@ -19,5 +33,11 @@ export default function Home() {
     );
   }
 
+  if (!session) {
+    console.log('🔴 PAGE.TSX - No hay sesión, retornando null')
+    return null;
+  }
+
+  console.log('✅ PAGE.TSX - Renderizando ControlFinanciero')
   return <ControlFinanciero />;
 }

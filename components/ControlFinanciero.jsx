@@ -3,17 +3,16 @@
 import { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut } from 'lucide-react';
-import { loadFinancialData, saveFinancialData } from '@/lib/financialDataSync';
 
 const STORAGE_KEY = 'controlFinancieroEstado';
 const HISTORY_KEY = 'controlFinancieroHistorial';
 const THEME_KEY = 'controlFinancieroTheme';
 
-export default function ControlFinanciero({ user }) {
+export default function ControlFinanciero({ session }) {
   const fileInputRef = useRef(null);
 
   // Estado inicial
-  const [nombreUsuario, setNombreUsuario] = useState(user?.name || 'Anónimo');
+  const [nombreUsuario, setNombreUsuario] = useState('');
   const [mesActual, setMesActual] = useState(
     new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
   );
@@ -78,62 +77,28 @@ export default function ControlFinanciero({ user }) {
     }
   }, []);
 
-  // Cargar datos de Supabase
-  useEffect(() => {
-    if (user?.email) {
-      loadFinancialData(user.email).then(response => {
-        if (response?.financialData) {
-          const data = response.financialData;
-          setNombreUsuario(data.nombreUsuario || user?.name || 'Anónimo');
-          setMesActual(data.mes_actual || mesActual);
-          setIngresos(Array.isArray(data.ingresos) ? data.ingresos : []);
-          setGastosFijos(Array.isArray(data.gastos_fijos) ? data.gastos_fijos : []);
-          setGastosVariables(Array.isArray(data.gastos_variables) ? data.gastos_variables : []);
-          setDeudas(Array.isArray(data.deudas) ? data.deudas : []);
-          setObjetivos(Array.isArray(data.objetivos) ? data.objetivos : []);
-          setHistorialMensual(Array.isArray(response.historial) ? response.historial : []);
-          setMostrarBienvenida(false);
-        }
-      });
-    }
-  }, [user]);
-
-  // Guardar datos en localStorage Y Supabase
+  // Guardar datos
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Guardar en localStorage (cache local)
     try {
       const estado = { nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
     } catch (e) {
-      console.error('Error guardando en localStorage', e);
+      console.error('Error guardando estado', e);
     }
+  }, [nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos]);
 
-    // Guardar en Supabase si hay usuario autenticado
-    if (user?.email) {
-      const timeoutId = setTimeout(async () => {
-        try {
-          await saveFinancialData({
-            email: user.email,
-            nombreUsuario,
-            mesActual,
-            ingresos,
-            gastosFijos,
-            gastosVariables,
-            deudas,
-            objetivos,
-            historialMensual
-          });
-          console.log('✅ Datos guardados en Supabase');
-        } catch (error) {
-          console.error('❌ Error guardando en Supabase:', error);
-        }
-      }, 1000);
+  // Guardar historial
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
 
-      return () => clearTimeout(timeoutId);
+    try {
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(historialMensual));
+    } catch (e) {
+      console.error('Error guardando historial', e);
     }
-  }, [user, nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos, historialMensual]);
+  }, [historialMensual]);
 
   // Cargar y guardar tema
   useEffect(() => {
@@ -373,7 +338,7 @@ export default function ControlFinanciero({ user }) {
                 💰 Control Financiero
               </h1>
               <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                <span className="font-medium">{user?.name || nombreUsuario}</span> • <span>{mesActual}</span>
+                <span className="font-medium">{session?.user?.name || nombreUsuario || 'Anónimo'}</span> • <span>{mesActual}</span>
               </p>
             </div>
             <div className="flex items-center gap-2">
