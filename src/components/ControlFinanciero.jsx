@@ -33,7 +33,7 @@ export default function ControlFinanciero() {
 
   // Datos principales
   const [ingresos, setIngresos] = useState([]);
-  const [nuevoIngreso, setNuevoIngreso] = useState({ concepto: '', monto: '', tipo: 'Fijo' });
+  const [nuevoIngreso, setNuevoIngreso] = useState({ concepto: '', monto: '', tipo: 'Fijo', fecha: new Date().toISOString().split('T')[0] });
 
   const [gastosFijos, setGastosFijos] = useState([]);
   const [nuevoGastoFijo, setNuevoGastoFijo] = useState({ concepto: '', monto: '' });
@@ -42,10 +42,17 @@ export default function ControlFinanciero() {
   const [nuevoGastoVariable, setNuevoGastoVariable] = useState({ concepto: '', monto: '', fecha: new Date().toISOString().split('T')[0] });
 
   const [deudas, setDeudas] = useState([]);
-  const [nuevaDeuda, setNuevaDeuda] = useState({ nombre: '', monto: '' });
+  const [nuevaDeuda, setNuevaDeuda] = useState({
+    nombre: '',
+    montoTotal: '',
+    plazoMeses: '',
+    cuotaMensual: '',
+    pagadoEsteMes: 0,
+    totalPagado: 0
+  });
 
-  const [objetivos, setObjetivos] = useState([]);
-  const [nuevoObjetivo, setNuevoObjetivo] = useState({ nombre: '', meta: '', actual: '' });
+  const [cuentasAhorro, setCuentasAhorro] = useState([]);
+  const [nuevaCuentaAhorro, setNuevaCuentaAhorro] = useState({ nombre: '', saldo: '' });
 
   const [historialMensual, setHistorialMensual] = useState([]);
   const [mostrarBienvenida, setMostrarBienvenida] = useState(true);
@@ -64,10 +71,10 @@ export default function ControlFinanciero() {
         setGastosFijos(Array.isArray(parsed.gastosFijos) ? parsed.gastosFijos : []);
         setGastosVariables(Array.isArray(parsed.gastosVariables) ? parsed.gastosVariables : []);
         setDeudas(Array.isArray(parsed.deudas) ? parsed.deudas : []);
-        setObjetivos(Array.isArray(parsed.objetivos) ? parsed.objetivos : []);
+        setCuentasAhorro(Array.isArray(parsed.cuentasAhorro) ? parsed.cuentasAhorro : Array.isArray(parsed.objetivos) ? parsed.objetivos : []);
 
         if (
-          [parsed.ingresos, parsed.gastosFijos, parsed.gastosVariables, parsed.deudas, parsed.objetivos].some(
+          [parsed.ingresos, parsed.gastosFijos, parsed.gastosVariables, parsed.deudas, parsed.cuentasAhorro, parsed.objetivos].some(
             (l) => Array.isArray(l) && l.length > 0
           )
         ) {
@@ -90,12 +97,12 @@ export default function ControlFinanciero() {
     if (typeof window === 'undefined') return;
 
     try {
-      const estado = { nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos };
+      const estado = { nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, cuentasAhorro };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
     } catch (e) {
       console.error('Error guardando estado', e);
     }
-  }, [nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos]);
+  }, [nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, cuentasAhorro]);
 
   // Guardar historial
   useEffect(() => {
@@ -157,7 +164,7 @@ export default function ControlFinanciero() {
           setGastosFijos(financialData.gastos_fijos || [])
           setGastosVariables(financialData.gastos_variables || [])
           setDeudas(financialData.deudas || [])
-          setObjetivos(financialData.objetivos || [])
+          setCuentasAhorro(financialData.cuentas_ahorro || financialData.objetivos || [])
           setHistorialMensual(financialData.historial_mensual || [])
           setMostrarBienvenida(false)
           console.log('✅ DATOS CARGADOS EN EL ESTADO')
@@ -207,7 +214,7 @@ export default function ControlFinanciero() {
             gastos_fijos: gastosFijos,
             gastos_variables: gastosVariables,
             deudas,
-            objetivos
+            cuentas_ahorro: cuentasAhorro
           }
           console.log('🔵 Datos a guardar:', datosAGuardar)
 
@@ -218,8 +225,22 @@ export default function ControlFinanciero() {
               onConflict: 'user_id,mes_actual'
             })
 
-          console.log('✅ Datos guardados exitosamente:', data)
-          console.log('❌ Error al guardar:', error)
+          if (error) {
+            console.error('❌❌❌ ERROR AL GUARDAR EN SUPABASE ❌❌❌')
+            console.error('❌ Error code:', error.code)
+            console.error('❌ Error message:', error.message)
+            console.error('❌ Error details:', error.details)
+            console.error('❌ Error hint:', error.hint)
+            console.error('❌ Full error object:', JSON.stringify(error, null, 2))
+
+            // Mostrar notificación al usuario
+            if (typeof mostrarNotificacion === 'function') {
+              mostrarNotificacion(`Error guardando: ${error.message}`, 'error')
+            }
+          } else {
+            console.log('✅✅✅ DATOS GUARDADOS EXITOSAMENTE EN SUPABASE ✅✅✅')
+            console.log('✅ Data response:', data)
+          }
         } catch (error) {
           console.error('❌ Error guardando datos:', error)
         }
@@ -230,7 +251,7 @@ export default function ControlFinanciero() {
 
     // Cleanup: cancelar el timeout si el componente se desmonta o las dependencias cambian
     return () => clearTimeout(timeoutId)
-  }, [session, nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos, historialMensual]);
+  }, [session, nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, cuentasAhorro, historialMensual]);
 
   // Notificaciones
   const mostrarNotificacion = (mensaje, tipo = 'success') => {
@@ -243,7 +264,8 @@ export default function ControlFinanciero() {
   const totalGastosFijos = gastosFijos.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
   const totalGastosVariables = gastosVariables.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
   const totalGastos = totalGastosFijos + totalGastosVariables;
-  const totalDeudas = deudas.reduce((s, d) => s + (parseFloat(d.monto) || 0), 0);
+  const totalDeudas = deudas.reduce((s, d) => s + ((parseFloat(d.montoTotal) || parseFloat(d.monto) || 0) - (parseFloat(d.totalPagado) || 0)), 0);
+  const totalAhorros = cuentasAhorro.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
   const saldoDisponible = totalIngresos - totalGastos;
 
   // CRUD - ingresos simple
@@ -252,9 +274,9 @@ export default function ControlFinanciero() {
     const monto = parseFloat(nuevoIngreso.monto);
     if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
 
-    const nuevo = { id: Date.now(), concepto: nuevoIngreso.concepto, monto, tipo: nuevoIngreso.tipo };
+    const nuevo = { id: Date.now(), concepto: nuevoIngreso.concepto, monto, tipo: nuevoIngreso.tipo, fecha: nuevoIngreso.fecha };
     setIngresos((p) => [...p, nuevo]);
-    setNuevoIngreso({ concepto: '', monto: '', tipo: 'Fijo' });
+    setNuevoIngreso({ concepto: '', monto: '', tipo: 'Fijo', fecha: new Date().toISOString().split('T')[0] });
     setMostrarBienvenida(false);
     mostrarNotificacion('Ingreso añadido', 'success');
   };
@@ -300,13 +322,25 @@ export default function ControlFinanciero() {
 
   // CRUD - deudas
   const añadirDeuda = () => {
-    if (!nuevaDeuda.nombre || !nuevaDeuda.monto) return mostrarNotificacion('Completa nombre y monto', 'error');
-    const monto = parseFloat(nuevaDeuda.monto);
-    if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
+    if (!nuevaDeuda.nombre || !nuevaDeuda.montoTotal) return mostrarNotificacion('Completa nombre y monto total', 'error');
+    const montoTotal = parseFloat(nuevaDeuda.montoTotal);
+    const plazoMeses = parseInt(nuevaDeuda.plazoMeses) || 1;
+    const cuotaMensual = parseFloat(nuevaDeuda.cuotaMensual) || (montoTotal / plazoMeses);
 
-    const nuevo = { id: Date.now(), nombre: nuevaDeuda.nombre, monto };
+    if (Number.isNaN(montoTotal) || montoTotal <= 0) return mostrarNotificacion('Monto inválido', 'error');
+    if (plazoMeses <= 0) return mostrarNotificacion('Plazo inválido', 'error');
+
+    const nuevo = {
+      id: Date.now(),
+      nombre: nuevaDeuda.nombre,
+      montoTotal,
+      plazoMeses,
+      cuotaMensual,
+      pagadoEsteMes: 0,
+      totalPagado: 0
+    };
     setDeudas((p) => [...p, nuevo]);
-    setNuevaDeuda({ nombre: '', monto: '' });
+    setNuevaDeuda({ nombre: '', montoTotal: '', plazoMeses: '', cuotaMensual: '', pagadoEsteMes: 0, totalPagado: 0 });
     mostrarNotificacion('Deuda añadida', 'success');
   };
 
@@ -315,22 +349,37 @@ export default function ControlFinanciero() {
     mostrarNotificacion('Deuda eliminada', 'info');
   };
 
-  // CRUD - objetivos
-  const añadirObjetivo = () => {
-    if (!nuevoObjetivo.nombre || !nuevoObjetivo.meta) return mostrarNotificacion('Completa nombre y meta', 'error');
-    const meta = parseFloat(nuevoObjetivo.meta);
-    const actual = parseFloat(nuevoObjetivo.actual) || 0;
-    if (Number.isNaN(meta) || meta <= 0) return mostrarNotificacion('Meta inválida', 'error');
-
-    const nuevo = { id: Date.now(), nombre: nuevoObjetivo.nombre, meta, actual };
-    setObjetivos((p) => [...p, nuevo]);
-    setNuevoObjetivo({ nombre: '', meta: '', actual: '' });
-    mostrarNotificacion('Objetivo añadido', 'success');
+  const registrarPagoDeuda = (id, montoPagado) => {
+    setDeudas((p) => p.map((d) => {
+      if (d.id === id) {
+        const nuevoTotal = (d.totalPagado || 0) + montoPagado;
+        return { ...d, totalPagado: nuevoTotal, pagadoEsteMes: montoPagado };
+      }
+      return d;
+    }));
+    mostrarNotificacion('Pago registrado', 'success');
   };
 
-  const eliminarObjetivo = (id) => {
-    setObjetivos((p) => p.filter((o) => o.id !== id));
-    mostrarNotificacion('Objetivo eliminado', 'info');
+  // CRUD - cuentas de ahorro
+  const añadirCuentaAhorro = () => {
+    if (!nuevaCuentaAhorro.nombre || !nuevaCuentaAhorro.saldo) return mostrarNotificacion('Completa nombre y saldo', 'error');
+    const saldo = parseFloat(nuevaCuentaAhorro.saldo);
+    if (Number.isNaN(saldo) || saldo < 0) return mostrarNotificacion('Saldo inválido', 'error');
+
+    const nuevo = { id: Date.now(), nombre: nuevaCuentaAhorro.nombre, saldo };
+    setCuentasAhorro((p) => [...p, nuevo]);
+    setNuevaCuentaAhorro({ nombre: '', saldo: '' });
+    mostrarNotificacion('Cuenta de ahorro añadida', 'success');
+  };
+
+  const eliminarCuentaAhorro = (id) => {
+    setCuentasAhorro((p) => p.filter((c) => c.id !== id));
+    mostrarNotificacion('Cuenta eliminada', 'info');
+  };
+
+  const actualizarSaldoCuenta = (id, nuevoSaldo) => {
+    setCuentasAhorro((p) => p.map((c) => c.id === id ? { ...c, saldo: parseFloat(nuevoSaldo) } : c));
+    mostrarNotificacion('Saldo actualizado', 'success');
   };
 
   // Export / Import
@@ -374,7 +423,7 @@ export default function ControlFinanciero() {
         setGastosFijos(Array.isArray(datos.gastosFijos) ? datos.gastosFijos : []);
         setGastosVariables(Array.isArray(datos.gastosVariables) ? datos.gastosVariables : []);
         setDeudas(Array.isArray(datos.deudas) ? datos.deudas : []);
-        setObjetivos(Array.isArray(datos.objetivos) ? datos.objetivos : []);
+        setCuentasAhorro(Array.isArray(datos.cuentasAhorro) ? datos.cuentasAhorro : Array.isArray(datos.objetivos) ? datos.objetivos : []);
         setHistorialMensual(Array.isArray(datos.historialMensual) ? datos.historialMensual : []);
         mostrarNotificacion('Datos importados', 'success');
         setMostrarBienvenida(false);
@@ -395,7 +444,7 @@ export default function ControlFinanciero() {
     gastosFijos: gastosFijos.map((g) => ({ ...g })),
     gastosVariables: gastosVariables.map((g) => ({ ...g })),
     deudas: deudas.map((d) => ({ ...d })),
-    objetivos: objetivos.map((o) => ({ ...o })),
+    cuentasAhorro: cuentasAhorro.map((c) => ({ ...c })),
     totales: { totalIngresos, totalGastos, saldoDisponible },
   });
 
@@ -426,7 +475,7 @@ export default function ControlFinanciero() {
     setGastosFijos(Array.isArray(reg.gastosFijos) ? reg.gastosFijos : []);
     setGastosVariables(Array.isArray(reg.gastosVariables) ? reg.gastosVariables : []);
     setDeudas(Array.isArray(reg.deudas) ? reg.deudas : []);
-    setObjetivos(Array.isArray(reg.objetivos) ? reg.objetivos : []);
+    setCuentasAhorro(Array.isArray(reg.cuentasAhorro) ? reg.cuentasAhorro : Array.isArray(reg.objetivos) ? reg.objetivos : []);
     setMostrarBienvenida(false);
     mostrarNotificacion(`Datos de ${reg.mes} restaurados`, 'success');
   };
@@ -571,6 +620,17 @@ export default function ControlFinanciero() {
                   : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
               }`}
             />
+            <input
+              aria-label="fecha"
+              type="date"
+              value={nuevoIngreso.fecha}
+              onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, fecha: e.target.value })}
+              className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+              }`}
+            />
             <button
               onClick={añadirIngreso}
               className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300"
@@ -590,7 +650,9 @@ export default function ControlFinanciero() {
                 <li key={i.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                   <div>
                     <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{i.concepto}</div>
-                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{i.tipo}</div>
+                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {i.tipo} {i.fecha && `• ${new Date(i.fecha).toLocaleDateString('es-ES')}`}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className={`font-bold text-lg ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{(i.monto || 0).toFixed(2)} €</div>
@@ -609,24 +671,6 @@ export default function ControlFinanciero() {
 
         <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📅 Historial mensual</h2>
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={guardarHistorial}
-              className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300"
-            >
-              <Save size={18} /> Guardar mes
-            </button>
-            <button onClick={exportarDatos} className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
-              <Download size={18} /> Exportar
-            </button>
-            <button
-              onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              className={`px-4 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-900'}`}
-            >
-              <Upload size={18} /> Importar
-            </button>
-            <input ref={fileInputRef} type="file" accept="application/json" onChange={importarDatos} className="hidden" />
-          </div>
 
           {historialMensual.length === 0 ? (
             <p className={`text-sm mt-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Aún no hay registros. Guarda el mes actual para empezar.</p>
@@ -780,9 +824,19 @@ export default function ControlFinanciero() {
               }`}
             />
             <input
-              placeholder="Monto"
-              value={nuevaDeuda.monto}
-              onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, monto: e.target.value })}
+              placeholder="Monto Total"
+              value={nuevaDeuda.montoTotal}
+              onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, montoTotal: e.target.value })}
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                  : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+              }`}
+            />
+            <input
+              placeholder="Plazo (meses)"
+              value={nuevaDeuda.plazoMeses}
+              onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, plazoMeses: e.target.value })}
               className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                 darkMode
                   ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
@@ -817,12 +871,12 @@ export default function ControlFinanciero() {
 
         {/* Objetivos */}
         <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🎯 Objetivos de Ahorro</h2>
+          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Mis Ahorros</h2>
           <div className="flex gap-3 flex-wrap mb-4">
             <input
-              placeholder="Nombre del objetivo"
-              value={nuevoObjetivo.nombre}
-              onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, nombre: e.target.value })}
+              placeholder="Nombre de la cuenta"
+              value={nuevaCuentaAhorro.nombre}
+              onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, nombre: e.target.value })}
               className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                 darkMode
                   ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
@@ -830,58 +884,36 @@ export default function ControlFinanciero() {
               }`}
             />
             <input
-              placeholder="Meta"
-              value={nuevoObjetivo.meta}
-              onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, meta: e.target.value })}
+              placeholder="Saldo"
+              value={nuevaCuentaAhorro.saldo}
+              onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, saldo: e.target.value })}
               className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                 darkMode
                   ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
                   : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
               }`}
             />
-            <input
-              placeholder="Actual"
-              value={nuevoObjetivo.actual}
-              onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, actual: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
-                  : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
-              }`}
-            />
-            <button onClick={añadirObjetivo} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+            <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
               <Plus size={20} /> Añadir
             </button>
           </div>
-          {objetivos.length === 0 ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay objetivos de ahorro.</p>
+          {cuentasAhorro.length === 0 ? (
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay cuentas de ahorro registradas.</p>
           ) : (
             <ul className="space-y-4">
-              {objetivos.map((o) => {
-                const progreso = (o.actual / o.meta) * 100;
-                return (
-                  <li key={o.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                    <div className="flex justify-between items-center mb-3">
-                      <div className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{o.nombre}</div>
-                      <div className="flex items-center gap-3">
-                        <div className={`text-sm font-medium ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                          {o.actual.toFixed(2)} / {o.meta.toFixed(2)} €
-                        </div>
-                        <button onClick={() => eliminarObjetivo(o.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+              {cuentasAhorro.map((c) => (
+                <li key={c.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
+                  <div className="flex items-center gap-3">
+                    <div className={`font-bold text-lg ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                      {(c.saldo || 0).toFixed(2)} €
                     </div>
-                    <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                      <div
-                        className="bg-gradient-to-r from-teal-500 to-teal-600 h-3 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${Math.min(progreso, 100)}%` }}
-                      />
-                    </div>
-                    <div className={`text-sm mt-2 font-medium ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>{progreso.toFixed(0)}% completado</div>
-                  </li>
-                );
-              })}
+                    <button onClick={() => eliminarCuentaAhorro(c.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </li>
+              ))}
             </ul>
           )}
         </section>
@@ -1092,9 +1124,19 @@ export default function ControlFinanciero() {
                 }`}
               />
               <input
-                placeholder="Monto"
-                value={nuevaDeuda.monto}
-                onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, monto: e.target.value })}
+                placeholder="Monto Total"
+                value={nuevaDeuda.montoTotal}
+                onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, montoTotal: e.target.value })}
+                className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                  darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                    : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
+                }`}
+              />
+              <input
+                placeholder="Plazo (meses)"
+                value={nuevaDeuda.plazoMeses}
+                onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, plazoMeses: e.target.value })}
                 className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
                     ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
@@ -1128,15 +1170,15 @@ export default function ControlFinanciero() {
           </section>
         )}
 
-        {/* Vista: Objetivos */}
+        {/* Vista: Mis Ahorros */}
         {vistaActiva === 'objetivos' && (
           <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🎯 Objetivos de Ahorro</h2>
+            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Mis Ahorros</h2>
             <div className="flex gap-3 flex-wrap mb-4">
               <input
-                placeholder="Nombre del objetivo"
-                value={nuevoObjetivo.nombre}
-                onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, nombre: e.target.value })}
+                placeholder="Nombre de la cuenta"
+                value={nuevaCuentaAhorro.nombre}
+                onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, nombre: e.target.value })}
                 className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
                     ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
@@ -1144,60 +1186,41 @@ export default function ControlFinanciero() {
                 }`}
               />
               <input
-                placeholder="Meta"
-                value={nuevoObjetivo.meta}
-                onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, meta: e.target.value })}
+                placeholder="Saldo"
+                value={nuevaCuentaAhorro.saldo}
+                onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, saldo: e.target.value })}
                 className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
                     ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
                     : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
                 }`}
               />
-              <input
-                placeholder="Actual"
-                value={nuevoObjetivo.actual}
-                onChange={(e) => setNuevoObjetivo({ ...nuevoObjetivo, actual: e.target.value })}
-                className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
-                    : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
-                }`}
-              />
-              <button onClick={añadirObjetivo} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
                 <Plus size={20} /> Añadir
               </button>
             </div>
-            {objetivos.length === 0 ? (
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay objetivos de ahorro.</p>
+            {cuentasAhorro.length === 0 ? (
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay cuentas de ahorro registradas.</p>
             ) : (
-              <ul className="space-y-4">
-                {objetivos.map((o) => {
-                  const progreso = (o.actual / o.meta) * 100;
-                  return (
-                    <li key={o.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <div className={`font-medium text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{o.nombre}</div>
-                        <div className="flex items-center gap-3">
-                          <div className={`text-sm font-medium ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                            {o.actual.toFixed(2)} / {o.meta.toFixed(2)} €
-                          </div>
-                          <button onClick={() => eliminarObjetivo(o.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
+              <ul className="space-y-3">
+                {cuentasAhorro.map((c) => (
+                  <li key={c.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
+                    <div className="flex items-center gap-3">
+                      <div className={`font-bold text-lg ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                        {(c.saldo || 0).toFixed(2)} €
                       </div>
-                      <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                        <div
-                          className="bg-gradient-to-r from-teal-500 to-teal-600 h-3 rounded-full transition-all duration-500 ease-out"
-                          style={{ width: `${Math.min(progreso, 100)}%` }}
-                        />
-                      </div>
-                      <div className={`text-sm mt-2 font-medium ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>{progreso.toFixed(0)}% completado</div>
-                    </li>
-                  );
-                })}
+                      <button onClick={() => eliminarCuentaAhorro(c.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
               </ul>
             )}
+            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+              Total ahorros: <strong className={darkMode ? 'text-teal-400' : 'text-teal-600'}>{totalAhorros.toFixed(2)} €</strong>
+            </div>
           </section>
         )}
 
