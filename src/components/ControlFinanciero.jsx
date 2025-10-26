@@ -351,15 +351,28 @@ export default function ControlFinanciero() {
   };
 
   const registrarPagoDeuda = (id) => {
+    const deuda = deudas.find(d => d.id === id);
+    if (!deuda) return;
+
+    const cuotaMensual = deuda.cuotaMensual || ((deuda.montoTotal || 0) / (deuda.plazoMeses || 1));
+    const cantidad = prompt(`¿Cuánto vas a pagar? (Cuota mensual: ${cuotaMensual.toFixed(2)}€)`);
+
+    if (!cantidad || cantidad.trim() === '') return;
+
+    const montoPagar = parseFloat(cantidad);
+    if (isNaN(montoPagar) || montoPagar <= 0) {
+      mostrarNotificacion('Cantidad inválida', 'error');
+      return;
+    }
+
     setDeudas((p) => p.map((d) => {
       if (d.id === id) {
-        const montoPagado = d.cuotaMensual || 0;
-        const nuevoTotal = parseFloat(((d.totalPagado || 0) + montoPagado).toFixed(2));
-        return { ...d, totalPagado: nuevoTotal, pagadoEsteMes: montoPagado };
+        const nuevoTotal = parseFloat(((d.totalPagado || 0) + montoPagar).toFixed(2));
+        return { ...d, totalPagado: nuevoTotal, pagadoEsteMes: montoPagar };
       }
       return d;
     }));
-    mostrarNotificacion('Pago de cuota registrado', 'success');
+    mostrarNotificacion(`Pago de ${montoPagar.toFixed(2)}€ registrado`, 'success');
   };
 
   // CRUD - cuentas de ahorro
@@ -398,10 +411,24 @@ export default function ControlFinanciero() {
   };
 
   const retirarDineroCuenta = (id) => {
+    const cuenta = cuentasAhorro.find(c => c.id === id);
+    if (!cuenta) return;
+
     const cantidad = prompt('¿Cuánto dinero quieres retirar?');
-    if (cantidad && !isNaN(cantidad) && parseFloat(cantidad) > 0) {
-      actualizarSaldoCuenta(id, -parseFloat(cantidad));
+    if (!cantidad || cantidad.trim() === '') return;
+
+    const montoRetirar = parseFloat(cantidad);
+    if (isNaN(montoRetirar) || montoRetirar <= 0) {
+      mostrarNotificacion('Cantidad inválida', 'error');
+      return;
     }
+
+    if (montoRetirar > cuenta.saldo) {
+      mostrarNotificacion('No puedes retirar más del saldo disponible', 'error');
+      return;
+    }
+
+    actualizarSaldoCuenta(id, -montoRetirar);
   };
 
   // Export / Import
@@ -826,6 +853,51 @@ export default function ControlFinanciero() {
               ))}
             </ul>
           )}
+
+          {/* Tabla de resumen por concepto */}
+          {gastosVariables.length > 0 && (
+            <div className="mt-6">
+              <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Concepto</h3>
+              <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                <table className="w-full">
+                  <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                    <tr>
+                      <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Concepto</th>
+                      <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</th>
+                      <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
+                    </tr>
+                  </thead>
+                  <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
+                    {(() => {
+                      const conceptos = {};
+                      gastosVariables.forEach(g => {
+                        const concepto = g.concepto || 'Sin concepto';
+                        conceptos[concepto] = (conceptos[concepto] || 0) + (parseFloat(g.monto) || 0);
+                      });
+
+                      return Object.entries(conceptos)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([concepto, total]) => {
+                          const porcentaje = totalGastosVariables > 0 ? (total / totalGastosVariables) * 100 : 0;
+                          return (
+                            <tr key={concepto} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                              <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{concepto}</td>
+                              <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                {total.toFixed(2)}€
+                              </td>
+                              <td className={`px-4 py-3 text-right ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {porcentaje.toFixed(1)}%
+                              </td>
+                            </tr>
+                          );
+                        });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
             Total gastos variables: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
           </div>
@@ -928,7 +1000,7 @@ export default function ControlFinanciero() {
                           onClick={() => registrarPagoDeuda(d.id)}
                           className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
                         >
-                          <DollarSign size={18} /> Pagar Cuota
+                          <DollarSign size={18} /> Registrar Pago
                         </button>
                       )}
                     </div>
@@ -1197,6 +1269,51 @@ export default function ControlFinanciero() {
                 ))}
               </ul>
             )}
+
+            {/* Tabla de resumen por concepto */}
+            {gastosVariables.length > 0 && (
+              <div className="mt-6">
+                <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Concepto</h3>
+                <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                  <table className="w-full">
+                    <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                      <tr>
+                        <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Concepto</th>
+                        <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</th>
+                        <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
+                      </tr>
+                    </thead>
+                    <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
+                      {(() => {
+                        const conceptos = {};
+                        gastosVariables.forEach(g => {
+                          const concepto = g.concepto || 'Sin concepto';
+                          conceptos[concepto] = (conceptos[concepto] || 0) + (parseFloat(g.monto) || 0);
+                        });
+
+                        return Object.entries(conceptos)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([concepto, total]) => {
+                            const porcentaje = totalGastosVariables > 0 ? (total / totalGastosVariables) * 100 : 0;
+                            return (
+                              <tr key={concepto} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{concepto}</td>
+                                <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                  {total.toFixed(2)}€
+                                </td>
+                                <td className={`px-4 py-3 text-right ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  {porcentaje.toFixed(1)}%
+                                </td>
+                              </tr>
+                            );
+                          });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
               Total gastos diarios: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
             </div>
@@ -1245,18 +1362,69 @@ export default function ControlFinanciero() {
             {deudas.length === 0 ? (
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay deudas registradas.</p>
             ) : (
-              <ul className="space-y-3">
-                {deudas.map((d) => (
-                  <li key={d.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
-                    <div className="flex items-center gap-3">
-                      <div className={`font-bold text-lg ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{(d.monto || 0).toFixed(2)} €</div>
-                      <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
+              <ul className="space-y-4">
+                {deudas.map((d) => {
+                  const montoTotal = d.montoTotal || d.monto || 0;
+                  const totalPagado = d.totalPagado || 0;
+                  const restante = montoTotal - totalPagado;
+                  const progreso = montoTotal > 0 ? (totalPagado / montoTotal) * 100 : 0;
+                  const cuotaMensual = d.cuotaMensual || (montoTotal / (d.plazoMeses || 1));
+
+                  return (
+                    <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
+                          <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            Cuota: <span className="font-semibold">{cuotaMensual.toFixed(2)}€/mes</span> •
+                            {d.plazoMeses && ` ${d.plazoMeses} meses`}
+                          </div>
+                        </div>
+                        <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+
+                      <div className="mb-3">
+                        <div className="flex justify-between text-sm mb-2">
+                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progreso</span>
+                          <span className={`font-semibold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                            {progreso.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                          <div
+                            className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(progreso, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <div className="text-sm">
+                          <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Total: <span className={`font-bold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{montoTotal.toFixed(2)}€</span>
+                          </div>
+                          <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Pagado: <span className="font-semibold">{totalPagado.toFixed(2)}€</span>
+                          </div>
+                          <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                            Restante: <span className={`font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{restante.toFixed(2)}€</span>
+                          </div>
+                        </div>
+
+                        {restante > 0 && (
+                          <button
+                            onClick={() => registrarPagoDeuda(d.id)}
+                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                          >
+                            <DollarSign size={18} /> Registrar Pago
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
             <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
