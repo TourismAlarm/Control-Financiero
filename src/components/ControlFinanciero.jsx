@@ -325,7 +325,8 @@ export default function ControlFinanciero() {
     if (!nuevaDeuda.nombre || !nuevaDeuda.montoTotal) return mostrarNotificacion('Completa nombre y monto total', 'error');
     const montoTotal = parseFloat(nuevaDeuda.montoTotal);
     const plazoMeses = parseInt(nuevaDeuda.plazoMeses) || 1;
-    const cuotaMensual = parseFloat(nuevaDeuda.cuotaMensual) || (montoTotal / plazoMeses);
+    // Redondear cuota mensual a 2 decimales
+    const cuotaMensual = parseFloat(nuevaDeuda.cuotaMensual) || parseFloat((montoTotal / plazoMeses).toFixed(2));
 
     if (Number.isNaN(montoTotal) || montoTotal <= 0) return mostrarNotificacion('Monto inválido', 'error');
     if (plazoMeses <= 0) return mostrarNotificacion('Plazo inválido', 'error');
@@ -349,15 +350,16 @@ export default function ControlFinanciero() {
     mostrarNotificacion('Deuda eliminada', 'info');
   };
 
-  const registrarPagoDeuda = (id, montoPagado) => {
+  const registrarPagoDeuda = (id) => {
     setDeudas((p) => p.map((d) => {
       if (d.id === id) {
-        const nuevoTotal = (d.totalPagado || 0) + montoPagado;
+        const montoPagado = d.cuotaMensual || 0;
+        const nuevoTotal = parseFloat(((d.totalPagado || 0) + montoPagado).toFixed(2));
         return { ...d, totalPagado: nuevoTotal, pagadoEsteMes: montoPagado };
       }
       return d;
     }));
-    mostrarNotificacion('Pago registrado', 'success');
+    mostrarNotificacion('Pago de cuota registrado', 'success');
   };
 
   // CRUD - cuentas de ahorro
@@ -377,9 +379,29 @@ export default function ControlFinanciero() {
     mostrarNotificacion('Cuenta eliminada', 'info');
   };
 
-  const actualizarSaldoCuenta = (id, nuevoSaldo) => {
-    setCuentasAhorro((p) => p.map((c) => c.id === id ? { ...c, saldo: parseFloat(nuevoSaldo) } : c));
-    mostrarNotificacion('Saldo actualizado', 'success');
+  const actualizarSaldoCuenta = (id, incremento) => {
+    setCuentasAhorro((p) => p.map((c) => {
+      if (c.id === id) {
+        const nuevoSaldo = parseFloat(((c.saldo || 0) + incremento).toFixed(2));
+        return { ...c, saldo: nuevoSaldo };
+      }
+      return c;
+    }));
+    mostrarNotificacion(incremento > 0 ? 'Dinero añadido' : 'Dinero retirado', 'success');
+  };
+
+  const añadirDineroCuenta = (id) => {
+    const cantidad = prompt('¿Cuánto dinero quieres añadir?');
+    if (cantidad && !isNaN(cantidad) && parseFloat(cantidad) > 0) {
+      actualizarSaldoCuenta(id, parseFloat(cantidad));
+    }
+  };
+
+  const retirarDineroCuenta = (id) => {
+    const cantidad = prompt('¿Cuánto dinero quieres retirar?');
+    if (cantidad && !isNaN(cantidad) && parseFloat(cantidad) > 0) {
+      actualizarSaldoCuenta(id, -parseFloat(cantidad));
+    }
   };
 
   // Export / Import
@@ -850,18 +872,69 @@ export default function ControlFinanciero() {
           {deudas.length === 0 ? (
             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay deudas registradas.</p>
           ) : (
-            <ul className="space-y-3">
-              {deudas.map((d) => (
-                <li key={d.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
-                  <div className="flex items-center gap-3">
-                    <div className={`font-bold text-lg ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{(d.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </li>
-              ))}
+            <ul className="space-y-4">
+              {deudas.map((d) => {
+                const montoTotal = d.montoTotal || d.monto || 0;
+                const totalPagado = d.totalPagado || 0;
+                const restante = montoTotal - totalPagado;
+                const progreso = montoTotal > 0 ? (totalPagado / montoTotal) * 100 : 0;
+                const cuotaMensual = d.cuotaMensual || (montoTotal / (d.plazoMeses || 1));
+
+                return (
+                  <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
+                        <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          Cuota: <span className="font-semibold">{cuotaMensual.toFixed(2)}€/mes</span> •
+                          {d.plazoMeses && ` ${d.plazoMeses} meses`}
+                        </div>
+                      </div>
+                      <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+
+                    <div className="mb-3">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progreso</span>
+                        <span className={`font-semibold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                          {progreso.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                        <div
+                          className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(progreso, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center">
+                      <div className="text-sm">
+                        <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Total: <span className={`font-bold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{montoTotal.toFixed(2)}€</span>
+                        </div>
+                        <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Pagado: <span className="font-semibold">{totalPagado.toFixed(2)}€</span>
+                        </div>
+                        <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                          Restante: <span className={`font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{restante.toFixed(2)}€</span>
+                        </div>
+                      </div>
+
+                      {restante > 0 && (
+                        <button
+                          onClick={() => registrarPagoDeuda(d.id)}
+                          className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                        >
+                          <DollarSign size={18} /> Pagar Cuota
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
@@ -902,20 +975,42 @@ export default function ControlFinanciero() {
           ) : (
             <ul className="space-y-4">
               {cuentasAhorro.map((c) => (
-                <li key={c.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
-                  <div className="flex items-center gap-3">
-                    <div className={`font-bold text-lg ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                      {(c.saldo || 0).toFixed(2)} €
+                <li key={c.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
+                      <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cuenta de ahorro</div>
                     </div>
                     <button onClick={() => eliminarCuentaAhorro(c.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
                       <Trash2 size={18} />
+                    </button>
+                  </div>
+
+                  <div className={`text-3xl font-bold mb-4 ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                    {(c.saldo || 0).toFixed(2)} €
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => añadirDineroCuenta(c.id)}
+                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                    >
+                      <Plus size={18} /> Añadir
+                    </button>
+                    <button
+                      onClick={() => retirarDineroCuenta(c.id)}
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                    >
+                      <Download size={18} /> Retirar
                     </button>
                   </div>
                 </li>
               ))}
             </ul>
           )}
+          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            Total ahorros: <strong className={darkMode ? 'text-teal-400' : 'text-teal-600'}>{totalAhorros.toFixed(2)} €</strong>
+          </div>
         </section>
           </>
         )}
@@ -1202,16 +1297,35 @@ export default function ControlFinanciero() {
             {cuentasAhorro.length === 0 ? (
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay cuentas de ahorro registradas.</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="space-y-4">
                 {cuentasAhorro.map((c) => (
-                  <li key={c.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
-                    <div className="flex items-center gap-3">
-                      <div className={`font-bold text-lg ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                        {(c.saldo || 0).toFixed(2)} €
+                  <li key={c.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
+                        <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cuenta de ahorro</div>
                       </div>
                       <button onClick={() => eliminarCuentaAhorro(c.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
                         <Trash2 size={18} />
+                      </button>
+                    </div>
+
+                    <div className={`text-3xl font-bold mb-4 ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
+                      {(c.saldo || 0).toFixed(2)} €
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => añadirDineroCuenta(c.id)}
+                        className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                      >
+                        <Plus size={18} /> Añadir
+                      </button>
+                      <button
+                        onClick={() => retirarDineroCuenta(c.id)}
+                        className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                      >
+                        <Download size={18} /> Retirar
                       </button>
                     </div>
                   </li>
