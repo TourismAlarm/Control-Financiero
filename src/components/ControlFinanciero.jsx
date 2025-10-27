@@ -35,18 +35,17 @@ export default function ControlFinanciero() {
   const [ingresos, setIngresos] = useState([]);
   const [nuevoIngreso, setNuevoIngreso] = useState({ concepto: '', monto: '', tipo: 'Fijo', fecha: new Date().toISOString().split('T')[0] });
 
-  const [gastosFijos, setGastosFijos] = useState([]);
-  const [nuevoGastoFijo, setNuevoGastoFijo] = useState({ concepto: '', monto: '' });
-
-  const [gastosVariables, setGastosVariables] = useState([]);
-  const [nuevoGastoVariable, setNuevoGastoVariable] = useState({
+  // GASTOS UNIFICADOS: fusión de gastosFijos y gastosVariables
+  const [gastos, setGastos] = useState([]);
+  const [nuevoGasto, setNuevoGasto] = useState({
     concepto: '',
     monto: '',
-    fecha: new Date().toISOString().split('T')[0],
-    categoria: 'Alimentación'
+    categoria: 'Alimentación',
+    tipo: 'fijo', // 'fijo' o 'variable'
+    fecha: new Date().toISOString().split('T')[0]
   });
 
-  // Categorías predefinidas para gastos variables
+  // Categorías predefinidas para gastos
   const CATEGORIAS_GASTOS = [
     'Alimentación',
     'Transporte',
@@ -56,6 +55,8 @@ export default function ControlFinanciero() {
     'Hogar',
     'Ropa',
     'Tecnología',
+    'Vivienda',
+    'Servicios',
     'Otros'
   ];
 
@@ -86,13 +87,32 @@ export default function ControlFinanciero() {
         setNombreUsuario(parsed.nombreUsuario || '');
         setMesActual(parsed.mesActual || mesActual);
         setIngresos(Array.isArray(parsed.ingresos) ? parsed.ingresos : []);
-        setGastosFijos(Array.isArray(parsed.gastosFijos) ? parsed.gastosFijos : []);
-        setGastosVariables(Array.isArray(parsed.gastosVariables) ? parsed.gastosVariables : []);
+
+        // RETROCOMPATIBILIDAD: fusionar gastosFijos y gastosVariables en gastos
+        if (Array.isArray(parsed.gastos)) {
+          // Formato nuevo: ya tiene array unificado
+          setGastos(parsed.gastos);
+        } else {
+          // Formato antiguo: fusionar arrays separados
+          const gastosFijos = (Array.isArray(parsed.gastosFijos) ? parsed.gastosFijos : []).map(g => ({
+            ...g,
+            tipo: 'fijo',
+            fecha: null,
+            categoria: g.categoria || 'Vivienda'
+          }));
+          const gastosVariables = (Array.isArray(parsed.gastosVariables) ? parsed.gastosVariables : []).map(g => ({
+            ...g,
+            tipo: 'variable',
+            categoria: g.categoria || 'Otros'
+          }));
+          setGastos([...gastosFijos, ...gastosVariables]);
+        }
+
         setDeudas(Array.isArray(parsed.deudas) ? parsed.deudas : []);
         setCuentasAhorro(Array.isArray(parsed.cuentasAhorro) ? parsed.cuentasAhorro : Array.isArray(parsed.objetivos) ? parsed.objetivos : []);
 
         if (
-          [parsed.ingresos, parsed.gastosFijos, parsed.gastosVariables, parsed.deudas, parsed.cuentasAhorro, parsed.objetivos].some(
+          [parsed.ingresos, parsed.gastos, parsed.gastosFijos, parsed.gastosVariables, parsed.deudas, parsed.cuentasAhorro, parsed.objetivos].some(
             (l) => Array.isArray(l) && l.length > 0
           )
         ) {
@@ -115,12 +135,12 @@ export default function ControlFinanciero() {
     if (typeof window === 'undefined') return;
 
     try {
-      const estado = { nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, cuentasAhorro };
+      const estado = { nombreUsuario, mesActual, ingresos, gastos, deudas, cuentasAhorro };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
     } catch (e) {
       console.error('Error guardando estado', e);
     }
-  }, [nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, cuentasAhorro]);
+  }, [nombreUsuario, mesActual, ingresos, gastos, deudas, cuentasAhorro]);
 
   // Guardar historial
   useEffect(() => {
@@ -225,6 +245,11 @@ export default function ControlFinanciero() {
         try {
           const supabase = createClient()
           console.log('🔵 Preparando datos para guardar...')
+
+          // Separar gastos por tipo para mantener compatibilidad con schema de Supabase
+          const gastosFijos = gastos.filter(g => g.tipo === 'fijo');
+          const gastosVariables = gastos.filter(g => g.tipo === 'variable');
+
           const datosAGuardar = {
             user_id: session.user.id,
             mes_actual: mesActual,
@@ -269,7 +294,7 @@ export default function ControlFinanciero() {
 
     // Cleanup: cancelar el timeout si el componente se desmonta o las dependencias cambian
     return () => clearTimeout(timeoutId)
-  }, [session, nombreUsuario, mesActual, ingresos, gastosFijos, gastosVariables, deudas, cuentasAhorro, historialMensual]);
+  }, [session, nombreUsuario, mesActual, ingresos, gastos, deudas, cuentasAhorro, historialMensual]);
 
   // Notificaciones
   const mostrarNotificacion = (mensaje, tipo = 'success') => {
@@ -279,8 +304,8 @@ export default function ControlFinanciero() {
 
   // Totales sencillos
   const totalIngresos = ingresos.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
-  const totalGastosFijos = gastosFijos.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
-  const totalGastosVariables = gastosVariables.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+  const totalGastosFijos = gastos.filter(g => g.tipo === 'fijo').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+  const totalGastosVariables = gastos.filter(g => g.tipo === 'variable').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
   const totalGastos = totalGastosFijos + totalGastosVariables;
   const totalDeudas = deudas.reduce((s, d) => s + ((parseFloat(d.montoTotal) || parseFloat(d.monto) || 0) - (parseFloat(d.totalPagado) || 0)), 0);
   const totalAhorros = cuentasAhorro.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
@@ -304,49 +329,37 @@ export default function ControlFinanciero() {
     mostrarNotificacion('Ingreso eliminado', 'info');
   };
 
-  // CRUD - gastos fijos
-  const añadirGastoFijo = () => {
-    if (!nuevoGastoFijo.concepto || !nuevoGastoFijo.monto) return mostrarNotificacion('Completa concepto y monto', 'error');
-    const monto = parseFloat(nuevoGastoFijo.monto);
-    if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
-
-    const nuevo = { id: Date.now(), concepto: nuevoGastoFijo.concepto, monto };
-    setGastosFijos((p) => [...p, nuevo]);
-    setNuevoGastoFijo({ concepto: '', monto: '' });
-    mostrarNotificacion('Gasto fijo añadido', 'success');
-  };
-
-  const eliminarGastoFijo = (id) => {
-    setGastosFijos((p) => p.filter((g) => g.id !== id));
-    mostrarNotificacion('Gasto fijo eliminado', 'info');
-  };
-
-  // CRUD - gastos variables
-  const añadirGastoVariable = () => {
-    if (!nuevoGastoVariable.concepto || !nuevoGastoVariable.monto) return mostrarNotificacion('Completa concepto y monto', 'error');
-    const monto = parseFloat(nuevoGastoVariable.monto);
+  // CRUD - gastos unificados
+  const añadirGasto = () => {
+    if (!nuevoGasto.concepto || !nuevoGasto.monto) return mostrarNotificacion('Completa concepto y monto', 'error');
+    const monto = parseFloat(nuevoGasto.monto);
     if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
 
     const nuevo = {
       id: Date.now(),
-      concepto: nuevoGastoVariable.concepto,
+      concepto: nuevoGasto.concepto,
       monto,
-      fecha: nuevoGastoVariable.fecha,
-      categoria: nuevoGastoVariable.categoria || 'Otros'
+      categoria: nuevoGasto.categoria || (nuevoGasto.tipo === 'fijo' ? 'Vivienda' : 'Otros'),
+      tipo: nuevoGasto.tipo,
+      fecha: nuevoGasto.tipo === 'variable' ? nuevoGasto.fecha : null
     };
-    setGastosVariables((p) => [...p, nuevo]);
-    setNuevoGastoVariable({
+
+    setGastos((p) => [...p, nuevo]);
+    setNuevoGasto({
       concepto: '',
       monto: '',
-      fecha: new Date().toISOString().split('T')[0],
-      categoria: 'Alimentación'
+      categoria: 'Alimentación',
+      tipo: nuevoGasto.tipo, // Mantener el tipo seleccionado
+      fecha: new Date().toISOString().split('T')[0]
     });
-    mostrarNotificacion('Gasto variable añadido', 'success');
+
+    const tipoTexto = nuevoGasto.tipo === 'fijo' ? 'Gasto fijo' : 'Gasto variable';
+    mostrarNotificacion(`${tipoTexto} añadido`, 'success');
   };
 
-  const eliminarGastoVariable = (id) => {
-    setGastosVariables((p) => p.filter((g) => g.id !== id));
-    mostrarNotificacion('Gasto variable eliminado', 'info');
+  const eliminarGasto = (id) => {
+    setGastos((p) => p.filter((g) => g.id !== id));
+    mostrarNotificacion('Gasto eliminado', 'info');
   };
 
   // CRUD - deudas
@@ -467,10 +480,9 @@ export default function ControlFinanciero() {
         nombreUsuario,
         mesActual,
         ingresos,
-        gastosFijos,
-        gastosVariables,
+        gastos, // Nuevo formato unificado
         deudas,
-        objetivos,
+        cuentasAhorro,
         historialMensual,
         fechaExportacion: new Date().toISOString(),
       };
@@ -498,8 +510,27 @@ export default function ControlFinanciero() {
         setNombreUsuario(datos.nombreUsuario || '');
         setMesActual(datos.mesActual || mesActual);
         setIngresos(Array.isArray(datos.ingresos) ? datos.ingresos : []);
-        setGastosFijos(Array.isArray(datos.gastosFijos) ? datos.gastosFijos : []);
-        setGastosVariables(Array.isArray(datos.gastosVariables) ? datos.gastosVariables : []);
+
+        // RETROCOMPATIBILIDAD: fusionar gastosFijos y gastosVariables si el formato es antiguo
+        if (Array.isArray(datos.gastos)) {
+          // Formato nuevo: ya tiene array unificado
+          setGastos(datos.gastos);
+        } else {
+          // Formato antiguo: fusionar arrays separados
+          const gastosFijos = (Array.isArray(datos.gastosFijos) ? datos.gastosFijos : []).map(g => ({
+            ...g,
+            tipo: 'fijo',
+            fecha: null,
+            categoria: g.categoria || 'Vivienda'
+          }));
+          const gastosVariables = (Array.isArray(datos.gastosVariables) ? datos.gastosVariables : []).map(g => ({
+            ...g,
+            tipo: 'variable',
+            categoria: g.categoria || 'Otros'
+          }));
+          setGastos([...gastosFijos, ...gastosVariables]);
+        }
+
         setDeudas(Array.isArray(datos.deudas) ? datos.deudas : []);
         setCuentasAhorro(Array.isArray(datos.cuentasAhorro) ? datos.cuentasAhorro : Array.isArray(datos.objetivos) ? datos.objetivos : []);
         setHistorialMensual(Array.isArray(datos.historialMensual) ? datos.historialMensual : []);
@@ -519,8 +550,7 @@ export default function ControlFinanciero() {
     fechaGuardado: new Date().toISOString(),
     nombreUsuario,
     ingresos: ingresos.map((i) => ({ ...i })),
-    gastosFijos: gastosFijos.map((g) => ({ ...g })),
-    gastosVariables: gastosVariables.map((g) => ({ ...g })),
+    gastos: gastos.map((g) => ({ ...g })), // Nuevo formato unificado
     deudas: deudas.map((d) => ({ ...d })),
     cuentasAhorro: cuentasAhorro.map((c) => ({ ...c })),
     totales: { totalIngresos, totalGastos, saldoDisponible },
