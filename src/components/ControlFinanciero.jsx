@@ -39,7 +39,25 @@ export default function ControlFinanciero() {
   const [nuevoGastoFijo, setNuevoGastoFijo] = useState({ concepto: '', monto: '' });
 
   const [gastosVariables, setGastosVariables] = useState([]);
-  const [nuevoGastoVariable, setNuevoGastoVariable] = useState({ concepto: '', monto: '', fecha: new Date().toISOString().split('T')[0] });
+  const [nuevoGastoVariable, setNuevoGastoVariable] = useState({
+    concepto: '',
+    monto: '',
+    fecha: new Date().toISOString().split('T')[0],
+    categoria: 'Alimentación'
+  });
+
+  // Categorías predefinidas para gastos variables
+  const CATEGORIAS_GASTOS = [
+    'Alimentación',
+    'Transporte',
+    'Ocio',
+    'Salud',
+    'Educación',
+    'Hogar',
+    'Ropa',
+    'Tecnología',
+    'Otros'
+  ];
 
   const [deudas, setDeudas] = useState([]);
   const [nuevaDeuda, setNuevaDeuda] = useState({
@@ -309,9 +327,20 @@ export default function ControlFinanciero() {
     const monto = parseFloat(nuevoGastoVariable.monto);
     if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
 
-    const nuevo = { id: Date.now(), concepto: nuevoGastoVariable.concepto, monto, fecha: nuevoGastoVariable.fecha };
+    const nuevo = {
+      id: Date.now(),
+      concepto: nuevoGastoVariable.concepto,
+      monto,
+      fecha: nuevoGastoVariable.fecha,
+      categoria: nuevoGastoVariable.categoria || 'Otros'
+    };
     setGastosVariables((p) => [...p, nuevo]);
-    setNuevoGastoVariable({ concepto: '', monto: '', fecha: new Date().toISOString().split('T')[0] });
+    setNuevoGastoVariable({
+      concepto: '',
+      monto: '',
+      fecha: new Date().toISOString().split('T')[0],
+      categoria: 'Alimentación'
+    });
     mostrarNotificacion('Gasto variable añadido', 'success');
   };
 
@@ -809,6 +838,19 @@ export default function ControlFinanciero() {
                   : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
               }`}
             />
+            <select
+              value={nuevoGastoVariable.categoria}
+              onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, categoria: e.target.value })}
+              className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+              }`}
+            >
+              {CATEGORIAS_GASTOS.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
             <input
               placeholder="Concepto"
               value={nuevoGastoVariable.concepto}
@@ -841,7 +883,11 @@ export default function ControlFinanciero() {
                 <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                   <div>
                     <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>📅 {g.fecha}</div>
+                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {g.categoria && <span className="font-semibold">{g.categoria}</span>}
+                      {g.categoria && g.fecha && ' • '}
+                      {g.fecha && `📅 ${g.fecha}`}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className={`font-bold text-lg ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
@@ -854,34 +900,34 @@ export default function ControlFinanciero() {
             </ul>
           )}
 
-          {/* Tabla de resumen por concepto */}
+          {/* Tabla de resumen por categoría */}
           {gastosVariables.length > 0 && (
             <div className="mt-6">
-              <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Concepto</h3>
+              <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
               <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                 <table className="w-full">
                   <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
                     <tr>
-                      <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Concepto</th>
+                      <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Categoría</th>
                       <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</th>
                       <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
                     </tr>
                   </thead>
                   <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
                     {(() => {
-                      const conceptos = {};
+                      const categorias = {};
                       gastosVariables.forEach(g => {
-                        const concepto = g.concepto || 'Sin concepto';
-                        conceptos[concepto] = (conceptos[concepto] || 0) + (parseFloat(g.monto) || 0);
+                        const categoria = g.categoria || 'Otros';
+                        categorias[categoria] = (categorias[categoria] || 0) + (parseFloat(g.monto) || 0);
                       });
 
-                      return Object.entries(conceptos)
+                      return Object.entries(categorias)
                         .sort((a, b) => b[1] - a[1])
-                        .map(([concepto, total]) => {
+                        .map(([categoria, total]) => {
                           const porcentaje = totalGastosVariables > 0 ? (total / totalGastosVariables) * 100 : 0;
                           return (
-                            <tr key={concepto} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                              <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{concepto}</td>
+                            <tr key={categoria} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                              <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{categoria}</td>
                               <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
                                 {total.toFixed(2)}€
                               </td>
@@ -1225,6 +1271,19 @@ export default function ControlFinanciero() {
                     : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
                 }`}
               />
+              <select
+                value={nuevoGastoVariable.categoria}
+                onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, categoria: e.target.value })}
+                className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                  darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                    : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                }`}
+              >
+                {CATEGORIAS_GASTOS.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
               <input
                 placeholder="Concepto"
                 value={nuevoGastoVariable.concepto}
@@ -1257,7 +1316,11 @@ export default function ControlFinanciero() {
                   <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                     <div>
                       <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                      <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>📅 {g.fecha}</div>
+                      <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {g.categoria && <span className="font-semibold">{g.categoria}</span>}
+                        {g.categoria && g.fecha && ' • '}
+                        {g.fecha && `📅 ${g.fecha}`}
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className={`font-bold text-lg ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
@@ -1270,34 +1333,34 @@ export default function ControlFinanciero() {
               </ul>
             )}
 
-            {/* Tabla de resumen por concepto */}
+            {/* Tabla de resumen por categoría */}
             {gastosVariables.length > 0 && (
               <div className="mt-6">
-                <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Concepto</h3>
+                <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
                 <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                   <table className="w-full">
                     <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
                       <tr>
-                        <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Concepto</th>
+                        <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Categoría</th>
                         <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</th>
                         <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
                       </tr>
                     </thead>
                     <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
                       {(() => {
-                        const conceptos = {};
+                        const categorias = {};
                         gastosVariables.forEach(g => {
-                          const concepto = g.concepto || 'Sin concepto';
-                          conceptos[concepto] = (conceptos[concepto] || 0) + (parseFloat(g.monto) || 0);
+                          const categoria = g.categoria || 'Otros';
+                          categorias[categoria] = (categorias[categoria] || 0) + (parseFloat(g.monto) || 0);
                         });
 
-                        return Object.entries(conceptos)
+                        return Object.entries(categorias)
                           .sort((a, b) => b[1] - a[1])
-                          .map(([concepto, total]) => {
+                          .map(([categoria, total]) => {
                             const porcentaje = totalGastosVariables > 0 ? (total / totalGastosVariables) * 100 : 0;
                             return (
-                              <tr key={concepto} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                                <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{concepto}</td>
+                              <tr key={categoria} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                                <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{categoria}</td>
                                 <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
                                   {total.toFixed(2)}€
                                 </td>
