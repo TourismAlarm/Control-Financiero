@@ -18,6 +18,7 @@ export default function ControlFinanciero() {
 
   // Estado de navegación
   const [vistaActiva, setVistaActiva] = useState('inicio');
+  const [tipoGastoActivo, setTipoGastoActivo] = useState('fijo'); // 'fijo' o 'variable'
 
   // Estado inicial
   const [nombreUsuario, setNombreUsuario] = useState('');
@@ -648,11 +649,10 @@ export default function ControlFinanciero() {
             {[
               { id: 'inicio', icon: <Home size={18} />, label: 'Inicio' },
               { id: 'ingresos', icon: <TrendingUp size={18} />, label: 'Ingresos' },
-              { id: 'gastos-fijos', icon: <DollarSign size={18} />, label: 'Gastos Fijos' },
-              { id: 'gastos-diarios', icon: <ShoppingCart size={18} />, label: 'Gastos Diarios' },
+              { id: 'gastos', icon: <ShoppingCart size={18} />, label: 'Gastos' },
               { id: 'prestamos', icon: <CreditCard size={18} />, label: 'Préstamos' },
               { id: 'deudas', icon: <AlertCircle size={18} />, label: 'Deudas Varias' },
-              { id: 'objetivos', icon: <Target size={18} />, label: 'Objetivos' },
+              { id: 'objetivos', icon: <Target size={18} />, label: 'Mis Ahorros' },
               { id: 'estadisticas', icon: <BarChart3 size={18} />, label: 'Estadísticas' },
             ].map((vista) => (
               <button
@@ -1234,127 +1234,161 @@ export default function ControlFinanciero() {
           </>
         )}
 
-        {/* Vista: Gastos Fijos */}
-        {vistaActiva === 'gastos-fijos' && (
+        {/* Vista: Gastos Unificados con Tabs */}
+        {vistaActiva === 'gastos' && (
           <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🏠 Gastos Fijos</h2>
-            <div className="flex gap-3 flex-wrap mb-4">
-              <input
-                placeholder="Concepto"
-                value={nuevoGastoFijo.concepto}
-                onChange={(e) => setNuevoGastoFijo({ ...nuevoGastoFijo, concepto: e.target.value })}
-                className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
-                    : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
-                }`}
-              />
-              <input
-                placeholder="Monto"
-                value={nuevoGastoFijo.monto}
-                onChange={(e) => setNuevoGastoFijo({ ...nuevoGastoFijo, monto: e.target.value })}
-                className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
-                    : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
-                }`}
-              />
-              <button onClick={añadirGastoFijo} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
-                <Plus size={20} /> Añadir
-              </button>
-            </div>
-            {gastosFijos.length === 0 ? (
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay gastos fijos registrados.</p>
-            ) : (
-              <ul className="space-y-3">
-                {gastosFijos.map((g) => (
-                  <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                    <div className="flex items-center gap-3">
-                      <div className={`font-bold text-lg ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
-                      <button onClick={() => eliminarGastoFijo(g.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-              Total gastos fijos: <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong>
-            </div>
-          </section>
-        )}
+            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Gastos</h2>
 
-        {/* Vista: Gastos Diarios */}
-        {vistaActiva === 'gastos-diarios' && (
-          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🛒 Gastos Diarios</h2>
-            <div className="flex gap-3 flex-wrap mb-4">
-              <input
-                type="date"
-                value={nuevoGastoVariable.fecha}
-                onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, fecha: e.target.value })}
-                className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                    : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
-                }`}
-              />
-              <select
-                value={nuevoGastoVariable.categoria}
-                onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, categoria: e.target.value })}
-                className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                    : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+            {/* Tabs internos para Fijos/Variables */}
+            <div className="flex gap-2 mb-6">
+              <button
+                onClick={() => {
+                  setTipoGastoActivo('fijo');
+                  setNuevoGasto({ ...nuevoGasto, tipo: 'fijo', categoria: 'Vivienda' });
+                }}
+                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  tipoGastoActivo === 'fijo'
+                    ? darkMode
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
+                      : 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
+                    : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {CATEGORIAS_GASTOS.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+                🏠 Gastos Fijos
+              </button>
+              <button
+                onClick={() => {
+                  setTipoGastoActivo('variable');
+                  setNuevoGasto({ ...nuevoGasto, tipo: 'variable', categoria: 'Alimentación' });
+                }}
+                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  tipoGastoActivo === 'variable'
+                    ? darkMode
+                      ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
+                      : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
+                    : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🛒 Gastos Variables
+              </button>
+            </div>
+
+            {/* Formulario dinámico según tipo */}
+            <div className="flex gap-3 flex-wrap mb-4">
+              {tipoGastoActivo === 'variable' && (
+                <>
+                  <input
+                    type="date"
+                    value={nuevoGasto.fecha}
+                    onChange={(e) => setNuevoGasto({ ...nuevoGasto, fecha: e.target.value })}
+                    className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                        : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                    }`}
+                  />
+                  <select
+                    value={nuevoGasto.categoria}
+                    onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
+                    className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                      darkMode
+                        ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                        : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                    }`}
+                  >
+                    {CATEGORIAS_GASTOS.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {tipoGastoActivo === 'fijo' && (
+                <select
+                  value={nuevoGasto.categoria}
+                  onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
+                  className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
+                      : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
+                  }`}
+                >
+                  {CATEGORIAS_GASTOS.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              )}
               <input
                 placeholder="Concepto"
-                value={nuevoGastoVariable.concepto}
-                onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, concepto: e.target.value })}
+                value={nuevoGasto.concepto}
+                onChange={(e) => setNuevoGasto({ ...nuevoGasto, concepto: e.target.value })}
                 className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                    : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                    ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                    : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                 }`}
               />
               <input
                 placeholder="Monto"
-                value={nuevoGastoVariable.monto}
-                onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, monto: e.target.value })}
+                value={nuevoGasto.monto}
+                onChange={(e) => setNuevoGasto({ ...nuevoGasto, monto: e.target.value })}
                 className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                    : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                    ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                    : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                 }`}
               />
-              <button onClick={añadirGastoVariable} className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <button
+                onClick={añadirGasto}
+                className={`${
+                  tipoGastoActivo === 'fijo'
+                    ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+                    : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700'
+                } text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300`}
+              >
                 <Plus size={20} /> Añadir
               </button>
             </div>
-            {gastosVariables.length === 0 ? (
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay gastos diarios registrados.</p>
+
+            {/* Lista filtrada según tipo activo */}
+            {gastos.filter(g => g.tipo === tipoGastoActivo).length === 0 ? (
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                No hay {tipoGastoActivo === 'fijo' ? 'gastos fijos' : 'gastos variables'} registrados.
+              </p>
             ) : (
               <ul className="space-y-3">
-                {gastosVariables.map((g) => (
+                {gastos.filter(g => g.tipo === tipoGastoActivo).map((g) => (
                   <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                     <div>
                       <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                      <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {g.categoria && <span className="font-semibold">{g.categoria}</span>}
-                        {g.categoria && g.fecha && ' • '}
-                        {g.fecha && `📅 ${g.fecha}`}
-                      </div>
+                      {g.tipo === 'variable' && (
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          {g.categoria && <span className="font-semibold">{g.categoria}</span>}
+                          {g.categoria && g.fecha && ' • '}
+                          {g.fecha && `📅 ${g.fecha}`}
+                        </div>
+                      )}
+                      {g.tipo === 'fijo' && g.categoria && (
+                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                          <span className="font-semibold">{g.categoria}</span>
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className={`font-bold text-lg ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
-                      <button onClick={() => eliminarGastoVariable(g.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <div className={`font-bold text-lg ${
+                        tipoGastoActivo === 'fijo'
+                          ? darkMode ? 'text-red-400' : 'text-red-600'
+                          : darkMode ? 'text-orange-400' : 'text-orange-600'
+                      }`}>
+                        {(g.monto || 0).toFixed(2)} €
+                      </div>
+                      <button
+                        onClick={() => eliminarGasto(g.id)}
+                        className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                      >
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -1363,8 +1397,8 @@ export default function ControlFinanciero() {
               </ul>
             )}
 
-            {/* Tabla de resumen por categoría */}
-            {gastosVariables.length > 0 && (
+            {/* Resumen por categoría solo para variables */}
+            {tipoGastoActivo === 'variable' && gastos.filter(g => g.tipo === 'variable').length > 0 && (
               <div className="mt-6">
                 <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
                 <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
@@ -1379,7 +1413,7 @@ export default function ControlFinanciero() {
                     <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
                       {(() => {
                         const categorias = {};
-                        gastosVariables.forEach(g => {
+                        gastos.filter(g => g.tipo === 'variable').forEach(g => {
                           const categoria = g.categoria || 'Otros';
                           categorias[categoria] = (categorias[categoria] || 0) + (parseFloat(g.monto) || 0);
                         });
@@ -1407,8 +1441,13 @@ export default function ControlFinanciero() {
               </div>
             )}
 
+            {/* Total según tipo activo */}
             <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-              Total gastos diarios: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
+              {tipoGastoActivo === 'fijo' ? (
+                <>Total gastos fijos: <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong></>
+              ) : (
+                <>Total gastos variables: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong></>
+              )}
             </div>
           </section>
         )}
