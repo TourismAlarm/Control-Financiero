@@ -44,19 +44,45 @@ export default function useLoans() {
       if (fetchError) throw fetchError;
 
       // Calcular datos adicionales para cada préstamo
+      // Mapear nombres en español a inglés para compatibilidad
       const loansWithCalculations = data.map(loan => {
-        const endDate = calculateEndDate(new Date(loan.start_date), loan.total_months);
-        const nextPaymentDate = calculateNextPaymentDate(new Date(loan.start_date), loan.paid_months);
-        const progress = calculateProgress(loan.paid_months, loan.total_months);
-        const remainingBalance = calculateRemainingBalance(
-          loan.initial_amount,
-          loan.interest_rate,
-          loan.total_months,
-          loan.paid_months
+        // Extraer pagos realizados del JSONB
+        const pagosArray = Array.isArray(loan.pagos_realizados) ? loan.pagos_realizados : [];
+        const paidMonths = pagosArray.length;
+
+        const endDate = calculateEndDate(new Date(loan.fecha_inicio), loan.plazo_meses);
+        const nextPaymentDate = calculateNextPaymentDate(new Date(loan.fecha_inicio), paidMonths);
+        const progress = calculateProgress(paidMonths, loan.plazo_meses);
+
+        // Calcular saldo base
+        let remainingBalance = calculateRemainingBalance(
+          loan.monto_total,
+          loan.tasa_interes,
+          loan.plazo_meses,
+          paidMonths
         );
+
+        // Restar amortizaciones extras
+        const amortizacionesExtras = Array.isArray(loan.amortizaciones_extras) ? loan.amortizaciones_extras : [];
+        const totalAmortizacionesExtras = amortizacionesExtras.reduce((sum, a) => sum + (a.monto || 0), 0);
+        remainingBalance = Math.max(0, remainingBalance - totalAmortizacionesExtras);
 
         return {
           ...loan,
+          // Mapear a nombres en inglés para el resto del código
+          id: loan.id,
+          name: loan.nombre,
+          type: loan.tipo_prestamo,
+          initial_amount: loan.monto_total,
+          interest_rate: loan.tasa_interes,
+          monthly_payment: loan.cuota_mensual,
+          total_months: loan.plazo_meses,
+          start_date: loan.fecha_inicio,
+          notes: loan.descripcion,
+          status: loan.estado, // 'activo', 'completado', etc.
+          estado: loan.estado, // Mantener también en español
+          paid_months: paidMonths,
+          current_balance: remainingBalance,
           endDate,
           nextPaymentDate,
           progress,
@@ -93,21 +119,18 @@ export default function useLoans() {
         );
       }
 
+      // Mapear a nombres en español que usa Supabase
       const newLoan = {
         user_id: session.user.id,
-        name: loanData.name,
-        type: loanData.type || 'personal',
-        initial_amount: parseFloat(loanData.initial_amount),
-        current_balance: parseFloat(loanData.current_balance || loanData.initial_amount),
-        interest_rate: parseFloat(loanData.interest_rate || 0),
-        monthly_payment: parseFloat(loanData.monthly_payment),
-        total_months: totalMonths,
-        paid_months: parseInt(loanData.paid_months || 0),
-        start_date: loanData.start_date,
-        payment_day: parseInt(loanData.payment_day || 1),
-        bank: loanData.bank || null,
-        notes: loanData.notes || null,
-        status: 'active',
+        nombre: loanData.name,
+        tipo_prestamo: loanData.type || 'personal',
+        monto_total: parseFloat(loanData.initial_amount),
+        tasa_interes: parseFloat(loanData.interest_rate || 0),
+        cuota_mensual: parseFloat(loanData.monthly_payment),
+        plazo_meses: totalMonths,
+        fecha_inicio: loanData.start_date,
+        descripcion: loanData.notes || null,
+        estado: 'activo',
       };
 
       const { data, error: insertError } = await supabase
@@ -211,6 +234,7 @@ export default function useLoans() {
 
   /**
    * Marcar un pago como realizado
+   * Agrega un registro al array JSONB pagos_realizados
    */
   const markPaymentAsPaid = async (loanId) => {
     if (!session?.user?.id) {
@@ -223,23 +247,24 @@ export default function useLoans() {
       const loan = loans.find(l => l.id === loanId);
       if (!loan) throw new Error('Préstamo no encontrado');
 
-      const newPaidMonths = loan.paid_months + 1;
-      const newBalance = calculateRemainingBalance(
-        loan.initial_amount,
-        loan.interest_rate,
-        loan.total_months,
-        newPaidMonths
-      );
+      // Obtener el array actual de pagos
+      const currentPayments = loan.pagos_realizados || [];
 
-      // Si ya se pagaron todos los meses, marcar como completado
-      const newStatus = newPaidMonths >= loan.total_months ? 'completed' : 'active';
+      // Crear nuevo registro de pago
+      const newPayment = {
+        fecha: new Date().toISOString(),
+        monto: loan.monthly_payment,
+        numero_pago: currentPayments.length + 1,
+      };
 
+      // Agregar el nuevo pago al array
+      const updatedPayments = [...currentPayments, newPayment];
+
+      // Actualizar en Supabase
       const { data, error: updateError } = await supabase
         .from('loans')
         .update({
-          paid_months: newPaidMonths,
-          current_balance: newBalance,
-          status: newStatus,
+          pagos_realizados: updatedPayments,
           updated_at: new Date().toISOString(),
         })
         .eq('id', loanId)
@@ -249,7 +274,7 @@ export default function useLoans() {
 
       if (updateError) throw updateError;
 
-      // Actualizar la lista local
+      // Refrescar la lista
       await fetchLoans();
 
       return data;
@@ -264,40 +289,42 @@ export default function useLoans() {
    * Calcular estadísticas generales de todos los préstamos
    */
   const getStatistics = useCallback(() => {
-    const activeLoans = loans.filter(loan => loan.status === 'active');
+    // Filtrar por 'activo' (español) que es lo que viene de la BD
+    const activeLoans = loans.filter(loan => loan.estado === 'activo' || loan.status === 'activo');
 
     const totalDebt = activeLoans.reduce(
-      (sum, loan) => sum + (loan.remainingBalance || loan.current_balance),
+      (sum, loan) => sum + (loan.remainingBalance || loan.current_balance || 0),
       0
     );
 
     const totalMonthlyPayment = activeLoans.reduce(
-      (sum, loan) => sum + loan.monthly_payment,
+      (sum, loan) => sum + (loan.monthly_payment || loan.cuota_mensual || 0),
       0
     );
 
     const totalInterestPaid = activeLoans.reduce((sum, loan) => {
       return sum + calculateTotalInterestPaid(
-        loan.initial_amount,
-        loan.interest_rate,
-        loan.total_months,
-        loan.paid_months
+        loan.initial_amount || loan.monto_total,
+        loan.interest_rate || loan.tasa_interes,
+        loan.total_months || loan.plazo_meses,
+        loan.paid_months || 0
       );
     }, 0);
 
     // Encontrar el próximo pago más cercano
     const upcomingPayments = activeLoans
+      .filter(loan => loan.nextPaymentDate && (loan.monthly_payment || loan.cuota_mensual))
       .map(loan => ({
         loan,
         date: loan.nextPaymentDate,
-        amount: loan.monthly_payment,
+        amount: loan.monthly_payment || loan.cuota_mensual,
       }))
       .sort((a, b) => new Date(a.date) - new Date(b.date));
 
     return {
       totalLoans: loans.length,
       activeLoans: activeLoans.length,
-      completedLoans: loans.filter(l => l.status === 'completed').length,
+      completedLoans: loans.filter(l => l.estado === 'completado' || l.status === 'completed').length,
       totalDebt,
       totalMonthlyPayment,
       totalInterestPaid,
@@ -305,6 +332,67 @@ export default function useLoans() {
       upcomingPayments: upcomingPayments.slice(0, 5), // Próximos 5 pagos
     };
   }, [loans]);
+
+  /**
+   * Realizar amortización anticipada
+   */
+  const makeExtraPayment = async (loanId, amount) => {
+    if (!session?.user?.id) {
+      throw new Error('Usuario no autenticado');
+    }
+
+    try {
+      setError(null);
+
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) throw new Error('Préstamo no encontrado');
+
+      const amountNum = parseFloat(amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        throw new Error('Cantidad inválida');
+      }
+
+      const currentBalance = loan.remainingBalance || loan.current_balance;
+      if (amountNum > currentBalance) {
+        throw new Error('La cantidad supera el saldo pendiente');
+      }
+
+      // Obtener amortizaciones existentes
+      const currentExtraPayments = loan.amortizaciones_extras || [];
+
+      // Crear nueva amortización
+      const newExtraPayment = {
+        fecha: new Date().toISOString(),
+        monto: amountNum,
+      };
+
+      // Agregar al array
+      const updatedExtraPayments = [...currentExtraPayments, newExtraPayment];
+
+      // Actualizar en Supabase
+      const { data, error: updateError } = await supabase
+        .from('loans')
+        .update({
+          amortizaciones_extras: updatedExtraPayments,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', loanId)
+        .eq('user_id', session.user.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      // Refrescar la lista
+      await fetchLoans();
+
+      return data;
+    } catch (err) {
+      console.error('Error making extra payment:', err);
+      setError(err.message);
+      throw err;
+    }
+  };
 
   /**
    * Simular pago extra
@@ -362,6 +450,7 @@ export default function useLoans() {
     deleteLoan,
     getAmortizationTable,
     markPaymentAsPaid,
+    makeExtraPayment,
     getStatistics,
     simulateExtraPayment,
     refreshLoans: fetchLoans,

@@ -27,11 +27,12 @@ export default function LoanDetailView({
   onEdit,
   onDelete,
   onMarkPayment,
+  onExtraPayment,
   darkMode = false,
 }) {
   const [filterStatus, setFilterStatus] = useState('all'); // all, paid, pending
   const [searchDate, setSearchDate] = useState('');
-  const [showExtraPaymentSimulator, setShowExtraPaymentSimulator] = useState(false);
+  const [showExtraPaymentModal, setShowExtraPaymentModal] = useState(false);
   const [extraPaymentAmount, setExtraPaymentAmount] = useState('');
 
   const daysUntilPayment = daysUntil(loan.nextPaymentDate);
@@ -68,7 +69,7 @@ export default function LoanDetailView({
 
   // Determinar estado de cada fila
   const getRowStatus = (month) => {
-    if (month < loan.paid_months) return 'paid';
+    if (month <= loan.paid_months) return 'paid';
     if (month === loan.paid_months + 1) return 'next';
     return 'pending';
   };
@@ -123,6 +124,22 @@ export default function LoanDetailView({
         </div>
 
         <div className="flex gap-3">
+          <button
+            onClick={() => setShowExtraPaymentModal(true)}
+            disabled={loan.paid_months >= loan.total_months}
+            className={`
+              flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-300
+              ${loan.paid_months >= loan.total_months
+                ? 'bg-gray-400 cursor-not-allowed text-white'
+                : darkMode
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }
+            `}
+          >
+            <DollarSign size={18} />
+            Amortizar
+          </button>
           <button
             onClick={() => onEdit(loan)}
             className={`
@@ -444,6 +461,80 @@ export default function LoanDetailView({
           <p className={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
             {loan.notes}
           </p>
+        </div>
+      )}
+
+      {/* Modal de Amortización */}
+      {showExtraPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl p-6 max-w-md w-full shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Amortización Anticipada
+            </h3>
+
+            <div className="mb-4">
+              <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Saldo actual: <strong className={darkMode ? 'text-white' : 'text-gray-900'}>{formatCurrency(loan.remainingBalance || loan.current_balance)}</strong>
+              </p>
+              <input
+                type="number"
+                placeholder="Cantidad a amortizar"
+                value={extraPaymentAmount}
+                onChange={(e) => setExtraPaymentAmount(e.target.value)}
+                className={`
+                  w-full px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4
+                  ${darkMode
+                    ? 'bg-gray-700 border-gray-600 text-white focus:border-green-500 focus:ring-green-500/20'
+                    : 'bg-white border-gray-200 text-gray-900 focus:border-green-500 focus:ring-green-500/20'
+                  }
+                `}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    if (onExtraPayment) {
+                      await onExtraPayment(loan.id, extraPaymentAmount);
+                      setExtraPaymentAmount('');
+                      setShowExtraPaymentModal(false);
+                    }
+                  } catch (err) {
+                    // El error ya se maneja en el handler
+                  }
+                }}
+                disabled={!extraPaymentAmount || parseFloat(extraPaymentAmount) <= 0}
+                className={`
+                  flex-1 py-3 rounded-xl font-semibold transition-all duration-300
+                  ${!extraPaymentAmount || parseFloat(extraPaymentAmount) <= 0
+                    ? 'bg-gray-400 cursor-not-allowed text-white'
+                    : darkMode
+                      ? 'bg-green-600 hover:bg-green-700 text-white'
+                      : 'bg-green-500 hover:bg-green-600 text-white'
+                  }
+                `}
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => {
+                  setShowExtraPaymentModal(false);
+                  setExtraPaymentAmount('');
+                }}
+                className={`
+                  flex-1 py-3 rounded-xl font-semibold transition-all duration-300
+                  ${darkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                  }
+                `}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut, CreditCard, Home, TrendingUp, DollarSign, ShoppingCart, Target, BarChart3 } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut, CreditCard, Home, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Target, BarChart3, CheckCircle, Info, Edit2 } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { createClient } from '@/lib/supabase';
 import LoanManager from './loans/LoanManager';
+import useLoans from '@/hooks/useLoans';
 
 const STORAGE_KEY = 'controlFinancieroEstado';
 const HISTORY_KEY = 'controlFinancieroHistorial';
@@ -14,6 +15,7 @@ export default function ControlFinanciero() {
   console.log('🟢 COMPONENTE RENDERIZADO - ControlFinanciero montado')
 
   const { data: session } = useSession();
+  const { loans, getStatistics } = useLoans();
   const fileInputRef = useRef(null);
 
   // Estado de navegación
@@ -43,6 +45,15 @@ export default function ControlFinanciero() {
     monto: '',
     categoria: 'Alimentación',
     tipo: 'fijo', // 'fijo' o 'variable'
+    fecha: new Date().toISOString().split('T')[0]
+  });
+
+  // Estados separados para formularios de la vista de inicio (mantener UX separada)
+  const [nuevoGastoFijo, setNuevoGastoFijo] = useState({ concepto: '', monto: '' });
+  const [nuevoGastoVariable, setNuevoGastoVariable] = useState({
+    concepto: '',
+    monto: '',
+    categoria: 'Alimentación',
     fecha: new Date().toISOString().split('T')[0]
   });
 
@@ -76,6 +87,15 @@ export default function ControlFinanciero() {
 
   const [historialMensual, setHistorialMensual] = useState([]);
   const [mostrarBienvenida, setMostrarBienvenida] = useState(true);
+
+  // Flag para evitar guardar antes de cargar
+  const [datosCargados, setDatosCargados] = useState(false);
+
+  // Estados para edición
+  const [editandoIngreso, setEditandoIngreso] = useState(null);
+  const [editandoGasto, setEditandoGasto] = useState(null);
+  const [editandoDeuda, setEditandoDeuda] = useState(null);
+  const [valoresTemp, setValoresTemp] = useState({});
 
   // Cargar datos
   useEffect(() => {
@@ -176,6 +196,9 @@ export default function ControlFinanciero() {
       console.log('🟣 Función cargarDatos iniciada')
       console.log('🟣 Session en carga:', session)
 
+      // Resetear el flag al iniciar la carga
+      setDatosCargados(false)
+
       if (!session?.user?.id) {
         console.log('❌ No hay sesión, saliendo de cargarDatos')
         return
@@ -200,8 +223,22 @@ export default function ControlFinanciero() {
           console.log('✅ CARGANDO DATOS EN EL ESTADO...')
           setNombreUsuario(financialData.nombre_usuario || session?.user?.name || '')
           setIngresos(financialData.ingresos || [])
-          setGastosFijos(financialData.gastos_fijos || [])
-          setGastosVariables(financialData.gastos_variables || [])
+
+          // FUSIONAR gastos_fijos y gastos_variables en un solo array
+          const gastosFijos = (Array.isArray(financialData.gastos_fijos) ? financialData.gastos_fijos : []).map(g => ({
+            ...g,
+            tipo: 'fijo',
+            fecha: g.fecha || null,
+            categoria: g.categoria || 'Vivienda'
+          }));
+          const gastosVariables = (Array.isArray(financialData.gastos_variables) ? financialData.gastos_variables : []).map(g => ({
+            ...g,
+            tipo: 'variable',
+            categoria: g.categoria || 'Otros'
+          }));
+          setGastos([...gastosFijos, ...gastosVariables]);
+          console.log('📊 Gastos cargados:', { fijos: gastosFijos.length, variables: gastosVariables.length, total: gastosFijos.length + gastosVariables.length })
+
           setDeudas(financialData.deudas || [])
           setCuentasAhorro(financialData.cuentas_ahorro || financialData.objetivos || [])
           setHistorialMensual(financialData.historial_mensual || [])
@@ -215,6 +252,10 @@ export default function ControlFinanciero() {
             setNombreUsuario(session.user.name)
           }
         }
+
+        // Marcar que los datos ya fueron cargados (o intentados cargar)
+        console.log('🏁 Marcando datos como cargados')
+        setDatosCargados(true)
       } catch (error) {
         console.error('❌ Error cargando datos:', error)
       }
@@ -229,6 +270,13 @@ export default function ControlFinanciero() {
     console.log('🟢 Session actual:', session)
     console.log('🟢 NombreUsuario:', nombreUsuario)
     console.log('🟢 Ingresos length:', ingresos.length)
+    console.log('🟢 Datos cargados:', datosCargados)
+
+    // NO GUARDAR si los datos aún no se han cargado desde Supabase
+    if (!datosCargados) {
+      console.log('⏸️ Datos aún no cargados, omitiendo guardado')
+      return
+    }
 
     // Debounce: esperar 1 segundo antes de guardar
     const timeoutId = setTimeout(() => {
@@ -295,7 +343,7 @@ export default function ControlFinanciero() {
 
     // Cleanup: cancelar el timeout si el componente se desmonta o las dependencias cambian
     return () => clearTimeout(timeoutId)
-  }, [session, nombreUsuario, mesActual, ingresos, gastos, deudas, cuentasAhorro, historialMensual]);
+  }, [session, nombreUsuario, mesActual, ingresos, gastos, deudas, cuentasAhorro, historialMensual, datosCargados]);
 
   // Notificaciones
   const mostrarNotificacion = (mensaje, tipo = 'success') => {
@@ -308,9 +356,17 @@ export default function ControlFinanciero() {
   const totalGastosFijos = gastos.filter(g => g.tipo === 'fijo').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
   const totalGastosVariables = gastos.filter(g => g.tipo === 'variable').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
   const totalGastos = totalGastosFijos + totalGastosVariables;
+  // Calcular totales de deudas y préstamos
   const totalDeudas = deudas.reduce((s, d) => s + ((parseFloat(d.montoTotal) || parseFloat(d.monto) || 0) - (parseFloat(d.totalPagado) || 0)), 0);
+  const loanStats = getStatistics();
+  const totalPrestamos = loanStats.totalDebt || 0;
+  const deudaTotalCombinada = totalDeudas + totalPrestamos;
   const totalAhorros = cuentasAhorro.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
   const saldoDisponible = totalIngresos - totalGastos;
+
+  // Variables derivadas para vista de inicio
+  const gastosFijos = gastos.filter(g => g.tipo === 'fijo');
+  const gastosVariables = gastos.filter(g => g.tipo === 'variable');
 
   // CRUD - ingresos simple
   const añadirIngreso = () => {
@@ -336,13 +392,16 @@ export default function ControlFinanciero() {
     const monto = parseFloat(nuevoGasto.monto);
     if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
 
+    // Usar el filtro activo para determinar el tipo, NO nuevoGasto.tipo
+    const tipoReal = tipoGastoActivo === 'fijo' || tipoGastoActivo === 'variable' ? tipoGastoActivo : 'fijo';
+
     const nuevo = {
       id: Date.now(),
       concepto: nuevoGasto.concepto,
       monto,
-      categoria: nuevoGasto.categoria || (nuevoGasto.tipo === 'fijo' ? 'Vivienda' : 'Otros'),
-      tipo: nuevoGasto.tipo,
-      fecha: nuevoGasto.tipo === 'variable' ? nuevoGasto.fecha : null
+      categoria: nuevoGasto.categoria || (tipoReal === 'fijo' ? 'Vivienda' : 'Otros'),
+      tipo: tipoReal, // Usar el tipo del filtro activo
+      fecha: tipoReal === 'variable' ? nuevoGasto.fecha : null
     };
 
     setGastos((p) => [...p, nuevo]);
@@ -350,11 +409,11 @@ export default function ControlFinanciero() {
       concepto: '',
       monto: '',
       categoria: 'Alimentación',
-      tipo: nuevoGasto.tipo, // Mantener el tipo seleccionado
+      tipo: tipoReal, // Mantener el tipo del filtro activo
       fecha: new Date().toISOString().split('T')[0]
     });
 
-    const tipoTexto = nuevoGasto.tipo === 'fijo' ? 'Gasto fijo' : 'Gasto variable';
+    const tipoTexto = tipoReal === 'fijo' ? 'Gasto fijo' : 'Gasto variable';
     mostrarNotificacion(`${tipoTexto} añadido`, 'success');
   };
 
@@ -362,6 +421,56 @@ export default function ControlFinanciero() {
     setGastos((p) => p.filter((g) => g.id !== id));
     mostrarNotificacion('Gasto eliminado', 'info');
   };
+
+  // Funciones helper para vista de inicio (usan sistema unificado)
+  const añadirGastoFijo = () => {
+    if (!nuevoGastoFijo.concepto || !nuevoGastoFijo.monto) return mostrarNotificacion('Completa concepto y monto', 'error');
+    const monto = parseFloat(nuevoGastoFijo.monto);
+    if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
+
+    const nuevo = {
+      id: Date.now(),
+      concepto: nuevoGastoFijo.concepto,
+      monto,
+      categoria: 'Vivienda',
+      tipo: 'fijo',
+      fecha: null
+    };
+
+    setGastos((p) => [...p, nuevo]);
+    setNuevoGastoFijo({ concepto: '', monto: '' });
+    setMostrarBienvenida(false);
+    mostrarNotificacion('Gasto fijo añadido', 'success');
+  };
+
+  const eliminarGastoFijo = (id) => eliminarGasto(id);
+
+  const añadirGastoVariable = () => {
+    if (!nuevoGastoVariable.concepto || !nuevoGastoVariable.monto) return mostrarNotificacion('Completa concepto y monto', 'error');
+    const monto = parseFloat(nuevoGastoVariable.monto);
+    if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
+
+    const nuevo = {
+      id: Date.now(),
+      concepto: nuevoGastoVariable.concepto,
+      monto,
+      categoria: nuevoGastoVariable.categoria,
+      tipo: 'variable',
+      fecha: nuevoGastoVariable.fecha
+    };
+
+    setGastos((p) => [...p, nuevo]);
+    setNuevoGastoVariable({
+      concepto: '',
+      monto: '',
+      categoria: 'Alimentación',
+      fecha: new Date().toISOString().split('T')[0]
+    });
+    setMostrarBienvenida(false);
+    mostrarNotificacion('Gasto variable añadido', 'success');
+  };
+
+  const eliminarGastoVariable = (id) => eliminarGasto(id);
 
   // CRUD - deudas
   const añadirDeuda = () => {
@@ -408,6 +517,7 @@ export default function ControlFinanciero() {
       return;
     }
 
+    // Actualizar deuda
     setDeudas((p) => p.map((d) => {
       if (d.id === id) {
         const nuevoTotal = parseFloat(((d.totalPagado || 0) + montoPagar).toFixed(2));
@@ -415,7 +525,33 @@ export default function ControlFinanciero() {
       }
       return d;
     }));
+
+    // Crear gasto automático para reflejar el pago en el balance
+    const nuevoGastoPago = {
+      id: Date.now(),
+      concepto: `Pago deuda - ${deuda.nombre}`,
+      monto: montoPagar,
+      categoria: 'Servicios',
+      tipo: 'variable',
+      fecha: new Date().toISOString().split('T')[0]
+    };
+    setGastos((p) => [...p, nuevoGastoPago]);
+
     mostrarNotificacion(`Pago de ${montoPagar.toFixed(2)}€ registrado`, 'success');
+  };
+
+  // Función helper para crear gastos automáticos (usada por préstamos, deudas, etc.)
+  const crearGastoAutomatico = (concepto, monto, categoria = 'Finanzas') => {
+    const nuevoGasto = {
+      id: Date.now(),
+      concepto,
+      monto: parseFloat(monto),
+      categoria,
+      tipo: 'variable',
+      fecha: new Date().toISOString().split('T')[0]
+    };
+    setGastos((p) => [...p, nuevoGasto]);
+    return nuevoGasto;
   };
 
   // CRUD - cuentas de ahorro
@@ -472,6 +608,113 @@ export default function ControlFinanciero() {
     }
 
     actualizarSaldoCuenta(id, -montoRetirar);
+  };
+
+  // Funciones de edición
+  const iniciarEdicionIngreso = (ingreso) => {
+    setEditandoIngreso(ingreso.id);
+    setValoresTemp({ ...ingreso });
+  };
+
+  const cancelarEdicionIngreso = () => {
+    setEditandoIngreso(null);
+    setValoresTemp({});
+  };
+
+  const guardarEdicionIngreso = () => {
+    if (!valoresTemp.concepto || !valoresTemp.monto) {
+      mostrarNotificacion('Completa todos los campos', 'error');
+      return;
+    }
+
+    const monto = parseFloat(valoresTemp.monto);
+    if (isNaN(monto) || monto <= 0) {
+      mostrarNotificacion('Monto inválido', 'error');
+      return;
+    }
+
+    setIngresos((p) => p.map((ing) =>
+      ing.id === editandoIngreso
+        ? { ...valoresTemp, monto }
+        : ing
+    ));
+    setEditandoIngreso(null);
+    setValoresTemp({});
+    mostrarNotificacion('Ingreso actualizado', 'success');
+  };
+
+  const iniciarEdicionGasto = (gasto) => {
+    setEditandoGasto(gasto.id);
+    setValoresTemp({ ...gasto });
+  };
+
+  const cancelarEdicionGasto = () => {
+    setEditandoGasto(null);
+    setValoresTemp({});
+  };
+
+  const guardarEdicionGasto = () => {
+    if (!valoresTemp.concepto || !valoresTemp.monto) {
+      mostrarNotificacion('Completa todos los campos', 'error');
+      return;
+    }
+
+    const monto = parseFloat(valoresTemp.monto);
+    if (isNaN(monto) || monto <= 0) {
+      mostrarNotificacion('Monto inválido', 'error');
+      return;
+    }
+
+    setGastos((p) => p.map((gasto) =>
+      gasto.id === editandoGasto
+        ? { ...valoresTemp, monto }
+        : gasto
+    ));
+    setEditandoGasto(null);
+    setValoresTemp({});
+    mostrarNotificacion('Gasto actualizado', 'success');
+  };
+
+  const iniciarEdicionDeuda = (deuda) => {
+    setEditandoDeuda(deuda.id);
+    setValoresTemp({ ...deuda });
+  };
+
+  const cancelarEdicionDeuda = () => {
+    setEditandoDeuda(null);
+    setValoresTemp({});
+  };
+
+  const guardarEdicionDeuda = () => {
+    if (!valoresTemp.nombre || !valoresTemp.montoTotal) {
+      mostrarNotificacion('Completa nombre y monto total', 'error');
+      return;
+    }
+
+    const montoTotal = parseFloat(valoresTemp.montoTotal);
+    const plazoMeses = parseFloat(valoresTemp.plazoMeses || 0);
+    const cuotaMensual = parseFloat(valoresTemp.cuotaMensual || 0);
+    const totalPagado = parseFloat(valoresTemp.totalPagado || 0);
+
+    if (isNaN(montoTotal) || montoTotal <= 0) {
+      mostrarNotificacion('Monto total inválido', 'error');
+      return;
+    }
+
+    setDeudas((p) => p.map((deuda) =>
+      deuda.id === editandoDeuda
+        ? {
+            ...valoresTemp,
+            montoTotal,
+            plazoMeses,
+            cuotaMensual,
+            totalPagado
+          }
+        : deuda
+    ));
+    setEditandoDeuda(null);
+    setValoresTemp({});
+    mostrarNotificacion('Deuda actualizada', 'success');
   };
 
   // Export / Import
@@ -581,8 +824,27 @@ export default function ControlFinanciero() {
     setNombreUsuario(reg.nombreUsuario || '');
     setMesActual(reg.mes || mesActual);
     setIngresos(Array.isArray(reg.ingresos) ? reg.ingresos : []);
-    setGastosFijos(Array.isArray(reg.gastosFijos) ? reg.gastosFijos : []);
-    setGastosVariables(Array.isArray(reg.gastosVariables) ? reg.gastosVariables : []);
+
+    // RETROCOMPATIBILIDAD: fusionar gastosFijos y gastosVariables del historial
+    if (Array.isArray(reg.gastos)) {
+      // Formato nuevo: ya tiene array unificado
+      setGastos(reg.gastos);
+    } else {
+      // Formato antiguo: fusionar arrays separados
+      const gastosFijos = (Array.isArray(reg.gastosFijos) ? reg.gastosFijos : []).map(g => ({
+        ...g,
+        tipo: 'fijo',
+        fecha: g.fecha || null,
+        categoria: g.categoria || 'Vivienda'
+      }));
+      const gastosVariables = (Array.isArray(reg.gastosVariables) ? reg.gastosVariables : []).map(g => ({
+        ...g,
+        tipo: 'variable',
+        categoria: g.categoria || 'Otros'
+      }));
+      setGastos([...gastosFijos, ...gastosVariables]);
+    }
+
     setDeudas(Array.isArray(reg.deudas) ? reg.deudas : []);
     setCuentasAhorro(Array.isArray(reg.cuentasAhorro) ? reg.cuentasAhorro : Array.isArray(reg.objetivos) ? reg.objetivos : []);
     setMostrarBienvenida(false);
@@ -598,19 +860,63 @@ export default function ControlFinanciero() {
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'}`}>
       {notificacion.show && (
         <div
-          className={`fixed top-4 right-4 p-4 rounded-xl shadow-2xl z-50 transform transition-all duration-300 animate-in slide-in-from-right ${
-            notificacion.tipo === 'success' ? 'bg-green-500' : notificacion.tipo === 'error' ? 'bg-red-500' : 'bg-blue-500'
-          }`}
+          className={`fixed top-4 right-4 z-[100] transform transition-all duration-500 animate-[slideDown_0.5s_ease-out] ${
+            notificacion.tipo === 'success' ? 'bg-[#10b981]' : notificacion.tipo === 'error' ? 'bg-[#ef4444]' : 'bg-[#3b82f6]'
+          } text-white px-6 py-4 rounded-xl shadow-2xl max-w-md`}
+          style={{
+            animation: 'slideDown 0.5s ease-out'
+          }}
         >
-          <span className="text-white font-medium">{notificacion.mensaje}</span>
+          <div className="flex items-center gap-3">
+            {notificacion.tipo === 'success' && <CheckCircle size={24} className="flex-shrink-0" />}
+            {notificacion.tipo === 'error' && <AlertCircle size={24} className="flex-shrink-0" />}
+            {notificacion.tipo === 'info' && <Info size={24} className="flex-shrink-0" />}
+            <span className="font-semibold text-base">{notificacion.mensaje}</span>
+          </div>
+          {/* Barra de progreso */}
+          <div className="absolute bottom-0 left-0 h-1 bg-white/30 w-full rounded-b-xl overflow-hidden">
+            <div
+              className="h-full bg-white/80 animate-[shrink_3s_linear]"
+              style={{
+                animation: 'shrink 3s linear'
+              }}
+            />
+          </div>
         </div>
       )}
+
+      <style jsx global>{`
+        @keyframes slideDown {
+          from {
+            transform: translateY(-100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes shrink {
+          from {
+            width: 100%;
+          }
+          to {
+            width: 0%;
+          }
+        }
+
+        /* Ocultar scrollbar pero mantener funcionalidad */
+        .overflow-x-auto::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
 
       <header className={`sticky top-0 z-40 backdrop-blur-lg ${darkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center gap-2`}>
+              <h1 className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'} flex items-center gap-3`}>
                 💰 Control Financiero
               </h1>
               <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -620,7 +926,7 @@ export default function ControlFinanciero() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+                className={`p-3 min-h-[44px] min-w-[44px] rounded-xl transition-all duration-300 hover:scale-110 ${
                   darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
                 aria-label="Toggle dark mode"
@@ -629,7 +935,7 @@ export default function ControlFinanciero() {
               </button>
               <button
                 onClick={() => signOut({ callbackUrl: '/auth/signin' })}
-                className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 flex items-center gap-2 ${
+                className={`p-3 min-h-[44px] rounded-xl transition-all duration-300 hover:scale-110 flex items-center gap-3 ${
                   darkMode ? 'bg-red-600 text-white hover:bg-red-700' : 'bg-red-500 text-white hover:bg-red-600'
                 }`}
                 aria-label="Cerrar sesión"
@@ -645,13 +951,16 @@ export default function ControlFinanciero() {
       {/* Navegación por pestañas */}
       <nav className={`sticky top-[88px] z-30 backdrop-blur-lg ${darkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
         <div className="max-w-6xl mx-auto px-4">
-          <div className="flex gap-2 overflow-x-auto py-4 scrollbar-hide">
+          <div className="flex gap-3 overflow-x-auto py-4 scroll-smooth snap-x snap-mandatory [-webkit-overflow-scrolling:touch]" style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
+          }}>
             {[
               { id: 'inicio', icon: <Home size={18} />, label: 'Inicio' },
               { id: 'ingresos', icon: <TrendingUp size={18} />, label: 'Ingresos' },
               { id: 'gastos', icon: <ShoppingCart size={18} />, label: 'Gastos' },
               { id: 'prestamos', icon: <CreditCard size={18} />, label: 'Préstamos' },
-              { id: 'deudas', icon: <AlertCircle size={18} />, label: 'Deudas Varias' },
+              { id: 'deudas', icon: <AlertCircle size={18} />, label: 'Deudas' },
               { id: 'objetivos', icon: <Target size={18} />, label: 'Mis Ahorros' },
               { id: 'estadisticas', icon: <BarChart3 size={18} />, label: 'Estadísticas' },
             ].map((vista) => (
@@ -659,7 +968,7 @@ export default function ControlFinanciero() {
                 key={vista.id}
                 onClick={() => setVistaActiva(vista.id)}
                 className={`
-                  flex items-center gap-2 px-4 py-2 rounded-xl font-medium whitespace-nowrap
+                  flex items-center gap-3 px-4 py-2 rounded-xl font-medium whitespace-nowrap flex-shrink-0 snap-start
                   transition-all duration-300 transform hover:scale-105
                   ${vistaActiva === vista.id
                     ? darkMode
@@ -695,17 +1004,156 @@ export default function ControlFinanciero() {
           </div>
           <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-blue-600 to-blue-700' : 'bg-gradient-to-br from-blue-400 to-blue-500'}`}>
             <p className="text-white/80 text-sm font-medium mb-2">💵 Balance</p>
-            <p className="text-white text-3xl font-bold">{saldoDisponible.toFixed(2)} €</p>
+            <div className="flex items-center justify-start gap-2">
+              {saldoDisponible >= 0 ? (
+                <TrendingUp className="text-white" size={28} />
+              ) : (
+                <TrendingDown className="text-white" size={28} />
+              )}
+              <p className="text-white text-3xl font-bold">{saldoDisponible.toFixed(2)} €</p>
+            </div>
           </div>
           <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
-            <p className="text-white/80 text-sm font-medium mb-2">🏦 Deudas</p>
-            <p className="text-white text-3xl font-bold">{totalDeudas.toFixed(2)} €</p>
+            <p className="text-white/80 text-sm font-medium mb-2">🏦 Deuda Total</p>
+            <p className="text-white text-3xl font-bold">{deudaTotalCombinada.toFixed(2)} €</p>
+            <div className="mt-2 space-y-0.5 text-xs text-white/70">
+              <div className="flex justify-between">
+                <span>Deudas:</span>
+                <span className="font-medium">{totalDeudas.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Préstamos:</span>
+                <span className="font-medium">{totalPrestamos.toFixed(2)} €</span>
+              </div>
+            </div>
           </div>
+        </div>
+
+        {/* Salud Financiera - Regla 50/30/20 */}
+        <div className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-700'}`}>
+            💪 Salud Financiera (Regla 50/30/20)
+          </h3>
+
+          {(() => {
+            // Calcular porcentajes reales (respecto a ingresos totales)
+            const porcNecesidades = totalIngresos > 0 ? (totalGastosFijos / totalIngresos) * 100 : 0;
+            const porcDeseos = totalIngresos > 0 ? (totalGastosVariables / totalIngresos) * 100 : 0;
+            // Usar las cuentas de ahorro manuales, no el balance
+            const ahorroReal = totalAhorros;
+            const porcAhorro = totalIngresos > 0 ? (ahorroReal / totalIngresos) * 100 : 0;
+
+            // Objetivos ideales
+            const necesidadesIdeal = 50;
+            const deseosIdeal = 30;
+            const ahorroIdeal = 20;
+
+            // Calcular anchos de barra (relativo al objetivo, máximo 100%)
+            // La barra se llena al 100% cuando alcanzas el objetivo
+            const anchoBarraNecesidades = Math.min((porcNecesidades / necesidadesIdeal) * 100, 100);
+            const anchoBarraDeseos = Math.min((porcDeseos / deseosIdeal) * 100, 100);
+            const anchoBarraAhorro = Math.min((porcAhorro / ahorroIdeal) * 100, 100);
+
+            // Determinar si cumple cada categoría
+            const cumpleNecesidades = porcNecesidades <= necesidadesIdeal;
+            const cumpleDeseos = porcDeseos <= deseosIdeal;
+            const cumpleAhorro = porcAhorro >= ahorroIdeal;
+            const cumpleTodo = cumpleNecesidades && cumpleDeseos && cumpleAhorro;
+
+            return (
+              <div className="space-y-4">
+                {/* Necesidades (Gastos Fijos) */}
+                <div>
+                  <div className={`flex justify-between text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span>🏠 Necesidades (objetivo: máx {necesidadesIdeal}%)</span>
+                    <span className="font-bold">{porcNecesidades.toFixed(0)}%</span>
+                  </div>
+                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        cumpleNecesidades ? 'bg-green-500' :
+                        porcNecesidades <= necesidadesIdeal + 10 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${anchoBarraNecesidades}%` }}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {totalGastosFijos.toFixed(2)} € en gastos fijos
+                  </p>
+                </div>
+
+                {/* Deseos (Gastos Variables) */}
+                <div>
+                  <div className={`flex justify-between text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span>🎉 Deseos (objetivo: máx {deseosIdeal}%)</span>
+                    <span className="font-bold">{porcDeseos.toFixed(0)}%</span>
+                  </div>
+                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        cumpleDeseos ? 'bg-green-500' :
+                        porcDeseos <= deseosIdeal + 10 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${anchoBarraDeseos}%` }}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {totalGastosVariables.toFixed(2)} € en gastos variables
+                  </p>
+                </div>
+
+                {/* Ahorro */}
+                <div>
+                  <div className={`flex justify-between text-sm mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span>💰 Ahorro (objetivo: mín {ahorroIdeal}%)</span>
+                    <span className="font-bold">{porcAhorro.toFixed(0)}%</span>
+                  </div>
+                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        cumpleAhorro ? 'bg-green-500' :
+                        porcAhorro >= ahorroIdeal - 10 ? 'bg-yellow-500' :
+                        'bg-red-500'
+                      }`}
+                      style={{ width: `${anchoBarraAhorro}%` }}
+                    />
+                  </div>
+                  <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {ahorroReal.toFixed(2)} € en cuentas de ahorro
+                  </p>
+                </div>
+
+                {/* Resumen unificado - Solo se muestra cuando TODO está bien */}
+                {cumpleTodo && (
+                  <div className={`mt-4 p-3 rounded-lg ${darkMode ? 'bg-green-900/20 border border-green-800' : 'bg-green-50 border-2 border-green-200'}`}>
+                    <p className={`text-sm font-medium ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                      ✓ ¡Excelente! Sigues la regla 50/30/20 perfectamente
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>✨ Añadir Ingreso</h2>
           <div className="flex gap-3 flex-wrap">
+            <select
+              aria-label="tipo de ingreso"
+              value={nuevoIngreso.tipo}
+              onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, tipo: e.target.value })}
+              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                darkMode
+                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+              }`}
+            >
+              <option value="Fijo">Fijo</option>
+              <option value="Variable">Variable</option>
+            </select>
             <input
               aria-label="concepto"
               placeholder="Concepto"
@@ -741,7 +1189,7 @@ export default function ControlFinanciero() {
             />
             <button
               onClick={añadirIngreso}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300"
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300"
             >
               <Plus size={20} /> Añadir
             </button>
@@ -764,7 +1212,11 @@ export default function ControlFinanciero() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className={`font-bold text-lg ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{(i.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarIngreso(i.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                    <button
+                      onClick={() => eliminarIngreso(i.id)}
+                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                      aria-label="Eliminar ingreso"
+                    >
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -777,32 +1229,6 @@ export default function ControlFinanciero() {
           </div>
         </section>
 
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📅 Historial mensual</h2>
-
-          {historialMensual.length === 0 ? (
-            <p className={`text-sm mt-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Aún no hay registros. Guarda el mes actual para empezar.</p>
-          ) : (
-            <ul className="mt-4 space-y-3">
-              {[...historialMensual].slice().reverse().map((h) => (
-                <li key={h.id} className={`p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2 flex justify-between items-center`}>
-                  <div>
-                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{h.mes}</div>
-                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Guardado: {new Date(h.fechaGuardado).toLocaleString()}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => restaurarHistorial(h.id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-700'}`}>
-                      Restaurar
-                    </button>
-                    <button onClick={() => eliminarHistorial(h.id)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 hover:scale-105 ${darkMode ? 'bg-red-600/20 hover:bg-red-600/30 text-red-400' : 'bg-red-100 hover:bg-red-200 text-red-600'}`}>
-                      Eliminar
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
 
         {/* Gastos Fijos */}
         <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -828,7 +1254,7 @@ export default function ControlFinanciero() {
                   : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
               }`}
             />
-            <button onClick={añadirGastoFijo} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+            <button onClick={añadirGastoFijo} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
               <Plus size={20} /> Añadir
             </button>
           </div>
@@ -841,7 +1267,11 @@ export default function ControlFinanciero() {
                   <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
                   <div className="flex items-center gap-3">
                     <div className={`font-bold text-lg ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarGastoFijo(g.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                    <button
+                      onClick={() => eliminarGastoFijo(g.id)}
+                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                      aria-label="Eliminar gasto fijo"
+                    >
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -901,7 +1331,7 @@ export default function ControlFinanciero() {
                   : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
               }`}
             />
-            <button onClick={añadirGastoVariable} className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+            <button onClick={añadirGastoVariable} className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
               <Plus size={20} /> Añadir
             </button>
           </div>
@@ -921,7 +1351,11 @@ export default function ControlFinanciero() {
                   </div>
                   <div className="flex items-center gap-3">
                     <div className={`font-bold text-lg ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
-                    <button onClick={() => eliminarGastoVariable(g.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                    <button
+                      onClick={() => eliminarGastoVariable(g.id)}
+                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                      aria-label="Eliminar gasto variable"
+                    >
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -1013,7 +1447,7 @@ export default function ControlFinanciero() {
                   : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
               }`}
             />
-            <button onClick={añadirDeuda} className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+            <button onClick={añadirDeuda} className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
               <Plus size={20} /> Añadir
             </button>
           </div>
@@ -1038,7 +1472,11 @@ export default function ControlFinanciero() {
                           {d.plazoMeses && ` ${d.plazoMeses} meses`}
                         </div>
                       </div>
-                      <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <button
+                        onClick={() => eliminarDeuda(d.id)}
+                        className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                        aria-label="Eliminar deuda"
+                      >
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -1052,7 +1490,7 @@ export default function ControlFinanciero() {
                       </div>
                       <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
                         <div
-                          className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
                           style={{ width: `${Math.min(progreso, 100)}%` }}
                         />
                       </div>
@@ -1074,7 +1512,7 @@ export default function ControlFinanciero() {
                       {restante > 0 && (
                         <button
                           onClick={() => registrarPagoDeuda(d.id)}
-                          className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
                         >
                           <DollarSign size={18} /> Registrar Pago
                         </button>
@@ -1114,7 +1552,7 @@ export default function ControlFinanciero() {
                   : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
               }`}
             />
-            <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+            <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
               <Plus size={20} /> Añadir
             </button>
           </div>
@@ -1129,7 +1567,11 @@ export default function ControlFinanciero() {
                       <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
                       <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cuenta de ahorro</div>
                     </div>
-                    <button onClick={() => eliminarCuentaAhorro(c.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                    <button
+                      onClick={() => eliminarCuentaAhorro(c.id)}
+                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                      aria-label="Eliminar objetivo de ahorro"
+                    >
                       <Trash2 size={18} />
                     </button>
                   </div>
@@ -1138,16 +1580,16 @@ export default function ControlFinanciero() {
                     {(c.saldo || 0).toFixed(2)} €
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3">
                     <button
                       onClick={() => añadirDineroCuenta(c.id)}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center justify-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
                     >
                       <Plus size={18} /> Añadir
                     </button>
                     <button
                       onClick={() => retirarDineroCuenta(c.id)}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                      className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center justify-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
                     >
                       <Download size={18} /> Retirar
                     </button>
@@ -1165,7 +1607,11 @@ export default function ControlFinanciero() {
 
         {/* Vista: Préstamos */}
         {vistaActiva === 'prestamos' && (
-          <LoanManager darkMode={darkMode} />
+          <LoanManager
+            darkMode={darkMode}
+            onCreateExpense={crearGastoAutomatico}
+            onShowNotification={mostrarNotificacion}
+          />
         )}
 
         {/* Vista: Ingresos */}
@@ -1174,6 +1620,19 @@ export default function ControlFinanciero() {
             <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>✨ Añadir Ingreso</h2>
               <div className="flex gap-3 flex-wrap">
+                <select
+                  aria-label="tipo de ingreso"
+                  value={nuevoIngreso.tipo}
+                  onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, tipo: e.target.value })}
+                  className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+                  }`}
+                >
+                  <option value="Fijo">Fijo</option>
+                  <option value="Variable">Variable</option>
+                </select>
                 <input
                   aria-label="concepto"
                   placeholder="Concepto"
@@ -1196,9 +1655,20 @@ export default function ControlFinanciero() {
                       : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                 />
+                <input
+                  aria-label="fecha"
+                  type="date"
+                  value={nuevoIngreso.fecha}
+                  onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, fecha: e.target.value })}
+                  className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                    darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+                  }`}
+                />
                 <button
                   onClick={añadirIngreso}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300"
+                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300"
                 >
                   <Plus size={20} /> Añadir
                 </button>
@@ -1212,17 +1682,95 @@ export default function ControlFinanciero() {
               ) : (
                 <ul className="space-y-3">
                   {ingresos.map((i) => (
-                    <li key={i.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                      <div>
-                        <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{i.concepto}</div>
-                        <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{i.tipo}</div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className={`font-bold text-lg ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{(i.monto || 0).toFixed(2)} €</div>
-                        <button onClick={() => eliminarIngreso(i.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                    <li key={i.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                      {editandoIngreso === i.id ? (
+                        // Modo edición
+                        <div className="space-y-3">
+                          <div className="flex gap-3 flex-wrap">
+                            <input
+                              placeholder="Concepto"
+                              value={valoresTemp.concepto || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, concepto: e.target.value })}
+                              className={`flex-1 min-w-[200px] px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                            <input
+                              placeholder="Monto"
+                              value={valoresTemp.monto || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, monto: e.target.value })}
+                              className={`w-32 px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                            <select
+                              value={valoresTemp.tipo || 'Fijo'}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, tipo: e.target.value })}
+                              className={`px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            >
+                              <option value="Fijo">Fijo</option>
+                              <option value="Variable">Variable</option>
+                            </select>
+                            <input
+                              type="date"
+                              value={valoresTemp.fecha || new Date().toISOString().split('T')[0]}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, fecha: e.target.value })}
+                              className={`px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                          </div>
+                          <div className="flex gap-3 justify-end">
+                            <button
+                              onClick={cancelarEdicionIngreso}
+                              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                                darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                              }`}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={guardarEdicionIngreso}
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                            >
+                              Guardar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        // Modo visualización
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{i.concepto}</div>
+                            <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                              {i.tipo} {i.fecha && `• ${new Date(i.fecha).toLocaleDateString('es-ES')}`}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className={`font-bold text-lg ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{(i.monto || 0).toFixed(2)} €</div>
+                            <button
+                              onClick={() => iniciarEdicionIngreso(i)}
+                              className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${
+                                darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
+                              }`}
+                              aria-label="Editar ingreso"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => eliminarIngreso(i.id)}
+                              className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${
+                                darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
+                              }`}
+                              aria-label="Eliminar ingreso"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -1234,19 +1782,30 @@ export default function ControlFinanciero() {
           </>
         )}
 
-        {/* Vista: Gastos Unificados con Tabs */}
+        {/* Vista: Gastos Unificados con Filtros */}
         {vistaActiva === 'gastos' && (
           <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Gastos</h2>
 
-            {/* Tabs internos para Fijos/Variables */}
-            <div className="flex gap-2 mb-6">
+            {/* Filtros */}
+            <div className="flex gap-3 mb-6">
               <button
-                onClick={() => {
-                  setTipoGastoActivo('fijo');
-                  setNuevoGasto({ ...nuevoGasto, tipo: 'fijo', categoria: 'Vivienda' });
-                }}
-                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                onClick={() => setTipoGastoActivo('todos')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  tipoGastoActivo === 'todos'
+                    ? darkMode
+                      ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+                      : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+                    : darkMode
+                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                📊 Todos ({gastos.length})
+              </button>
+              <button
+                onClick={() => setTipoGastoActivo('fijo')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   tipoGastoActivo === 'fijo'
                     ? darkMode
                       ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
@@ -1256,14 +1815,11 @@ export default function ControlFinanciero() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                🏠 Gastos Fijos
+                🏠 Fijos ({gastos.filter(g => g.tipo === 'fijo').length})
               </button>
               <button
-                onClick={() => {
-                  setTipoGastoActivo('variable');
-                  setNuevoGasto({ ...nuevoGasto, tipo: 'variable', categoria: 'Alimentación' });
-                }}
-                className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                onClick={() => setTipoGastoActivo('variable')}
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   tipoGastoActivo === 'variable'
                     ? darkMode
                       ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
@@ -1273,132 +1829,226 @@ export default function ControlFinanciero() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                🛒 Gastos Variables
+                🛒 Variables ({gastos.filter(g => g.tipo === 'variable').length})
               </button>
             </div>
 
-            {/* Formulario dinámico según tipo */}
-            <div className="flex gap-3 flex-wrap mb-4">
-              {tipoGastoActivo === 'variable' && (
-                <>
-                  <input
-                    type="date"
-                    value={nuevoGasto.fecha}
-                    onChange={(e) => setNuevoGasto({ ...nuevoGasto, fecha: e.target.value })}
-                    className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                      darkMode
-                        ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                        : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
-                    }`}
-                  />
+            {/* Formulario dinámico según tipo - Solo visible en Fijos o Variables */}
+            {tipoGastoActivo === 'todos' ? (
+              <div className={`mb-4 p-4 rounded-xl ${darkMode ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border-2 border-blue-200'}`}>
+                <p className={`text-sm ${darkMode ? 'text-blue-400' : 'text-blue-700'}`}>
+                  ℹ️ Para añadir un gasto, selecciona primero si es <strong>Fijo</strong> o <strong>Variable</strong> usando los botones de arriba.
+                </p>
+              </div>
+            ) : (
+              <div className="flex gap-3 flex-wrap mb-4">
+                {tipoGastoActivo === 'variable' && (
+                  <>
+                    <input
+                      type="date"
+                      value={nuevoGasto.fecha}
+                      onChange={(e) => setNuevoGasto({ ...nuevoGasto, fecha: e.target.value })}
+                      className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                        darkMode
+                          ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                          : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                      }`}
+                    />
+                    <select
+                      value={nuevoGasto.categoria}
+                      onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
+                      className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                        darkMode
+                          ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                          : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                      }`}
+                    >
+                      {CATEGORIAS_GASTOS.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
+                {tipoGastoActivo === 'fijo' && (
                   <select
                     value={nuevoGasto.categoria}
                     onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
                     className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                       darkMode
-                        ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                        : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
+                        ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
+                        : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
                     }`}
                   >
                     {CATEGORIAS_GASTOS.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
-                </>
-              )}
-              {tipoGastoActivo === 'fijo' && (
-                <select
-                  value={nuevoGasto.categoria}
-                  onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
-                  className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                )}
+                <input
+                  placeholder="Concepto"
+                  value={nuevoGasto.concepto}
+                  onChange={(e) => setNuevoGasto({ ...nuevoGasto, concepto: e.target.value })}
+                  className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
-                      : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
+                      ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                      : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                   }`}
+                />
+                <input
+                  placeholder="Monto"
+                  value={nuevoGasto.monto}
+                  onChange={(e) => setNuevoGasto({ ...nuevoGasto, monto: e.target.value })}
+                  className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
+                    darkMode
+                      ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                      : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                  }`}
+                />
+                <button
+                  onClick={añadirGasto}
+                  className={`${
+                    tipoGastoActivo === 'fijo'
+                      ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
+                      : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700'
+                  } text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300`}
                 >
-                  {CATEGORIAS_GASTOS.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              )}
-              <input
-                placeholder="Concepto"
-                value={nuevoGasto.concepto}
-                onChange={(e) => setNuevoGasto({ ...nuevoGasto, concepto: e.target.value })}
-                className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
-                    : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
-                }`}
-              />
-              <input
-                placeholder="Monto"
-                value={nuevoGasto.monto}
-                onChange={(e) => setNuevoGasto({ ...nuevoGasto, monto: e.target.value })}
-                className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                  darkMode
-                    ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
-                    : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
-                }`}
-              />
-              <button
-                onClick={añadirGasto}
-                className={`${
-                  tipoGastoActivo === 'fijo'
-                    ? 'bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700'
-                    : 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700'
-                } text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300`}
-              >
-                <Plus size={20} /> Añadir
-              </button>
-            </div>
-
-            {/* Lista filtrada según tipo activo */}
-            {gastos.filter(g => g.tipo === tipoGastoActivo).length === 0 ? (
-              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                No hay {tipoGastoActivo === 'fijo' ? 'gastos fijos' : 'gastos variables'} registrados.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {gastos.filter(g => g.tipo === tipoGastoActivo).map((g) => (
-                  <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                    <div>
-                      <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                      {g.tipo === 'variable' && (
-                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          {g.categoria && <span className="font-semibold">{g.categoria}</span>}
-                          {g.categoria && g.fecha && ' • '}
-                          {g.fecha && `📅 ${g.fecha}`}
-                        </div>
-                      )}
-                      {g.tipo === 'fijo' && g.categoria && (
-                        <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          <span className="font-semibold">{g.categoria}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className={`font-bold text-lg ${
-                        tipoGastoActivo === 'fijo'
-                          ? darkMode ? 'text-red-400' : 'text-red-600'
-                          : darkMode ? 'text-orange-400' : 'text-orange-600'
-                      }`}>
-                        {(g.monto || 0).toFixed(2)} €
-                      </div>
-                      <button
-                        onClick={() => eliminarGasto(g.id)}
-                        className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                  <Plus size={20} /> Añadir
+                </button>
+              </div>
             )}
 
-            {/* Resumen por categoría solo para variables */}
-            {tipoGastoActivo === 'variable' && gastos.filter(g => g.tipo === 'variable').length > 0 && (
+            {/* Lista filtrada según tipo activo */}
+            {(() => {
+              const gastosFiltrados = tipoGastoActivo === 'todos'
+                ? gastos
+                : gastos.filter(g => g.tipo === tipoGastoActivo);
+
+              return gastosFiltrados.length === 0 ? (
+                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  No hay {tipoGastoActivo === 'todos' ? 'gastos' : tipoGastoActivo === 'fijo' ? 'gastos fijos' : 'gastos variables'} registrados.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {gastosFiltrados.map((g) => (
+                  <li key={g.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    {editandoGasto === g.id ? (
+                      // Modo edición
+                      <div className="space-y-3">
+                        <div className="flex gap-3 flex-wrap">
+                          <input
+                            placeholder="Concepto"
+                            value={valoresTemp.concepto || ''}
+                            onChange={(e) => setValoresTemp({ ...valoresTemp, concepto: e.target.value })}
+                            className={`flex-1 min-w-[200px] px-3 py-2 rounded-lg border-2 ${
+                              darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                            }`}
+                          />
+                          <input
+                            placeholder="Monto"
+                            value={valoresTemp.monto || ''}
+                            onChange={(e) => setValoresTemp({ ...valoresTemp, monto: e.target.value })}
+                            className={`w-32 px-3 py-2 rounded-lg border-2 ${
+                              darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                            }`}
+                          />
+                          <select
+                            value={valoresTemp.categoria || 'Otros'}
+                            onChange={(e) => setValoresTemp({ ...valoresTemp, categoria: e.target.value })}
+                            className={`px-3 py-2 rounded-lg border-2 ${
+                              darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                            }`}
+                          >
+                            {CATEGORIAS_GASTOS.map((cat) => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                          {g.tipo === 'variable' && (
+                            <input
+                              type="date"
+                              value={valoresTemp.fecha || new Date().toISOString().split('T')[0]}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, fecha: e.target.value })}
+                              className={`px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                          )}
+                        </div>
+                        <div className="flex gap-3 justify-end">
+                          <button
+                            onClick={cancelarEdicionGasto}
+                            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                              darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                            }`}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            onClick={guardarEdicionGasto}
+                            className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                          >
+                            Guardar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      // Modo visualización
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
+                            {tipoGastoActivo === 'todos' && (
+                              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                                g.tipo === 'fijo'
+                                  ? darkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-100 text-red-700'
+                                  : darkMode ? 'bg-orange-900/30 text-orange-400' : 'bg-orange-100 text-orange-700'
+                              }`}>
+                                {g.tipo === 'fijo' ? '🏠 Fijo' : '🛒 Variable'}
+                              </span>
+                            )}
+                          </div>
+                          <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                            {g.categoria && <span className="font-semibold">{g.categoria}</span>}
+                            {g.categoria && g.fecha && ' • '}
+                            {g.fecha && `📅 ${g.fecha}`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className={`font-bold text-lg ${
+                            g.tipo === 'fijo'
+                              ? darkMode ? 'text-red-400' : 'text-red-600'
+                              : darkMode ? 'text-orange-400' : 'text-orange-600'
+                          }`}>
+                            {(g.monto || 0).toFixed(2)} €
+                          </div>
+                          <button
+                            onClick={() => iniciarEdicionGasto(g)}
+                            className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${
+                              darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
+                            }`}
+                            aria-label="Editar gasto"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => eliminarGasto(g.id)}
+                            className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${
+                              darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
+                            }`}
+                            aria-label="Eliminar gasto"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                  ))}
+                </ul>
+              );
+            })()}
+
+            {/* Resumen por categoría (incluye fijos y variables) */}
+            {gastos.length > 0 && (
               <div className="mt-6">
                 <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
                 <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
@@ -1406,6 +2056,8 @@ export default function ControlFinanciero() {
                     <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
                       <tr>
                         <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Categoría</th>
+                        <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Fijos</th>
+                        <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Variables</th>
                         <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</th>
                         <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
                       </tr>
@@ -1413,19 +2065,42 @@ export default function ControlFinanciero() {
                     <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
                       {(() => {
                         const categorias = {};
-                        gastos.filter(g => g.tipo === 'variable').forEach(g => {
+
+                        // Agregar todos los gastos
+                        gastos.forEach(g => {
                           const categoria = g.categoria || 'Otros';
-                          categorias[categoria] = (categorias[categoria] || 0) + (parseFloat(g.monto) || 0);
+                          if (!categorias[categoria]) {
+                            categorias[categoria] = { fijos: 0, variables: 0 };
+                          }
+                          if (g.tipo === 'fijo') {
+                            categorias[categoria].fijos += parseFloat(g.monto) || 0;
+                          } else {
+                            categorias[categoria].variables += parseFloat(g.monto) || 0;
+                          }
                         });
 
+                        const totalGastos = totalGastosFijos + totalGastosVariables;
+
                         return Object.entries(categorias)
-                          .sort((a, b) => b[1] - a[1])
-                          .map(([categoria, total]) => {
-                            const porcentaje = totalGastosVariables > 0 ? (total / totalGastosVariables) * 100 : 0;
+                          .map(([categoria, { fijos, variables }]) => ({
+                            categoria,
+                            fijos,
+                            variables,
+                            total: fijos + variables
+                          }))
+                          .sort((a, b) => b.total - a.total)
+                          .map(({ categoria, fijos, variables, total }) => {
+                            const porcentaje = totalGastos > 0 ? (total / totalGastos) * 100 : 0;
                             return (
                               <tr key={categoria} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                                 <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{categoria}</td>
-                                <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                <td className={`px-4 py-3 text-right ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                  {fijos > 0 ? fijos.toFixed(2) + '€' : '-'}
+                                </td>
+                                <td className={`px-4 py-3 text-right ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
+                                  {variables > 0 ? variables.toFixed(2) + '€' : '-'}
+                                </td>
+                                <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                                   {total.toFixed(2)}€
                                 </td>
                                 <td className={`px-4 py-3 text-right ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -1441,21 +2116,40 @@ export default function ControlFinanciero() {
               </div>
             )}
 
-            {/* Total según tipo activo */}
-            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-              {tipoGastoActivo === 'fijo' ? (
-                <>Total gastos fijos: <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong></>
+            {/* Total según filtro activo */}
+            <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+              {tipoGastoActivo === 'todos' ? (
+                <div className="space-y-2 text-sm">
+                  <div className={`flex justify-between ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span>Total gastos fijos:</span>
+                    <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong>
+                  </div>
+                  <div className={`flex justify-between ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    <span>Total gastos variables:</span>
+                    <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
+                  </div>
+                  <div className={`flex justify-between font-bold text-base pt-2 border-t ${darkMode ? 'border-gray-700 text-white' : 'border-gray-200 text-gray-900'}`}>
+                    <span>Total general:</span>
+                    <span className={darkMode ? 'text-blue-400' : 'text-blue-600'}>{totalGastos.toFixed(2)} €</span>
+                  </div>
+                </div>
+              ) : tipoGastoActivo === 'fijo' ? (
+                <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Total gastos fijos: <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong>
+                </div>
               ) : (
-                <>Total gastos variables: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong></>
+                <div className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Total gastos variables: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
+                </div>
               )}
             </div>
           </section>
         )}
 
-        {/* Vista: Deudas Varias */}
+        {/* Vista: Deudas */}
         {vistaActiva === 'deudas' && (
           <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💳 Deudas Varias</h2>
+            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💳 Deudas</h2>
             <div className="flex gap-3 flex-wrap mb-4">
               <input
                 placeholder="Nombre de la deuda"
@@ -1487,7 +2181,7 @@ export default function ControlFinanciero() {
                     : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
                 }`}
               />
-              <button onClick={añadirDeuda} className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <button onClick={añadirDeuda} className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
                 <Plus size={20} /> Añadir
               </button>
             </div>
@@ -1503,57 +2197,146 @@ export default function ControlFinanciero() {
                   const cuotaMensual = d.cuotaMensual || (montoTotal / (d.plazoMeses || 1));
 
                   return (
-                    <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
-                          <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                            Cuota: <span className="font-semibold">{cuotaMensual.toFixed(2)}€/mes</span> •
-                            {d.plazoMeses && ` ${d.plazoMeses} meses`}
+                    <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                      {editandoDeuda === d.id ? (
+                        // Modo edición
+                        <div className="space-y-3">
+                          <div className="flex gap-3 flex-wrap">
+                            <input
+                              placeholder="Nombre de la deuda"
+                              value={valoresTemp.nombre || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, nombre: e.target.value })}
+                              className={`flex-1 min-w-[200px] px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                            <input
+                              placeholder="Monto total"
+                              value={valoresTemp.montoTotal || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, montoTotal: e.target.value })}
+                              className={`w-32 px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                            <input
+                              placeholder="Plazo (meses)"
+                              value={valoresTemp.plazoMeses || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, plazoMeses: e.target.value })}
+                              className={`w-32 px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                            <input
+                              placeholder="Cuota mensual"
+                              value={valoresTemp.cuotaMensual || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, cuotaMensual: e.target.value })}
+                              className={`w-32 px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                            <input
+                              type="date"
+                              placeholder="Fecha fin"
+                              value={valoresTemp.fechaFin || ''}
+                              onChange={(e) => setValoresTemp({ ...valoresTemp, fechaFin: e.target.value })}
+                              className={`px-3 py-2 rounded-lg border-2 ${
+                                darkMode ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300'
+                              }`}
+                            />
+                          </div>
+                          <div className="flex gap-3 justify-end">
+                            <button
+                              onClick={cancelarEdicionDeuda}
+                              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                                darkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                              }`}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={guardarEdicionDeuda}
+                              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-lg font-medium"
+                            >
+                              Guardar
+                            </button>
                           </div>
                         </div>
-                        <button onClick={() => eliminarDeuda(d.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
+                      ) : (
+                        // Modo visualización
+                        <>
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
+                              <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                Cuota: <span className="font-semibold">{cuotaMensual.toFixed(2)}€/mes</span>
+                                {d.plazoMeses && ` • ${d.plazoMeses} meses`}
+                                {d.fechaFin && d.fechaFin !== 'Sin definir' && ` • Fin: ${new Date(d.fechaFin).toLocaleDateString('es-ES')}`}
+                                {(!d.fechaFin || d.fechaFin === 'Sin definir') && !d.plazoMeses && (
+                                  <span className="text-xs ml-2">(Sin plazo definido)</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => iniciarEdicionDeuda(d)}
+                                className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${
+                                  darkMode ? 'text-blue-400 hover:bg-blue-900/30' : 'text-blue-600 hover:bg-blue-50'
+                                }`}
+                                aria-label="Editar deuda"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => eliminarDeuda(d.id)}
+                                className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${
+                                  darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'
+                                }`}
+                                aria-label="Eliminar deuda"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </div>
 
-                      <div className="mb-3">
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progreso</span>
-                          <span className={`font-semibold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                            {progreso.toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                          <div
-                            className="bg-gradient-to-r from-purple-500 to-purple-600 h-3 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(progreso, 100)}%` }}
-                          />
-                        </div>
-                      </div>
+                          <div className="mb-3">
+                            <div className="flex justify-between text-sm mb-2">
+                              <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progreso</span>
+                              <span className={`font-semibold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
+                                {progreso.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
+                              <div
+                                className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
+                                style={{ width: `${Math.min(progreso, 100)}%` }}
+                              />
+                            </div>
+                          </div>
 
-                      <div className="flex justify-between items-center">
-                        <div className="text-sm">
-                          <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                            Total: <span className={`font-bold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{montoTotal.toFixed(2)}€</span>
-                          </div>
-                          <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                            Pagado: <span className="font-semibold">{totalPagado.toFixed(2)}€</span>
-                          </div>
-                          <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                            Restante: <span className={`font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{restante.toFixed(2)}€</span>
-                          </div>
-                        </div>
+                          <div className="flex justify-between items-center">
+                            <div className="text-sm">
+                              <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                Total: <span className={`font-bold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{montoTotal.toFixed(2)}€</span>
+                              </div>
+                              <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                Pagado: <span className="font-semibold">{totalPagado.toFixed(2)}€</span>
+                              </div>
+                              <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                                Restante: <span className={`font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{restante.toFixed(2)}€</span>
+                              </div>
+                            </div>
 
-                        {restante > 0 && (
-                          <button
-                            onClick={() => registrarPagoDeuda(d.id)}
-                            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
-                          >
-                            <DollarSign size={18} /> Registrar Pago
-                          </button>
-                        )}
-                      </div>
+                            {restante > 0 && (
+                              <button
+                                onClick={() => registrarPagoDeuda(d.id)}
+                                className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
+                              >
+                                <DollarSign size={18} /> Registrar Pago
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </li>
                   );
                 })}
@@ -1590,7 +2373,7 @@ export default function ControlFinanciero() {
                     : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
                 }`}
               />
-              <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 rounded-xl font-semibold inline-flex items-center gap-2 shadow-lg transform hover:scale-105 transition-all duration-300">
+              <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
                 <Plus size={20} /> Añadir
               </button>
             </div>
@@ -1605,7 +2388,11 @@ export default function ControlFinanciero() {
                         <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
                         <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cuenta de ahorro</div>
                       </div>
-                      <button onClick={() => eliminarCuentaAhorro(c.id)} className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}>
+                      <button
+                        onClick={() => eliminarCuentaAhorro(c.id)}
+                        className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
+                        aria-label="Eliminar objetivo de ahorro"
+                      >
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -1614,16 +2401,16 @@ export default function ControlFinanciero() {
                       {(c.saldo || 0).toFixed(2)} €
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       <button
                         onClick={() => añadirDineroCuenta(c.id)}
-                        className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                        className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center justify-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
                       >
                         <Plus size={18} /> Añadir
                       </button>
                       <button
                         onClick={() => retirarDineroCuenta(c.id)}
-                        className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-2 rounded-lg font-semibold inline-flex items-center justify-center gap-2 shadow-md transform hover:scale-105 transition-all duration-300"
+                        className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center justify-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
                       >
                         <Download size={18} /> Retirar
                       </button>
@@ -1656,8 +2443,18 @@ export default function ControlFinanciero() {
                 <p className="text-white text-3xl font-bold">{saldoDisponible.toFixed(2)} €</p>
               </div>
               <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
-                <p className="text-white/80 text-sm font-medium mb-2">🏦 Total Deudas</p>
-                <p className="text-white text-3xl font-bold">{totalDeudas.toFixed(2)} €</p>
+                <p className="text-white/80 text-sm font-medium mb-2">🏦 Deuda Total</p>
+                <p className="text-white text-3xl font-bold">{deudaTotalCombinada.toFixed(2)} €</p>
+                <div className="mt-3 space-y-1 text-xs text-white/70">
+                  <div className="flex justify-between">
+                    <span>Deudas:</span>
+                    <span className="font-medium">{totalDeudas.toFixed(2)} €</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Préstamos:</span>
+                    <span className="font-medium">{totalPrestamos.toFixed(2)} €</span>
+                  </div>
+                </div>
               </div>
             </div>
             <div className={`mt-6 p-6 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
@@ -1669,7 +2466,7 @@ export default function ControlFinanciero() {
                   {historialMensual.map(h => (
                     <div key={h.id} className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
                       <div className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{h.mes}</div>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
+                      <div className="grid grid-cols-3 gap-3 text-sm">
                         <div className={darkMode ? 'text-green-400' : 'text-green-600'}>
                           Ingresos: {h.totales?.totalIngresos?.toFixed(2)} €
                         </div>

@@ -142,10 +142,19 @@ export function calculateTotalInterest(principal, annualRate, months) {
  * @returns {string} Cantidad formateada
  */
 export function formatCurrency(amount) {
-  return new Intl.NumberFormat('es-ES', {
-    style: 'currency',
-    currency: 'EUR',
-  }).format(amount);
+  if (amount === null || amount === undefined || isNaN(amount)) {
+    return '0,00 €';
+  }
+
+  // Formatear manualmente sin Intl
+  const fixed = Number(amount).toFixed(2);
+  const parts = fixed.split('.');
+
+  // Agregar separadores de miles
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+  // Usar coma como separador decimal
+  return parts.join(',') + ' €';
 }
 
 /**
@@ -154,11 +163,24 @@ export function formatCurrency(amount) {
  * @returns {string} Fecha formateada
  */
 export function formatDate(date) {
-  return new Intl.DateFormat('es-ES', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(new Date(date));
+  if (!date) return 'Sin definir';
+
+  try {
+    const d = new Date(date);
+
+    // Verificar que la fecha es válida
+    if (isNaN(d.getTime())) return 'Fecha inválida';
+
+    // Formatear manualmente sin usar Intl
+    const day = d.getDate().toString().padStart(2, '0');
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const year = d.getFullYear();
+
+    return `${day}/${month}/${year}`;
+  } catch (error) {
+    console.error('Error formateando fecha:', error);
+    return 'Error en fecha';
+  }
 }
 
 /**

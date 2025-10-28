@@ -11,7 +11,11 @@ import { formatCurrency, formatDate } from '@/lib/loanCalculations';
 /**
  * Componente principal para gestionar todos los préstamos
  */
-export default function LoanManager({ darkMode = false }) {
+export default function LoanManager({
+  darkMode = false,
+  onCreateExpense = null,
+  onShowNotification = null
+}) {
   const {
     loans,
     loading,
@@ -21,6 +25,7 @@ export default function LoanManager({ darkMode = false }) {
     deleteLoan,
     getAmortizationTable,
     markPaymentAsPaid,
+    makeExtraPayment,
     getStatistics,
   } = useLoans();
 
@@ -29,6 +34,74 @@ export default function LoanManager({ darkMode = false }) {
   const [selectedLoanId, setSelectedLoanId] = useState(null);
 
   const statistics = getStatistics();
+
+  // Handler para marcar pago que también crea un gasto
+  const handleMarkPayment = async (loanId) => {
+    try {
+      // Encontrar el préstamo
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) {
+        throw new Error('Préstamo no encontrado');
+      }
+
+      // Marcar el pago en la base de datos
+      await markPaymentAsPaid(loanId);
+
+      // Crear gasto automático si la función está disponible
+      if (onCreateExpense) {
+        onCreateExpense(
+          `Cuota préstamo ${loan.name} #${(loan.paid_months || 0) + 1}`,
+          loan.monthly_payment || loan.cuota_mensual,
+          'Finanzas'
+        );
+      }
+
+      // Mostrar notificación si la función está disponible
+      if (onShowNotification) {
+        onShowNotification('Cuota pagada y registrada en gastos', 'success');
+      }
+    } catch (err) {
+      console.error('Error marking payment:', err);
+      if (onShowNotification) {
+        onShowNotification('Error al marcar el pago', 'error');
+      }
+      throw err;
+    }
+  };
+
+  // Handler para amortización que también crea un gasto
+  const handleExtraPayment = async (loanId, amount) => {
+    try {
+      // Encontrar el préstamo
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) {
+        throw new Error('Préstamo no encontrado');
+      }
+
+      // Realizar amortización en la base de datos
+      await makeExtraPayment(loanId, amount);
+
+      // Crear gasto automático si la función está disponible
+      if (onCreateExpense) {
+        onCreateExpense(
+          `Amortización ${loan.name}`,
+          amount,
+          'Finanzas'
+        );
+      }
+
+      // Mostrar notificación si la función está disponible
+      if (onShowNotification) {
+        onShowNotification('Amortización realizada correctamente', 'success');
+      }
+    } catch (err) {
+      console.error('Error making extra payment:', err);
+      if (onShowNotification) {
+        onShowNotification(err.message || 'Error al realizar amortización', 'error');
+      }
+      throw err;
+    }
+  };
 
   // Manejar agregar préstamo
   const handleAddLoan = async (loanData) => {
@@ -109,7 +182,8 @@ export default function LoanManager({ darkMode = false }) {
             onBack={() => setSelectedLoanId(null)}
             onEdit={handleEdit}
             onDelete={handleDelete}
-            onMarkPayment={markPaymentAsPaid}
+            onMarkPayment={handleMarkPayment}
+            onExtraPayment={handleExtraPayment}
             darkMode={darkMode}
           />
 

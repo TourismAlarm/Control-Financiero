@@ -13,14 +13,9 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
     name: '',
     type: 'personal',
     initial_amount: '',
-    current_balance: '',
     interest_rate: '',
     monthly_payment: '',
-    total_months: '',
-    paid_months: '0',
     start_date: new Date().toISOString().split('T')[0],
-    payment_day: '1',
-    bank: '',
     notes: '',
   });
 
@@ -34,14 +29,9 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
         name: loan.name || '',
         type: loan.type || 'personal',
         initial_amount: loan.initial_amount?.toString() || '',
-        current_balance: loan.current_balance?.toString() || '',
         interest_rate: loan.interest_rate?.toString() || '',
         monthly_payment: loan.monthly_payment?.toString() || '',
-        total_months: loan.total_months?.toString() || '',
-        paid_months: loan.paid_months?.toString() || '0',
         start_date: loan.start_date?.split('T')[0] || new Date().toISOString().split('T')[0],
-        payment_day: loan.payment_day?.toString() || '1',
-        bank: loan.bank || '',
         notes: loan.notes || '',
       });
     }
@@ -71,13 +61,35 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
       newErrors.start_date = 'La fecha de inicio es requerida';
     }
 
-    const paymentDay = parseInt(formData.payment_day);
-    if (paymentDay < 1 || paymentDay > 31) {
-      newErrors.payment_day = 'El día de pago debe estar entre 1 y 31';
-    }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Calcular número de meses automáticamente
+  const calculateTotalMonths = () => {
+    const principal = parseFloat(formData.initial_amount);
+    const rate = parseFloat(formData.interest_rate) / 100 / 12; // Tasa mensual
+    const payment = parseFloat(formData.monthly_payment);
+
+    if (!principal || !payment || payment <= 0) return null;
+
+    // Si no hay interés, cálculo simple
+    if (!rate || rate === 0) {
+      return Math.ceil(principal / payment);
+    }
+
+    // Fórmula de amortización: n = -log(1 - (P * r) / M) / log(1 + r)
+    // P = principal, r = tasa mensual, M = pago mensual
+    const numerator = Math.log(1 - (principal * rate) / payment);
+    const denominator = Math.log(1 + rate);
+
+    if (numerator >= 0) {
+      // El pago es muy bajo, no alcanza para cubrir los intereses
+      return null;
+    }
+
+    const months = Math.ceil(-numerator / denominator);
+    return months > 0 && months < 1200 ? months : null; // Máximo 100 años
   };
 
   // Manejar envío del formulario
@@ -91,10 +103,17 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
     setLoading(true);
 
     try {
-      // Si no se proporciona saldo actual, usar el monto inicial
+      const totalMonths = calculateTotalMonths();
+
+      if (!totalMonths) {
+        setErrors({ submit: 'No se puede calcular el plazo. Verifica que la cuota mensual sea suficiente para cubrir el préstamo.' });
+        setLoading(false);
+        return;
+      }
+
       const dataToSubmit = {
         ...formData,
-        current_balance: formData.current_balance || formData.initial_amount,
+        total_months: totalMonths,
       };
 
       await onSubmit(dataToSubmit);
@@ -149,171 +168,126 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Nombre y Tipo */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Nombre *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                placeholder="Ej: Préstamo personal"
-                className={inputClass}
-              />
-              {errors.name && <p className={errorClass}>{errors.name}</p>}
-            </div>
-
-            <div>
-              <label className={labelClass}>Tipo *</label>
-              <select
-                value={formData.type}
-                onChange={(e) => handleChange('type', e.target.value)}
-                className={inputClass}
-              >
-                <option value="personal">Personal</option>
-                <option value="hipoteca">Hipoteca</option>
-                <option value="coche">Coche</option>
-                <option value="tarjeta_credito">Tarjeta de crédito</option>
-                <option value="estudiante">Estudiante</option>
-                <option value="otro">Otro</option>
-              </select>
-            </div>
+          {/* Información del mensaje */}
+          <div className={`p-4 rounded-xl ${darkMode ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50 border-2 border-blue-200'}`}>
+            <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+              💡 Solo necesitas proporcionar el <strong>monto total</strong>, la <strong>tasa de interés</strong> y la <strong>cuota mensual</strong>.
+              El sistema calculará automáticamente el número de meses del préstamo.
+            </p>
           </div>
 
-          {/* Montos */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Monto inicial * (€)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.initial_amount}
-                onChange={(e) => handleChange('initial_amount', e.target.value)}
-                placeholder="10000"
-                className={inputClass}
-              />
-              {errors.initial_amount && <p className={errorClass}>{errors.initial_amount}</p>}
-            </div>
-
-            <div>
-              <label className={labelClass}>Saldo actual (€)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.current_balance}
-                onChange={(e) => handleChange('current_balance', e.target.value)}
-                placeholder={formData.initial_amount || "Opcional"}
-                className={inputClass}
-              />
-              <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Dejar vacío si es nuevo
-              </p>
-            </div>
-          </div>
-
-          {/* Tasa y cuota */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Tasa de interés anual (%)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.interest_rate}
-                onChange={(e) => handleChange('interest_rate', e.target.value)}
-                placeholder="5.5"
-                className={inputClass}
-              />
-              {errors.interest_rate && <p className={errorClass}>{errors.interest_rate}</p>}
-            </div>
-
-            <div>
-              <label className={labelClass}>Cuota mensual * (€)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.monthly_payment}
-                onChange={(e) => handleChange('monthly_payment', e.target.value)}
-                placeholder="250"
-                className={inputClass}
-              />
-              {errors.monthly_payment && <p className={errorClass}>{errors.monthly_payment}</p>}
-            </div>
-          </div>
-
-          {/* Plazo y meses pagados */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Plazo total (meses)</label>
-              <input
-                type="number"
-                value={formData.total_months}
-                onChange={(e) => handleChange('total_months', e.target.value)}
-                placeholder="60"
-                className={inputClass}
-              />
-              <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                Se calcula automáticamente si se deja vacío
-              </p>
-            </div>
-
-            <div>
-              <label className={labelClass}>Meses ya pagados</label>
-              <input
-                type="number"
-                value={formData.paid_months}
-                onChange={(e) => handleChange('paid_months', e.target.value)}
-                placeholder="0"
-                className={inputClass}
-              />
-            </div>
-          </div>
-
-          {/* Fechas */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelClass}>Fecha de inicio *</label>
-              <input
-                type="date"
-                value={formData.start_date}
-                onChange={(e) => handleChange('start_date', e.target.value)}
-                className={inputClass}
-              />
-              {errors.start_date && <p className={errorClass}>{errors.start_date}</p>}
-            </div>
-
-            <div>
-              <label className={labelClass}>Día de pago (1-31)</label>
-              <input
-                type="number"
-                min="1"
-                max="31"
-                value={formData.payment_day}
-                onChange={(e) => handleChange('payment_day', e.target.value)}
-                className={inputClass}
-              />
-              {errors.payment_day && <p className={errorClass}>{errors.payment_day}</p>}
-            </div>
-          </div>
-
-          {/* Banco */}
+          {/* Nombre del préstamo */}
           <div>
-            <label className={labelClass}>Entidad/Banco</label>
+            <label className={labelClass}>Nombre del préstamo *</label>
             <input
               type="text"
-              value={formData.bank}
-              onChange={(e) => handleChange('bank', e.target.value)}
-              placeholder="Ej: Banco Santander"
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="Ej: Préstamo personal, Hipoteca, Coche"
               className={inputClass}
             />
+            {errors.name && <p className={errorClass}>{errors.name}</p>}
           </div>
 
-          {/* Notas */}
+          {/* Tipo */}
           <div>
-            <label className={labelClass}>Notas</label>
+            <label className={labelClass}>Tipo de préstamo</label>
+            <select
+              value={formData.type}
+              onChange={(e) => handleChange('type', e.target.value)}
+              className={inputClass}
+            >
+              <option value="personal">Personal</option>
+              <option value="hipoteca">Hipoteca</option>
+              <option value="coche">Coche</option>
+              <option value="tarjeta_credito">Tarjeta de crédito</option>
+              <option value="estudiante">Estudiante</option>
+              <option value="otro">Otro</option>
+            </select>
+          </div>
+
+          {/* DATOS PRINCIPALES DEL PRÉSTAMO */}
+          <div className={`p-4 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-100'}`}>
+            <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              📊 Datos del Préstamo
+            </h3>
+
+            <div className="space-y-4">
+              {/* Monto total */}
+              <div>
+                <label className={labelClass}>Monto total del préstamo * (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.initial_amount}
+                  onChange={(e) => handleChange('initial_amount', e.target.value)}
+                  placeholder="10000"
+                  className={inputClass}
+                />
+                {errors.initial_amount && <p className={errorClass}>{errors.initial_amount}</p>}
+                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Cantidad total que te prestaron
+                </p>
+              </div>
+
+              {/* Tasa de interés */}
+              <div>
+                <label className={labelClass}>Tasa de interés anual * (%)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.interest_rate}
+                  onChange={(e) => handleChange('interest_rate', e.target.value)}
+                  placeholder="5.5"
+                  className={inputClass}
+                />
+                {errors.interest_rate && <p className={errorClass}>{errors.interest_rate}</p>}
+                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Deja en 0 si no tiene intereses
+                </p>
+              </div>
+
+              {/* Cuota mensual */}
+              <div>
+                <label className={labelClass}>Cuota mensual * (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.monthly_payment}
+                  onChange={(e) => handleChange('monthly_payment', e.target.value)}
+                  placeholder="250"
+                  className={inputClass}
+                />
+                {errors.monthly_payment && <p className={errorClass}>{errors.monthly_payment}</p>}
+                <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Cantidad que pagas cada mes
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Fecha de inicio */}
+          <div>
+            <label className={labelClass}>Fecha de inicio *</label>
+            <input
+              type="date"
+              value={formData.start_date}
+              onChange={(e) => handleChange('start_date', e.target.value)}
+              className={inputClass}
+            />
+            {errors.start_date && <p className={errorClass}>{errors.start_date}</p>}
+            <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+              Fecha en que comenzó el préstamo
+            </p>
+          </div>
+
+          {/* Notas (opcional) */}
+          <div>
+            <label className={labelClass}>Notas (opcional)</label>
             <textarea
               value={formData.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
-              placeholder="Información adicional..."
+              placeholder="Información adicional sobre el préstamo..."
               rows={3}
               className={inputClass}
             />
