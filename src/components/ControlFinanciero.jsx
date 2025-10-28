@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut, CreditCard, Home, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Target, BarChart3, CheckCircle, Info, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut, CreditCard, Home, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Target, BarChart3, CheckCircle, Info, Edit2, ChevronLeft, ChevronRight, LineChart } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { createClient } from '@/lib/supabase';
 import LoanManager from './loans/LoanManager';
@@ -21,6 +21,12 @@ export default function ControlFinanciero() {
   // Estado de navegación
   const [vistaActiva, setVistaActiva] = useState('inicio');
   const [tipoGastoActivo, setTipoGastoActivo] = useState('fijo'); // 'fijo' o 'variable'
+
+  // Estado de navegación mensual
+  const [mesVisible, setMesVisible] = useState(() => {
+    const hoy = new Date();
+    return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   // Estado inicial
   const [nombreUsuario, setNombreUsuario] = useState('');
@@ -221,25 +227,45 @@ export default function ControlFinanciero() {
 
         if (financialData) {
           console.log('✅ CARGANDO DATOS EN EL ESTADO...')
-          setNombreUsuario(financialData.nombre_usuario || session?.user?.name || '')
-          setIngresos(financialData.ingresos || [])
 
-          // FUSIONAR gastos_fijos y gastos_variables en un solo array
+          // MIGRAR DATOS ANTIGUOS: agregar campo 'mes' a datos que no lo tengan
+          const mesActual = (() => {
+            const hoy = new Date();
+            return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+          })();
+
+          setNombreUsuario(financialData.nombre_usuario || session?.user?.name || '')
+
+          // Migrar ingresos
+          const ingresosMigrados = (financialData.ingresos || []).map(i => ({
+            ...i,
+            mes: i.mes || mesActual
+          }));
+          setIngresos(ingresosMigrados);
+
+          // FUSIONAR gastos_fijos y gastos_variables en un solo array + migrar
           const gastosFijos = (Array.isArray(financialData.gastos_fijos) ? financialData.gastos_fijos : []).map(g => ({
             ...g,
             tipo: 'fijo',
             fecha: g.fecha || null,
-            categoria: g.categoria || 'Vivienda'
+            categoria: g.categoria || 'Vivienda',
+            mes: g.mes || mesActual  // Migrar
           }));
           const gastosVariables = (Array.isArray(financialData.gastos_variables) ? financialData.gastos_variables : []).map(g => ({
             ...g,
             tipo: 'variable',
-            categoria: g.categoria || 'Otros'
+            categoria: g.categoria || 'Otros',
+            mes: g.mes || mesActual  // Migrar
           }));
           setGastos([...gastosFijos, ...gastosVariables]);
           console.log('📊 Gastos cargados:', { fijos: gastosFijos.length, variables: gastosVariables.length, total: gastosFijos.length + gastosVariables.length })
 
-          setDeudas(financialData.deudas || [])
+          // Migrar deudas
+          const deudasMigradas = (financialData.deudas || []).map(d => ({
+            ...d,
+            mes: d.mes || mesActual
+          }));
+          setDeudas(deudasMigradas)
           setCuentasAhorro(financialData.cuentas_ahorro || financialData.objetivos || [])
           setHistorialMensual(financialData.historial_mensual || [])
           setMostrarBienvenida(false)
@@ -351,22 +377,127 @@ export default function ControlFinanciero() {
     setTimeout(() => setNotificacion({ show: false, mensaje: '', tipo: 'success' }), 3000);
   };
 
-  // Totales sencillos
-  const totalIngresos = ingresos.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
-  const totalGastosFijos = gastos.filter(g => g.tipo === 'fijo').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
-  const totalGastosVariables = gastos.filter(g => g.tipo === 'variable').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+  // ==========================================
+  // FUNCIONES DE NAVEGACIÓN MENSUAL
+  // ==========================================
+
+  // Función para obtener nombre del mes en español
+  const obtenerNombreMes = (mesStr) => {
+    const [year, month] = mesStr.split('-');
+    const fecha = new Date(year, parseInt(month) - 1);
+    return fecha.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  };
+
+  // Función para cambiar de mes (anterior/siguiente)
+  const cambiarMes = (direccion) => {
+    const [year, month] = mesVisible.split('-').map(Number);
+    const fecha = new Date(year, month - 1);
+
+    if (direccion === 'anterior') {
+      fecha.setMonth(fecha.getMonth() - 1);
+    } else {
+      fecha.setMonth(fecha.getMonth() + 1);
+    }
+
+    const nuevoMes = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+    setMesVisible(nuevoMes);
+  };
+
+  // Función para volver al mes actual
+  const getMesActual = () => {
+    const hoy = new Date();
+    return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  // ==========================================
+  // MIGRACIÓN DE DATOS ANTIGUOS
+  // ==========================================
+  // Función para migrar datos sin campo 'mes' asignándoles el mes actual
+  const migrarDatosAntiguos = (datos) => {
+    const mesActual = getMesActual();
+
+    return {
+      ...datos,
+      ingresos: datos.ingresos?.map(i => ({
+        ...i,
+        mes: i.mes || mesActual
+      })) || [],
+      gastos: datos.gastos?.map(g => ({
+        ...g,
+        mes: g.mes || mesActual
+      })) || [],
+      deudas: datos.deudas?.map(d => ({
+        ...d,
+        mes: d.mes || mesActual
+      })) || []
+    };
+  };
+
+  // ==========================================
+  // DATOS HISTÓRICOS PARA EVOLUCIÓN
+  // ==========================================
+  const obtenerDatosHistoricos = () => {
+    // Agrupar todos los datos por mes
+    const mesesMap = {};
+
+    // Agregar ingresos
+    ingresos.forEach(item => {
+      const mes = item.mes || getMesActual();
+      if (!mesesMap[mes]) mesesMap[mes] = { mes, ingresos: 0, gastos: 0, deudas: 0 };
+      mesesMap[mes].ingresos += parseFloat(item.monto) || 0;
+    });
+
+    // Agregar gastos
+    gastos.forEach(item => {
+      const mes = item.mes || getMesActual();
+      if (!mesesMap[mes]) mesesMap[mes] = { mes, ingresos: 0, gastos: 0, deudas: 0 };
+      mesesMap[mes].gastos += parseFloat(item.monto) || 0;
+    });
+
+    // Agregar deudas
+    deudas.forEach(item => {
+      const mes = item.mes || getMesActual();
+      if (!mesesMap[mes]) mesesMap[mes] = { mes, ingresos: 0, gastos: 0, deudas: 0 };
+      const montoTotal = parseFloat(item.montoTotal) || parseFloat(item.monto) || 0;
+      const totalPagado = parseFloat(item.totalPagado) || 0;
+      mesesMap[mes].deudas += montoTotal - totalPagado;
+    });
+
+    // Convertir a array y ordenar por fecha
+    return Object.values(mesesMap)
+      .sort((a, b) => a.mes.localeCompare(b.mes))
+      .map(mes => ({
+        ...mes,
+        balance: mes.ingresos - mes.gastos,
+        nombreMes: obtenerNombreMes(mes.mes)
+      }));
+  };
+
+  // ==========================================
+  // FILTRADO DE DATOS POR MES VISIBLE
+  // ==========================================
+  // Filtrar datos por mes visible (backward compatibility: sin mes = mes actual)
+  const mesActualStr = getMesActual();
+  const ingresosMesActual = ingresos.filter(item => item.mes === mesVisible || (!item.mes && mesVisible === mesActualStr));
+  const gastosMesActual = gastos.filter(item => item.mes === mesVisible || (!item.mes && mesVisible === mesActualStr));
+  const deudasMesActual = deudas.filter(item => item.mes === mesVisible || (!item.mes && mesVisible === mesActualStr));
+
+  // Totales basados en datos filtrados del mes visible
+  const totalIngresos = ingresosMesActual.reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+  const totalGastosFijos = gastosMesActual.filter(g => g.tipo === 'fijo').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
+  const totalGastosVariables = gastosMesActual.filter(g => g.tipo === 'variable').reduce((s, it) => s + (parseFloat(it.monto) || 0), 0);
   const totalGastos = totalGastosFijos + totalGastosVariables;
   // Calcular totales de deudas y préstamos
-  const totalDeudas = deudas.reduce((s, d) => s + ((parseFloat(d.montoTotal) || parseFloat(d.monto) || 0) - (parseFloat(d.totalPagado) || 0)), 0);
+  const totalDeudas = deudasMesActual.reduce((s, d) => s + ((parseFloat(d.montoTotal) || parseFloat(d.monto) || 0) - (parseFloat(d.totalPagado) || 0)), 0);
   const loanStats = getStatistics();
   const totalPrestamos = loanStats.totalDebt || 0;
   const deudaTotalCombinada = totalDeudas + totalPrestamos;
   const totalAhorros = cuentasAhorro.reduce((s, c) => s + (parseFloat(c.saldo) || 0), 0);
   const saldoDisponible = totalIngresos - totalGastos;
 
-  // Variables derivadas para vista de inicio
-  const gastosFijos = gastos.filter(g => g.tipo === 'fijo');
-  const gastosVariables = gastos.filter(g => g.tipo === 'variable');
+  // Variables derivadas para vista de inicio (basadas en datos filtrados)
+  const gastosFijos = gastosMesActual.filter(g => g.tipo === 'fijo');
+  const gastosVariables = gastosMesActual.filter(g => g.tipo === 'variable');
 
   // CRUD - ingresos simple
   const añadirIngreso = () => {
@@ -374,7 +505,18 @@ export default function ControlFinanciero() {
     const monto = parseFloat(nuevoIngreso.monto);
     if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
 
-    const nuevo = { id: Date.now(), concepto: nuevoIngreso.concepto, monto, tipo: nuevoIngreso.tipo, fecha: nuevoIngreso.fecha };
+    // Derivar el mes desde la fecha del ingreso (formato: YYYY-MM)
+    const fechaIngreso = new Date(nuevoIngreso.fecha);
+    const mesDelIngreso = `${fechaIngreso.getFullYear()}-${String(fechaIngreso.getMonth() + 1).padStart(2, '0')}`;
+
+    const nuevo = {
+      id: Date.now(),
+      concepto: nuevoIngreso.concepto,
+      monto,
+      tipo: nuevoIngreso.tipo,
+      fecha: nuevoIngreso.fecha,
+      mes: mesDelIngreso  // ← Derivar del campo fecha
+    };
     setIngresos((p) => [...p, nuevo]);
     setNuevoIngreso({ concepto: '', monto: '', tipo: 'Fijo', fecha: new Date().toISOString().split('T')[0] });
     setMostrarBienvenida(false);
@@ -395,13 +537,21 @@ export default function ControlFinanciero() {
     // Usar el filtro activo para determinar el tipo, NO nuevoGasto.tipo
     const tipoReal = tipoGastoActivo === 'fijo' || tipoGastoActivo === 'variable' ? tipoGastoActivo : 'fijo';
 
+    // Determinar el mes: si es variable con fecha, derivar de la fecha; si es fijo, usar mes visible
+    let mesDelGasto = mesVisible;
+    if (tipoReal === 'variable' && nuevoGasto.fecha) {
+      const fechaGasto = new Date(nuevoGasto.fecha);
+      mesDelGasto = `${fechaGasto.getFullYear()}-${String(fechaGasto.getMonth() + 1).padStart(2, '0')}`;
+    }
+
     const nuevo = {
       id: Date.now(),
       concepto: nuevoGasto.concepto,
       monto,
       categoria: nuevoGasto.categoria || (tipoReal === 'fijo' ? 'Vivienda' : 'Otros'),
       tipo: tipoReal, // Usar el tipo del filtro activo
-      fecha: tipoReal === 'variable' ? nuevoGasto.fecha : null
+      fecha: tipoReal === 'variable' ? nuevoGasto.fecha : null,
+      mes: mesDelGasto  // ← Derivar de fecha si es variable, sino usar mes visible
     };
 
     setGastos((p) => [...p, nuevo]);
@@ -434,7 +584,8 @@ export default function ControlFinanciero() {
       monto,
       categoria: 'Vivienda',
       tipo: 'fijo',
-      fecha: null
+      fecha: null,
+      mes: mesVisible  // ← Asignar mes visible
     };
 
     setGastos((p) => [...p, nuevo]);
@@ -450,13 +601,18 @@ export default function ControlFinanciero() {
     const monto = parseFloat(nuevoGastoVariable.monto);
     if (Number.isNaN(monto) || monto <= 0) return mostrarNotificacion('Monto inválido', 'error');
 
+    // Derivar el mes desde la fecha del gasto
+    const fechaGasto = new Date(nuevoGastoVariable.fecha);
+    const mesDelGasto = `${fechaGasto.getFullYear()}-${String(fechaGasto.getMonth() + 1).padStart(2, '0')}`;
+
     const nuevo = {
       id: Date.now(),
       concepto: nuevoGastoVariable.concepto,
       monto,
       categoria: nuevoGastoVariable.categoria,
       tipo: 'variable',
-      fecha: nuevoGastoVariable.fecha
+      fecha: nuevoGastoVariable.fecha,
+      mes: mesDelGasto  // ← Derivar del campo fecha
     };
 
     setGastos((p) => [...p, nuevo]);
@@ -490,7 +646,8 @@ export default function ControlFinanciero() {
       plazoMeses,
       cuotaMensual,
       pagadoEsteMes: 0,
-      totalPagado: 0
+      totalPagado: 0,
+      mes: mesVisible  // ← Asignar mes visible
     };
     setDeudas((p) => [...p, nuevo]);
     setNuevaDeuda({ nombre: '', montoTotal: '', plazoMeses: '', cuotaMensual: '', pagadoEsteMes: 0, totalPagado: 0 });
@@ -542,13 +699,18 @@ export default function ControlFinanciero() {
 
   // Función helper para crear gastos automáticos (usada por préstamos, deudas, etc.)
   const crearGastoAutomatico = (concepto, monto, categoria = 'Finanzas') => {
+    const fechaHoy = new Date();
+    const fechaStr = fechaHoy.toISOString().split('T')[0];
+    const mesDelGasto = `${fechaHoy.getFullYear()}-${String(fechaHoy.getMonth() + 1).padStart(2, '0')}`;
+
     const nuevoGasto = {
       id: Date.now(),
       concepto,
       monto: parseFloat(monto),
       categoria,
       tipo: 'variable',
-      fecha: new Date().toISOString().split('T')[0]
+      fecha: fechaStr,
+      mes: mesDelGasto  // ← Derivar de la fecha actual
     };
     setGastos((p) => [...p, nuevoGasto]);
     return nuevoGasto;
@@ -963,6 +1125,7 @@ export default function ControlFinanciero() {
               { id: 'deudas', icon: <AlertCircle size={18} />, label: 'Deudas' },
               { id: 'objetivos', icon: <Target size={18} />, label: 'Mis Ahorros' },
               { id: 'estadisticas', icon: <BarChart3 size={18} />, label: 'Estadísticas' },
+              { id: 'evolucion', icon: <LineChart size={18} />, label: 'Evolución' },
             ].map((vista) => (
               <button
                 key={vista.id}
@@ -989,6 +1152,75 @@ export default function ControlFinanciero() {
       </nav>
 
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+        {/* ==========================================
+            NAVEGACIÓN DE MESES - Visible en todas las vistas
+            ========================================== */}
+        <div className={`flex items-center justify-between p-4 rounded-2xl shadow-lg ${
+          darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border-2 border-gray-100'
+        }`}>
+          {/* Botón Mes Anterior */}
+          <button
+            onClick={() => cambiarMes('anterior')}
+            className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+              darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            aria-label="Mes anterior"
+          >
+            <ChevronLeft size={24} />
+          </button>
+
+          {/* Mes Actual */}
+          <div className="flex flex-col items-center gap-2">
+            <span className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              {obtenerNombreMes(mesVisible)}
+            </span>
+
+            {/* Botón "Hoy" - Solo visible si no estamos en el mes actual */}
+            {mesVisible !== getMesActual() && (
+              <button
+                onClick={() => setMesVisible(getMesActual())}
+                className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-300 ${
+                  darkMode
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
+              >
+                Hoy
+              </button>
+            )}
+          </div>
+
+          {/* Botón Mes Siguiente */}
+          <button
+            onClick={() => cambiarMes('siguiente')}
+            className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
+              darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+            aria-label="Mes siguiente"
+          >
+            <ChevronRight size={24} />
+          </button>
+        </div>
+
+        {/* ==========================================
+            INDICADOR DE HISTORIAL
+            ========================================== */}
+        {/* Mostrar banner cuando se está viendo un mes diferente al actual */}
+        {mesVisible !== getMesActual() && (
+          <div className={`p-4 rounded-2xl shadow-lg border-2 ${
+            darkMode
+              ? 'bg-gradient-to-r from-purple-900/40 to-blue-900/40 border-purple-700'
+              : 'bg-gradient-to-r from-purple-50 to-blue-50 border-purple-300'
+          }`}>
+            <div className="flex items-center justify-center gap-3">
+              <Calendar className={darkMode ? 'text-purple-400' : 'text-purple-600'} size={20} />
+              <span className={`text-sm font-semibold ${darkMode ? 'text-purple-300' : 'text-purple-800'}`}>
+                📅 Viendo historial: {obtenerNombreMes(mesVisible)}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Vista: Inicio (Dashboard) */}
         {vistaActiva === 'inicio' && (
           <>
@@ -1198,11 +1430,11 @@ export default function ControlFinanciero() {
 
         <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Ingresos</h2>
-          {ingresos.length === 0 ? (
+          {ingresosMesActual.length === 0 ? (
             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay ingresos registrados.</p>
           ) : (
             <ul className="space-y-3">
-              {ingresos.map((i) => (
+              {ingresosMesActual.map((i) => (
                 <li key={i.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                   <div>
                     <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{i.concepto}</div>
@@ -1451,11 +1683,11 @@ export default function ControlFinanciero() {
               <Plus size={20} /> Añadir
             </button>
           </div>
-          {deudas.length === 0 ? (
+          {deudasMesActual.length === 0 ? (
             <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay deudas registradas.</p>
           ) : (
             <ul className="space-y-4">
-              {deudas.map((d) => {
+              {deudasMesActual.map((d) => {
                 const montoTotal = d.montoTotal || d.monto || 0;
                 const totalPagado = d.totalPagado || 0;
                 const restante = montoTotal - totalPagado;
@@ -1677,11 +1909,11 @@ export default function ControlFinanciero() {
 
             <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Ingresos</h2>
-              {ingresos.length === 0 ? (
+              {ingresosMesActual.length === 0 ? (
                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay ingresos registrados.</p>
               ) : (
                 <ul className="space-y-3">
-                  {ingresos.map((i) => (
+                  {ingresosMesActual.map((i) => (
                     <li key={i.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                       {editandoIngreso === i.id ? (
                         // Modo edición
@@ -1801,7 +2033,7 @@ export default function ControlFinanciero() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                📊 Todos ({gastos.length})
+                📊 Todos ({gastosMesActual.length})
               </button>
               <button
                 onClick={() => setTipoGastoActivo('fijo')}
@@ -1815,7 +2047,7 @@ export default function ControlFinanciero() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                🏠 Fijos ({gastos.filter(g => g.tipo === 'fijo').length})
+                🏠 Fijos ({gastosMesActual.filter(g => g.tipo === 'fijo').length})
               </button>
               <button
                 onClick={() => setTipoGastoActivo('variable')}
@@ -1829,7 +2061,7 @@ export default function ControlFinanciero() {
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                🛒 Variables ({gastos.filter(g => g.tipo === 'variable').length})
+                🛒 Variables ({gastosMesActual.filter(g => g.tipo === 'variable').length})
               </button>
             </div>
 
@@ -1920,8 +2152,8 @@ export default function ControlFinanciero() {
             {/* Lista filtrada según tipo activo */}
             {(() => {
               const gastosFiltrados = tipoGastoActivo === 'todos'
-                ? gastos
-                : gastos.filter(g => g.tipo === tipoGastoActivo);
+                ? gastosMesActual
+                : gastosMesActual.filter(g => g.tipo === tipoGastoActivo);
 
               return gastosFiltrados.length === 0 ? (
                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
@@ -2048,7 +2280,7 @@ export default function ControlFinanciero() {
             })()}
 
             {/* Resumen por categoría (incluye fijos y variables) */}
-            {gastos.length > 0 && (
+            {gastosMesActual.length > 0 && (
               <div className="mt-6">
                 <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
                 <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
@@ -2066,8 +2298,8 @@ export default function ControlFinanciero() {
                       {(() => {
                         const categorias = {};
 
-                        // Agregar todos los gastos
-                        gastos.forEach(g => {
+                        // Agregar solo los gastos del mes actual
+                        gastosMesActual.forEach(g => {
                           const categoria = g.categoria || 'Otros';
                           if (!categorias[categoria]) {
                             categorias[categoria] = { fijos: 0, variables: 0 };
@@ -2185,11 +2417,11 @@ export default function ControlFinanciero() {
                 <Plus size={20} /> Añadir
               </button>
             </div>
-            {deudas.length === 0 ? (
+            {deudasMesActual.length === 0 ? (
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay deudas registradas.</p>
             ) : (
               <ul className="space-y-4">
-                {deudas.map((d) => {
+                {deudasMesActual.map((d) => {
                   const montoTotal = d.montoTotal || d.monto || 0;
                   const totalPagado = d.totalPagado || 0;
                   const restante = montoTotal - totalPagado;
@@ -2482,6 +2714,253 @@ export default function ControlFinanciero() {
                 </div>
               )}
             </div>
+          </section>
+        )}
+
+        {/* Vista: Evolución Temporal */}
+        {vistaActiva === 'evolucion' && (
+          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h2 className={`text-3xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              📈 Evolución Temporal
+            </h2>
+            <p className={`text-sm mb-8 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+              Análisis histórico de tus finanzas a lo largo del tiempo
+            </p>
+
+            {(() => {
+              const datosHistoricos = obtenerDatosHistoricos();
+
+              if (datosHistoricos.length === 0) {
+                return (
+                  <div className={`p-12 rounded-xl text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <LineChart className={`mx-auto mb-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} size={64} />
+                    <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      Sin datos históricos
+                    </h3>
+                    <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
+                      Comienza añadiendo ingresos y gastos para ver tu evolución temporal
+                    </p>
+                  </div>
+                );
+              }
+
+              // Calcular valores máximos para escalar el gráfico
+              const maxValor = Math.max(...datosHistoricos.map(m => Math.max(m.ingresos, m.gastos)));
+              const altura = 300;
+
+              return (
+                <>
+                  {/* Gráfico de líneas */}
+                  <div className={`p-6 rounded-xl mb-6 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      📊 Ingresos vs Gastos
+                    </h3>
+
+                    <div className="relative" style={{ height: altura + 60 + 'px' }}>
+                      {/* Líneas del gráfico */}
+                      <svg className="w-full" style={{ height: altura + 'px' }}>
+                        {/* Línea de ingresos */}
+                        <polyline
+                          points={datosHistoricos.map((mes, i) => {
+                            const x = (i / (datosHistoricos.length - 1)) * 100;
+                            const y = altura - (mes.ingresos / maxValor) * (altura - 40);
+                            return `${x}%,${y}`;
+                          }).join(' ')}
+                          fill="none"
+                          stroke={darkMode ? '#4ade80' : '#22c55e'}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+
+                        {/* Línea de gastos */}
+                        <polyline
+                          points={datosHistoricos.map((mes, i) => {
+                            const x = (i / (datosHistoricos.length - 1)) * 100;
+                            const y = altura - (mes.gastos / maxValor) * (altura - 40);
+                            return `${x}%,${y}`;
+                          }).join(' ')}
+                          fill="none"
+                          stroke={darkMode ? '#f87171' : '#ef4444'}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+
+                        {/* Puntos de ingresos */}
+                        {datosHistoricos.map((mes, i) => {
+                          const x = (i / (datosHistoricos.length - 1)) * 100;
+                          const y = altura - (mes.ingresos / maxValor) * (altura - 40);
+                          return (
+                            <circle
+                              key={`ing-${i}`}
+                              cx={`${x}%`}
+                              cy={y}
+                              r="5"
+                              fill={darkMode ? '#4ade80' : '#22c55e'}
+                              className="hover:r-8 transition-all cursor-pointer"
+                            />
+                          );
+                        })}
+
+                        {/* Puntos de gastos */}
+                        {datosHistoricos.map((mes, i) => {
+                          const x = (i / (datosHistoricos.length - 1)) * 100;
+                          const y = altura - (mes.gastos / maxValor) * (altura - 40);
+                          return (
+                            <circle
+                              key={`gas-${i}`}
+                              cx={`${x}%`}
+                              cy={y}
+                              r="5"
+                              fill={darkMode ? '#f87171' : '#ef4444'}
+                              className="hover:r-8 transition-all cursor-pointer"
+                            />
+                          );
+                        })}
+                      </svg>
+
+                      {/* Etiquetas de meses */}
+                      <div className="flex justify-between mt-2">
+                        {datosHistoricos.map((mes, i) => (
+                          <span
+                            key={i}
+                            className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}
+                            style={{
+                              width: `${100 / datosHistoricos.length}%`,
+                              textAlign: i === 0 ? 'left' : i === datosHistoricos.length - 1 ? 'right' : 'center'
+                            }}
+                          >
+                            {mes.nombreMes.split(' ')[0].substring(0, 3)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Leyenda */}
+                    <div className="flex gap-6 justify-center mt-4">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-green-400' : 'bg-green-500'}`}></div>
+                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Ingresos</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-red-400' : 'bg-red-500'}`}></div>
+                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Gastos</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Estadísticas acumuladas */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-green-600 to-green-700' : 'bg-gradient-to-br from-green-400 to-green-500'}`}>
+                      <p className="text-white/80 text-sm font-medium mb-2">💰 Total Ingresos</p>
+                      <p className="text-white text-2xl font-bold">
+                        {datosHistoricos.reduce((sum, m) => sum + m.ingresos, 0).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        {datosHistoricos.length} {datosHistoricos.length === 1 ? 'mes' : 'meses'}
+                      </p>
+                    </div>
+
+                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-red-600 to-red-700' : 'bg-gradient-to-br from-red-400 to-red-500'}`}>
+                      <p className="text-white/80 text-sm font-medium mb-2">💸 Total Gastos</p>
+                      <p className="text-white text-2xl font-bold">
+                        {datosHistoricos.reduce((sum, m) => sum + m.gastos, 0).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        Promedio: {(datosHistoricos.reduce((sum, m) => sum + m.gastos, 0) / datosHistoricos.length).toFixed(2)} €/mes
+                      </p>
+                    </div>
+
+                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-blue-600 to-blue-700' : 'bg-gradient-to-br from-blue-400 to-blue-500'}`}>
+                      <p className="text-white/80 text-sm font-medium mb-2">💵 Balance Total</p>
+                      <p className="text-white text-2xl font-bold">
+                        {datosHistoricos.reduce((sum, m) => sum + m.balance, 0).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        {datosHistoricos.filter(m => m.balance > 0).length} {datosHistoricos.filter(m => m.balance > 0).length === 1 ? 'mes positivo' : 'meses positivos'}
+                      </p>
+                    </div>
+
+                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
+                      <p className="text-white/80 text-sm font-medium mb-2">📊 Promedio Mensual</p>
+                      <p className="text-white text-2xl font-bold">
+                        {(datosHistoricos.reduce((sum, m) => sum + m.ingresos, 0) / datosHistoricos.length).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        Ingresos promedio
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Tabla de historial mensual */}
+                  <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                    <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                      📅 Detalle Mensual
+                    </h3>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className={`border-b-2 ${darkMode ? 'border-gray-600' : 'border-gray-300'}`}>
+                            <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Mes
+                            </th>
+                            <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Ingresos
+                            </th>
+                            <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Gastos
+                            </th>
+                            <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              Balance
+                            </th>
+                            <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                              % Ahorro
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {datosHistoricos.map((mes, index) => {
+                            const porcentajeAhorro = mes.ingresos > 0 ? ((mes.balance / mes.ingresos) * 100) : 0;
+                            return (
+                              <tr
+                                key={index}
+                                className={`border-b ${darkMode ? 'border-gray-700 hover:bg-gray-700/30' : 'border-gray-200 hover:bg-gray-100'} transition-colors`}
+                              >
+                                <td className={`px-4 py-3 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                                  {mes.nombreMes}
+                                </td>
+                                <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                                  {mes.ingresos.toFixed(2)} €
+                                </td>
+                                <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                                  {mes.gastos.toFixed(2)} €
+                                </td>
+                                <td className={`px-4 py-3 text-right font-bold ${mes.balance >= 0 ? (darkMode ? 'text-blue-400' : 'text-blue-600') : (darkMode ? 'text-orange-400' : 'text-orange-600')}`}>
+                                  {mes.balance.toFixed(2)} €
+                                </td>
+                                <td className={`px-4 py-3 text-right ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                  <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                                    porcentajeAhorro >= 20
+                                      ? darkMode ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700'
+                                      : porcentajeAhorro >= 10
+                                      ? darkMode ? 'bg-yellow-900/40 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
+                                      : darkMode ? 'bg-red-900/40 text-red-300' : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {porcentajeAhorro.toFixed(1)}%
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </section>
         )}
 
