@@ -3,22 +3,35 @@
   "short_name": "FinControl",
   "description": "Aplicación de control financiero personal con historial mensual",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#1f2937",
   "theme_color": "#3b82f6",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "categories": ["finance", "productivity"],
@@ -30,25 +43,13 @@
       "name": "Añadir Ingreso",
       "short_name": "Ingreso",
       "description": "Añadir un nuevo ingreso rápidamente",
-      "url": "/?action=add-income",
-      "icons": [
-        {
-          "src": "/icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
+      "url": "/?view=ingresos"
     },
     {
       "name": "Añadir Gasto",
       "short_name": "Gasto",
       "description": "Añadir un nuevo gasto rápidamente",
-      "url": "/?action=add-expense",
-      "icons": [
-        {
-          "src": "/icon-192.png",
-          "sizes": "192x192"
-        }
-      ]
+      "url": "/?view=gastos"
     }
   ]
 }

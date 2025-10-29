@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut, CreditCard, Home, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Target, BarChart3, CheckCircle, Info, Edit2, ChevronLeft, ChevronRight, LineChart } from 'lucide-react';
+import { Plus, Trash2, Download, Upload, Save, Calendar, AlertCircle, Moon, Sun, LogOut, CreditCard, Home, TrendingUp, TrendingDown, DollarSign, ShoppingCart, Target, BarChart3, CheckCircle, Info, Edit2, ChevronLeft, ChevronRight, LineChart, Eye, X } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { createClient } from '@/lib/supabase';
 import LoanManager from './loans/LoanManager';
@@ -39,6 +39,27 @@ export default function ControlFinanciero() {
 
   // Estado para modo oscuro
   const [darkMode, setDarkMode] = useState(false);
+
+  // Estado para widget resumen
+  const [mostrarWidget, setMostrarWidget] = useState(true);
+
+  // Estados para FASE 2: Reorganización y Tabs
+  const [tabActivoInicio, setTabActivoInicio] = useState('datos'); // 'datos' o 'formularios'
+  const [tabActivoRegistros, setTabActivoRegistros] = useState('ingresos'); // 'ingresos', 'gastosFijos', 'gastosVariables'
+  const [seccionesColapsadas, setSeccionesColapsadas] = useState({
+    listas: false,
+    formularios: false,
+    deudas: false,
+    ahorros: false
+  });
+
+  // Función para alternar colapso de secciones
+  const toggleSeccion = (seccion) => {
+    setSeccionesColapsadas(prev => ({
+      ...prev,
+      [seccion]: !prev[seccion]
+    }));
+  };
 
   // Datos principales
   const [ingresos, setIngresos] = useState([]);
@@ -407,6 +428,51 @@ export default function ControlFinanciero() {
   const getMesActual = () => {
     const hoy = new Date();
     return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  // ==========================================
+  // COMPARACIÓN MENSUAL
+  // ==========================================
+  const obtenerComparacionMensual = (mesActual) => {
+    // Obtener mes anterior
+    const [year, month] = mesActual.split('-').map(Number);
+    const fechaAnterior = new Date(year, month - 2); // -2 porque los meses empiezan en 0
+    const mesAnterior = `${fechaAnterior.getFullYear()}-${String(fechaAnterior.getMonth() + 1).padStart(2, '0')}`;
+
+    // Calcular totales del mes actual
+    const ingresosActual = ingresos
+      .filter(i => i.mes === mesActual)
+      .reduce((sum, i) => sum + parseFloat(i.monto || 0), 0);
+    const gastosActual = gastos
+      .filter(g => g.mes === mesActual)
+      .reduce((sum, g) => sum + parseFloat(g.monto || 0), 0);
+
+    // Calcular totales del mes anterior
+    const ingresosAnterior = ingresos
+      .filter(i => i.mes === mesAnterior)
+      .reduce((sum, i) => sum + parseFloat(i.monto || 0), 0);
+    const gastosAnterior = gastos
+      .filter(g => g.mes === mesAnterior)
+      .reduce((sum, g) => sum + parseFloat(g.monto || 0), 0);
+
+    // Calcular diferencias
+    const difIngresos = ingresosActual - ingresosAnterior;
+    const difGastos = gastosActual - gastosAnterior;
+    const porcIngresos = ingresosAnterior > 0 ? ((difIngresos / ingresosAnterior) * 100) : 0;
+    const porcGastos = gastosAnterior > 0 ? ((difGastos / gastosAnterior) * 100) : 0;
+
+    return {
+      mesAnterior: obtenerNombreMes(mesAnterior),
+      ingresosActual,
+      gastosActual,
+      ingresosAnterior,
+      gastosAnterior,
+      difIngresos,
+      difGastos,
+      porcIngresos,
+      porcGastos,
+      hayDatos: ingresosAnterior > 0 || gastosAnterior > 0
+    };
   };
 
   // ==========================================
@@ -1019,7 +1085,7 @@ export default function ControlFinanciero() {
   };
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-slate-900 text-slate-100' : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'}`}>
       {notificacion.show && (
         <div
           className={`fixed top-4 right-4 z-[100] transform transition-all duration-500 animate-[slideDown_0.5s_ease-out] ${
@@ -1074,7 +1140,7 @@ export default function ControlFinanciero() {
         }
       `}</style>
 
-      <header className={`sticky top-0 z-40 backdrop-blur-lg ${darkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
+      <header className={`sticky top-0 z-40 backdrop-blur-lg ${darkMode ? 'bg-slate-800/90 border-slate-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
         <div className="max-w-6xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -1089,7 +1155,7 @@ export default function ControlFinanciero() {
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-3 min-h-[44px] min-w-[44px] rounded-xl transition-all duration-300 hover:scale-110 ${
-                  darkMode ? 'bg-gray-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  darkMode ? 'bg-slate-700 text-yellow-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
                 aria-label="Toggle dark mode"
               >
@@ -1111,7 +1177,7 @@ export default function ControlFinanciero() {
       </header>
 
       {/* Navegación por pestañas */}
-      <nav className={`sticky top-[88px] z-30 backdrop-blur-lg ${darkMode ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
+      <nav className={`sticky top-[88px] z-30 backdrop-blur-lg ${darkMode ? 'bg-slate-800/90 border-slate-700' : 'bg-white/90 border-gray-200'} border-b transition-colors duration-300`}>
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex gap-3 overflow-x-auto py-4 scroll-smooth snap-x snap-mandatory [-webkit-overflow-scrolling:touch]" style={{
             scrollbarWidth: 'none',
@@ -1124,7 +1190,6 @@ export default function ControlFinanciero() {
               { id: 'prestamos', icon: <CreditCard size={18} />, label: 'Préstamos' },
               { id: 'deudas', icon: <AlertCircle size={18} />, label: 'Deudas' },
               { id: 'objetivos', icon: <Target size={18} />, label: 'Mis Ahorros' },
-              { id: 'estadisticas', icon: <BarChart3 size={18} />, label: 'Estadísticas' },
               { id: 'evolucion', icon: <LineChart size={18} />, label: 'Evolución' },
             ].map((vista) => (
               <button
@@ -1138,7 +1203,7 @@ export default function ControlFinanciero() {
                       ? 'bg-blue-600 text-white shadow-lg'
                       : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
                     : darkMode
-                      ? 'text-gray-300 hover:bg-gray-700'
+                      ? 'text-gray-300 hover:bg-slate-700'
                       : 'text-gray-600 hover:bg-gray-100'
                   }
                 `}
@@ -1156,13 +1221,13 @@ export default function ControlFinanciero() {
             NAVEGACIÓN DE MESES - Visible en todas las vistas
             ========================================== */}
         <div className={`flex items-center justify-between p-4 rounded-2xl shadow-lg ${
-          darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border-2 border-gray-100'
+          darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border-2 border-gray-100'
         }`}>
           {/* Botón Mes Anterior */}
           <button
             onClick={() => cambiarMes('anterior')}
             className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
-              darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              darkMode ? 'bg-slate-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
             aria-label="Mes anterior"
           >
@@ -1194,7 +1259,7 @@ export default function ControlFinanciero() {
           <button
             onClick={() => cambiarMes('siguiente')}
             className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
-              darkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              darkMode ? 'bg-slate-700 text-white hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
             aria-label="Mes siguiente"
           >
@@ -1221,9 +1286,258 @@ export default function ControlFinanciero() {
           </div>
         )}
 
+        {/* ==========================================
+            WIDGET RESUMEN COMPACTO
+            ========================================== */}
+        {/* Widget colapsable (solo visible fuera de inicio) */}
+        {mostrarWidget && vistaActiva !== 'inicio' && (
+          <div className={`rounded-xl shadow-lg p-4 mb-4 animate-scaleUp transition-all duration-300 ${
+            darkMode ? 'bg-slate-800/95 border border-slate-700' : 'bg-white/95 border border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className={`text-sm font-semibold ${darkMode ? 'text-slate-100' : 'text-gray-600'}`}>
+                Resumen {obtenerNombreMes(mesVisible)}
+              </h3>
+              <button
+                onClick={() => setMostrarWidget(false)}
+                className={`p-1 rounded hover:bg-opacity-10 transition-colors ${
+                  darkMode ? 'hover:bg-white' : 'hover:bg-gray-500'
+                }`}
+                aria-label="Cerrar widget"
+              >
+                <X size={16} className={darkMode ? 'text-slate-300' : 'text-gray-500'} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              {/* Ingresos mini */}
+              <div className="text-center">
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Ingresos</div>
+                <div className={`text-lg font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                  {totalIngresos.toFixed(0)}€
+                </div>
+              </div>
+
+              {/* Gastos mini */}
+              <div className="text-center">
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Gastos</div>
+                <div className={`text-lg font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                  {totalGastos.toFixed(0)}€
+                </div>
+              </div>
+
+              {/* Balance mini */}
+              <div className="text-center">
+                <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Balance</div>
+                <div className={`text-lg font-bold ${
+                  saldoDisponible >= 0
+                    ? (darkMode ? 'text-blue-400' : 'text-blue-600')
+                    : (darkMode ? 'text-orange-400' : 'text-orange-600')
+                }`}>
+                  {saldoDisponible >= 0 ? '+' : ''}{saldoDisponible.toFixed(0)}€
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Botón para mostrar widget si está oculto */}
+        {!mostrarWidget && vistaActiva !== 'inicio' && (
+          <button
+            onClick={() => setMostrarWidget(true)}
+            className={`mb-4 text-sm font-medium flex items-center gap-1 transition-colors ${
+              darkMode
+                ? 'text-blue-400 hover:text-blue-300'
+                : 'text-blue-600 hover:text-blue-700'
+            }`}
+          >
+            <Eye size={14} /> Mostrar resumen
+          </button>
+        )}
+
         {/* Vista: Inicio (Dashboard) */}
         {vistaActiva === 'inicio' && (
-          <>
+          <div className="animate-fadeInLeft">
+
+        {/* ==========================================
+            HERO SECTION PERSONALIZADO
+            ========================================== */}
+        <div className={`mb-6 relative overflow-hidden rounded-2xl p-6 transition-all duration-300 ${
+          darkMode
+            ? 'bg-gradient-to-r from-blue-700 to-purple-700'
+            : 'bg-gradient-to-r from-blue-600 to-purple-600'
+        }`}>
+          <div className="relative z-10">
+            <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+              {(() => {
+                const hora = new Date().getHours();
+                if (hora < 12) return "☀️ Buenos días";
+                if (hora < 20) return "🌤️ Buenas tardes";
+                return "🌙 Buenas noches";
+              })()}, {session?.user?.name?.split(' ')[0] || 'Usuario'}
+            </h2>
+            <p className="text-white/90 text-lg">
+              {saldoDisponible >= 0
+                ? `Tu balance es positivo: +${saldoDisponible.toFixed(2)}€`
+                : `Atención: tienes un déficit de ${Math.abs(saldoDisponible).toFixed(2)}€`}
+            </p>
+            <p className="text-white/70 text-sm mt-2">
+              {obtenerNombreMes(mesVisible)} • {ingresosMesActual.length} ingresos • {gastosMesActual.length} gastos registrados
+            </p>
+          </div>
+          {/* Decoración de fondo */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-24 -mb-24" />
+        </div>
+
+        {/* ==========================================
+            ALERTAS INTELIGENTES
+            ========================================== */}
+        {(() => {
+          const alertas = [];
+
+          // Alerta de déficit crítico
+          if (saldoDisponible < 0) {
+            alertas.push({
+              tipo: 'error',
+              icono: '⚠️',
+              titulo: 'Déficit Detectado',
+              mensaje: `Tienes un déficit de ${Math.abs(saldoDisponible).toFixed(2)}€. Revisa tus gastos.`
+            });
+          }
+
+          // Alerta de gastos altos
+          if (totalIngresos > 0 && totalGastos > totalIngresos * 0.9) {
+            alertas.push({
+              tipo: 'warning',
+              icono: '💡',
+              titulo: 'Gastos Elevados',
+              mensaje: `Tus gastos representan el ${((totalGastos / totalIngresos) * 100).toFixed(0)}% de tus ingresos.`
+            });
+          }
+
+          // Alerta de ahorro excelente
+          if (totalIngresos > 0 && saldoDisponible > totalIngresos * 0.3) {
+            alertas.push({
+              tipo: 'success',
+              icono: '🎉',
+              titulo: '¡Excelente Ahorro!',
+              mensaje: `Estás ahorrando más del 30% de tus ingresos (${((saldoDisponible / totalIngresos) * 100).toFixed(0)}%).`
+            });
+          }
+
+          // Alerta de deuda alta
+          if (deudaTotalCombinada > totalIngresos * 0.5 && totalIngresos > 0) {
+            alertas.push({
+              tipo: 'warning',
+              icono: '🏦',
+              titulo: 'Deuda Elevada',
+              mensaje: `Tu deuda total (${deudaTotalCombinada.toFixed(2)}€) supera el 50% de tus ingresos mensuales.`
+            });
+          }
+
+          // Alerta de sin gastos registrados
+          if (totalGastos === 0 && totalIngresos > 0) {
+            alertas.push({
+              tipo: 'info',
+              icono: '📝',
+              titulo: 'Registra tus Gastos',
+              mensaje: 'Aún no has registrado gastos este mes. ¡Mantén tu control financiero actualizado!'
+            });
+          }
+
+          if (alertas.length === 0) return null;
+
+          return (
+            <div className="space-y-2 mb-6">
+              {alertas.slice(0, 2).map((alerta, i) => (
+                <div
+                  key={i}
+                  className={`p-4 rounded-xl flex items-start gap-3 transition-all duration-300 animate-scaleUp border-2 ${
+                    alerta.tipo === 'error'
+                      ? darkMode ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
+                    : alerta.tipo === 'warning'
+                      ? darkMode ? 'bg-yellow-900/20 border-yellow-800' : 'bg-yellow-50 border-yellow-200'
+                    : alerta.tipo === 'success'
+                      ? darkMode ? 'bg-green-900/20 border-green-800' : 'bg-green-50 border-green-200'
+                      : darkMode ? 'bg-blue-900/20 border-blue-800' : 'bg-blue-50 border-blue-200'
+                  }`}
+                >
+                  <span className="text-2xl flex-shrink-0">{alerta.icono}</span>
+                  <div className="flex-1">
+                    <h4 className={`font-semibold text-sm mb-1 ${
+                      darkMode ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {alerta.titulo}
+                    </h4>
+                    <p className={`text-sm ${
+                      darkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      {alerta.mensaje}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* ==========================================
+            PANEL DE ACCIONES RÁPIDAS
+            ========================================== */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <button
+            onClick={() => {
+              setVistaActiva('ingresos');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+              darkMode
+                ? 'bg-blue-900/20 border-2 border-blue-800 hover:bg-blue-900/30'
+                : 'bg-blue-50 border-2 border-blue-100 hover:bg-blue-100'
+            }`}
+          >
+            <Plus className={`mx-auto mb-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} size={24} />
+            <span className={`text-sm font-medium block ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+              Añadir Ingreso
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setVistaActiva('gastos');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+              darkMode
+                ? 'bg-red-900/20 border-2 border-red-800 hover:bg-red-900/30'
+                : 'bg-red-50 border-2 border-red-100 hover:bg-red-100'
+            }`}
+          >
+            <ShoppingCart className={`mx-auto mb-2 ${darkMode ? 'text-red-400' : 'text-red-600'}`} size={24} />
+            <span className={`text-sm font-medium block ${darkMode ? 'text-red-300' : 'text-red-700'}`}>
+              Nuevo Gasto
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setVistaActiva('ahorros');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg ${
+              darkMode
+                ? 'bg-green-900/20 border-2 border-green-800 hover:bg-green-900/30'
+                : 'bg-green-50 border-2 border-green-100 hover:bg-green-100'
+            }`}
+          >
+            <Target className={`mx-auto mb-2 ${darkMode ? 'text-green-400' : 'text-green-600'}`} size={24} />
+            <span className={`text-sm font-medium block ${darkMode ? 'text-green-300' : 'text-green-700'}`}>
+              Ahorros
+            </span>
+          </button>
+        </div>
+
         {/* Resumen Cards - Movido arriba */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className={`p-6 rounded-2xl shadow-lg transform hover:scale-105 transition-all duration-300 ${darkMode ? 'bg-gradient-to-br from-green-600 to-green-700' : 'bg-gradient-to-br from-green-400 to-green-500'}`}>
@@ -1261,8 +1575,82 @@ export default function ControlFinanciero() {
           </div>
         </div>
 
+        {/* Comparación con mes anterior */}
+        {(() => {
+          const comp = obtenerComparacionMensual(mesVisible);
+          if (!comp.hayDatos) return null;
+
+          return (
+            <div className={`rounded-2xl shadow-xl p-6 backdrop-blur transition-all duration-300 ${
+              darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white/95'
+            }`}>
+              <h3 className={`text-lg font-semibold mb-4 flex items-center gap-2 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                <TrendingUp className={darkMode ? 'text-blue-400' : 'text-blue-600'} size={20} />
+                Comparación con {comp.mesAnterior}
+              </h3>
+
+              <div className="grid md:grid-cols-2 gap-4">
+                {/* Ingresos */}
+                <div className={`p-4 rounded-xl transition-all duration-300 ${
+                  darkMode ? 'bg-green-900/20 border border-green-800' : 'bg-green-50'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Ingresos</span>
+                    <div className={`flex items-center gap-1 ${comp.difIngresos >= 0 ? (darkMode ? 'text-green-400' : 'text-green-600') : (darkMode ? 'text-red-400' : 'text-red-600')}`}>
+                      {comp.difIngresos >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                      <span className="font-bold">{Math.abs(comp.porcIngresos).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className={`text-2xl font-bold mb-1 ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                    {comp.ingresosActual.toFixed(2)} €
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {comp.difIngresos >= 0 ? '+' : ''}{comp.difIngresos.toFixed(2)} € vs mes anterior
+                  </div>
+                </div>
+
+                {/* Gastos */}
+                <div className={`p-4 rounded-xl transition-all duration-300 ${
+                  darkMode ? 'bg-red-900/20 border border-red-800' : 'bg-red-50'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Gastos</span>
+                    <div className={`flex items-center gap-1 ${comp.difGastos <= 0 ? (darkMode ? 'text-green-400' : 'text-green-600') : (darkMode ? 'text-red-400' : 'text-red-600')}`}>
+                      {comp.difGastos > 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                      <span className="font-bold">{Math.abs(comp.porcGastos).toFixed(1)}%</span>
+                    </div>
+                  </div>
+                  <div className={`text-2xl font-bold mb-1 ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                    {comp.gastosActual.toFixed(2)} €
+                  </div>
+                  <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {comp.difGastos >= 0 ? '+' : ''}{comp.difGastos.toFixed(2)} € vs mes anterior
+                  </div>
+                </div>
+              </div>
+
+              {/* Mensaje interpretativo */}
+              <div className={`mt-4 p-3 rounded-lg transition-all duration-300 ${
+                darkMode ? 'bg-blue-900/20 border border-blue-800' : 'bg-blue-50'
+              }`}>
+                <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-800'}`}>
+                  {comp.difGastos > comp.difIngresos ? (
+                    <span>⚠️ <strong>Atención:</strong> Tus gastos aumentaron más que tus ingresos este mes</span>
+                  ) : comp.difGastos < 0 && comp.difIngresos >= 0 ? (
+                    <span>✓ <strong>¡Excelente!</strong> Aumentaste ingresos y redujiste gastos</span>
+                  ) : comp.difGastos < 0 ? (
+                    <span>✓ <strong>Bien hecho:</strong> Redujiste tus gastos este mes</span>
+                  ) : (
+                    <span>📊 Este mes tus finanzas son similares al mes anterior</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Salud Financiera - Regla 50/30/20 */}
-        <div className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+        <div className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
           <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-700'}`}>
             💪 Salud Financiera (Regla 50/30/20)
           </h3>
@@ -1300,7 +1688,7 @@ export default function ControlFinanciero() {
                     <span>🏠 Necesidades (objetivo: máx {necesidadesIdeal}%)</span>
                     <span className="font-bold">{porcNecesidades.toFixed(0)}%</span>
                   </div>
-                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`}>
                     <div
                       className={`h-full transition-all duration-500 ${
                         cumpleNecesidades ? 'bg-green-500' :
@@ -1321,7 +1709,7 @@ export default function ControlFinanciero() {
                     <span>🎉 Deseos (objetivo: máx {deseosIdeal}%)</span>
                     <span className="font-bold">{porcDeseos.toFixed(0)}%</span>
                   </div>
-                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`}>
                     <div
                       className={`h-full transition-all duration-500 ${
                         cumpleDeseos ? 'bg-green-500' :
@@ -1342,7 +1730,7 @@ export default function ControlFinanciero() {
                     <span>💰 Ahorro (objetivo: mín {ahorroIdeal}%)</span>
                     <span className="font-bold">{porcAhorro.toFixed(0)}%</span>
                   </div>
-                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
+                  <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-slate-700' : 'bg-gray-200'}`}>
                     <div
                       className={`h-full transition-all duration-500 ${
                         cumpleAhorro ? 'bg-green-500' :
@@ -1369,487 +1757,24 @@ export default function ControlFinanciero() {
             );
           })()}
         </div>
-
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>✨ Añadir Ingreso</h2>
-          <div className="flex gap-3 flex-wrap">
-            <select
-              aria-label="tipo de ingreso"
-              value={nuevoIngreso.tipo}
-              onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, tipo: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
-                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
-              }`}
-            >
-              <option value="Fijo">Fijo</option>
-              <option value="Variable">Variable</option>
-            </select>
-            <input
-              aria-label="concepto"
-              placeholder="Concepto"
-              value={nuevoIngreso.concepto}
-              onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, concepto: e.target.value })}
-              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
-                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
-              }`}
-            />
-            <input
-              aria-label="monto"
-              placeholder="Monto"
-              value={nuevoIngreso.monto}
-              onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, monto: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
-                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
-              }`}
-            />
-            <input
-              aria-label="fecha"
-              type="date"
-              value={nuevoIngreso.fecha}
-              onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, fecha: e.target.value })}
-              className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
-                  : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
-              }`}
-            />
-            <button
-              onClick={añadirIngreso}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300"
-            >
-              <Plus size={20} /> Añadir
-            </button>
           </div>
-        </section>
-
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Ingresos</h2>
-          {ingresosMesActual.length === 0 ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay ingresos registrados.</p>
-          ) : (
-            <ul className="space-y-3">
-              {ingresosMesActual.map((i) => (
-                <li key={i.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                  <div>
-                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{i.concepto}</div>
-                    <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {i.tipo} {i.fecha && `• ${new Date(i.fecha).toLocaleDateString('es-ES')}`}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`font-bold text-lg ${darkMode ? 'text-green-400' : 'text-green-600'}`}>{(i.monto || 0).toFixed(2)} €</div>
-                    <button
-                      onClick={() => eliminarIngreso(i.id)}
-                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
-                      aria-label="Eliminar ingreso"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-            Total ingresos: <strong className={darkMode ? 'text-green-400' : 'text-green-600'}>{totalIngresos.toFixed(2)} €</strong>
-          </div>
-        </section>
-
-
-        {/* Gastos Fijos */}
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🏠 Gastos Fijos</h2>
-          <div className="flex gap-3 flex-wrap mb-4">
-            <input
-              placeholder="Concepto"
-              value={nuevoGastoFijo.concepto}
-              onChange={(e) => setNuevoGastoFijo({ ...nuevoGastoFijo, concepto: e.target.value })}
-              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
-                  : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
-              }`}
-            />
-            <input
-              placeholder="Monto"
-              value={nuevoGastoFijo.monto}
-              onChange={(e) => setNuevoGastoFijo({ ...nuevoGastoFijo, monto: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
-                  : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
-              }`}
-            />
-            <button onClick={añadirGastoFijo} className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
-              <Plus size={20} /> Añadir
-            </button>
-          </div>
-          {gastosFijos.length === 0 ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay gastos fijos registrados.</p>
-          ) : (
-            <ul className="space-y-3">
-              {gastosFijos.map((g) => (
-                <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                  <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                  <div className="flex items-center gap-3">
-                    <div className={`font-bold text-lg ${darkMode ? 'text-red-400' : 'text-red-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
-                    <button
-                      onClick={() => eliminarGastoFijo(g.id)}
-                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
-                      aria-label="Eliminar gasto fijo"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-            Total gastos fijos: <strong className={darkMode ? 'text-red-400' : 'text-red-600'}>{totalGastosFijos.toFixed(2)} €</strong>
-          </div>
-        </section>
-
-        {/* Gastos Variables */}
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>🛒 Gastos Variables</h2>
-          <div className="flex gap-3 flex-wrap mb-4">
-            <input
-              type="date"
-              value={nuevoGastoVariable.fecha}
-              onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, fecha: e.target.value })}
-              className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
-              }`}
-            />
-            <select
-              value={nuevoGastoVariable.categoria}
-              onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, categoria: e.target.value })}
-              className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
-              }`}
-            >
-              {CATEGORIAS_GASTOS.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
-            <input
-              placeholder="Concepto"
-              value={nuevoGastoVariable.concepto}
-              onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, concepto: e.target.value })}
-              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
-              }`}
-            />
-            <input
-              placeholder="Monto"
-              value={nuevoGastoVariable.monto}
-              onChange={(e) => setNuevoGastoVariable({ ...nuevoGastoVariable, monto: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
-                  : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
-              }`}
-            />
-            <button onClick={añadirGastoVariable} className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
-              <Plus size={20} /> Añadir
-            </button>
-          </div>
-          {gastosVariables.length === 0 ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay gastos variables registrados.</p>
-          ) : (
-            <ul className="space-y-3">
-              {gastosVariables.map((g) => (
-                <li key={g.id} className={`flex justify-between items-center p-4 rounded-xl transition-all duration-300 hover:scale-[1.02] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                  <div>
-                    <div className={`font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>{g.concepto}</div>
-                    <div className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {g.categoria && <span className="font-semibold">{g.categoria}</span>}
-                      {g.categoria && g.fecha && ' • '}
-                      {g.fecha && `📅 ${g.fecha}`}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className={`font-bold text-lg ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{(g.monto || 0).toFixed(2)} €</div>
-                    <button
-                      onClick={() => eliminarGastoVariable(g.id)}
-                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
-                      aria-label="Eliminar gasto variable"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {/* Tabla de resumen por categoría */}
-          {gastosVariables.length > 0 && (
-            <div className="mt-6">
-              <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
-              <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
-                <table className="w-full">
-                  <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
-                    <tr>
-                      <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Categoría</th>
-                      <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Total</th>
-                      <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
-                    </tr>
-                  </thead>
-                  <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
-                    {(() => {
-                      const categorias = {};
-                      gastosVariables.forEach(g => {
-                        const categoria = g.categoria || 'Otros';
-                        categorias[categoria] = (categorias[categoria] || 0) + (parseFloat(g.monto) || 0);
-                      });
-
-                      return Object.entries(categorias)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([categoria, total]) => {
-                          const porcentaje = totalGastosVariables > 0 ? (total / totalGastosVariables) * 100 : 0;
-                          return (
-                            <tr key={categoria} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-                              <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{categoria}</td>
-                              <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>
-                                {total.toFixed(2)}€
-                              </td>
-                              <td className={`px-4 py-3 text-right ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {porcentaje.toFixed(1)}%
-                              </td>
-                            </tr>
-                          );
-                        });
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-            Total gastos variables: <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
-          </div>
-        </section>
-
-        {/* Deudas */}
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💳 Deudas</h2>
-          <div className="flex gap-3 flex-wrap mb-4">
-            <input
-              placeholder="Nombre de la deuda"
-              value={nuevaDeuda.nombre}
-              onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, nombre: e.target.value })}
-              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
-                  : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
-              }`}
-            />
-            <input
-              placeholder="Monto Total"
-              value={nuevaDeuda.montoTotal}
-              onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, montoTotal: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
-                  : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
-              }`}
-            />
-            <input
-              placeholder="Plazo (meses)"
-              value={nuevaDeuda.plazoMeses}
-              onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, plazoMeses: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
-                  : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
-              }`}
-            />
-            <button onClick={añadirDeuda} className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
-              <Plus size={20} /> Añadir
-            </button>
-          </div>
-          {deudasMesActual.length === 0 ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay deudas registradas.</p>
-          ) : (
-            <ul className="space-y-4">
-              {deudasMesActual.map((d) => {
-                const montoTotal = d.montoTotal || d.monto || 0;
-                const totalPagado = d.totalPagado || 0;
-                const restante = montoTotal - totalPagado;
-                const progreso = montoTotal > 0 ? (totalPagado / montoTotal) * 100 : 0;
-                const cuotaMensual = d.cuotaMensual || (montoTotal / (d.plazoMeses || 1));
-
-                return (
-                  <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{d.nombre}</div>
-                        <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                          Cuota: <span className="font-semibold">{cuotaMensual.toFixed(2)}€/mes</span> •
-                          {d.plazoMeses && ` ${d.plazoMeses} meses`}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => eliminarDeuda(d.id)}
-                        className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
-                        aria-label="Eliminar deuda"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-
-                    <div className="mb-3">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>Progreso</span>
-                        <span className={`font-semibold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>
-                          {progreso.toFixed(1)}%
-                        </span>
-                      </div>
-                      <div className={`w-full rounded-full h-3 overflow-hidden ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(progreso, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                      <div className="text-sm">
-                        <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                          Total: <span className={`font-bold ${darkMode ? 'text-purple-400' : 'text-purple-600'}`}>{montoTotal.toFixed(2)}€</span>
-                        </div>
-                        <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                          Pagado: <span className="font-semibold">{totalPagado.toFixed(2)}€</span>
-                        </div>
-                        <div className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                          Restante: <span className={`font-bold ${darkMode ? 'text-orange-400' : 'text-orange-600'}`}>{restante.toFixed(2)}€</span>
-                        </div>
-                      </div>
-
-                      {restante > 0 && (
-                        <button
-                          onClick={() => registrarPagoDeuda(d.id)}
-                          className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
-                        >
-                          <DollarSign size={18} /> Registrar Pago
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-            Total deudas: <strong className={darkMode ? 'text-purple-400' : 'text-purple-600'}>{totalDeudas.toFixed(2)} €</strong>
-          </div>
-        </section>
-
-        {/* Objetivos */}
-        <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Mis Ahorros</h2>
-          <div className="flex gap-3 flex-wrap mb-4">
-            <input
-              placeholder="Nombre de la cuenta"
-              value={nuevaCuentaAhorro.nombre}
-              onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, nombre: e.target.value })}
-              className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
-                  : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
-              }`}
-            />
-            <input
-              placeholder="Saldo"
-              value={nuevaCuentaAhorro.saldo}
-              onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, saldo: e.target.value })}
-              className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
-                darkMode
-                  ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
-                  : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
-              }`}
-            />
-            <button onClick={añadirCuentaAhorro} className="bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 text-white px-6 py-3 min-h-[44px] rounded-xl font-semibold inline-flex items-center gap-3 shadow-lg transform hover:scale-105 transition-all duration-300">
-              <Plus size={20} /> Añadir
-            </button>
-          </div>
-          {cuentasAhorro.length === 0 ? (
-            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay cuentas de ahorro registradas.</p>
-          ) : (
-            <ul className="space-y-4">
-              {cuentasAhorro.map((c) => (
-                <li key={c.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
-                      <div className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Cuenta de ahorro</div>
-                    </div>
-                    <button
-                      onClick={() => eliminarCuentaAhorro(c.id)}
-                      className={`p-3 min-h-[44px] min-w-[44px] rounded-lg transition-all duration-300 hover:scale-110 ${darkMode ? 'text-red-400 hover:bg-red-900/30' : 'text-red-600 hover:bg-red-50'}`}
-                      aria-label="Eliminar objetivo de ahorro"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-
-                  <div className={`text-3xl font-bold mb-4 ${darkMode ? 'text-teal-400' : 'text-teal-600'}`}>
-                    {(c.saldo || 0).toFixed(2)} €
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => añadirDineroCuenta(c.id)}
-                      className="flex-1 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center justify-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
-                    >
-                      <Plus size={18} /> Añadir
-                    </button>
-                    <button
-                      onClick={() => retirarDineroCuenta(c.id)}
-                      className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-4 py-3 min-h-[44px] rounded-lg font-semibold inline-flex items-center justify-center gap-3 shadow-md transform hover:scale-105 transition-all duration-300"
-                    >
-                      <Download size={18} /> Retirar
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
-            Total ahorros: <strong className={darkMode ? 'text-teal-400' : 'text-teal-600'}>{totalAhorros.toFixed(2)} €</strong>
-          </div>
-        </section>
-          </>
         )}
 
         {/* Vista: Préstamos */}
         {vistaActiva === 'prestamos' && (
+          <div className="animate-fadeInLeft">
           <LoanManager
             darkMode={darkMode}
             onCreateExpense={crearGastoAutomatico}
             onShowNotification={mostrarNotificacion}
           />
+          </div>
         )}
 
         {/* Vista: Ingresos */}
         {vistaActiva === 'ingresos' && (
-          <>
-            <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="animate-fadeInLeft">
+            <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
               <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>✨ Añadir Ingreso</h2>
               <div className="flex gap-3 flex-wrap">
                 <select
@@ -1858,7 +1783,7 @@ export default function ControlFinanciero() {
                   onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, tipo: e.target.value })}
                   className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      ? 'bg-slate-700 border-slate-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
                       : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                 >
@@ -1872,7 +1797,7 @@ export default function ControlFinanciero() {
                   onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, concepto: e.target.value })}
                   className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      ? 'bg-slate-700 border-slate-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
                       : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                 />
@@ -1883,7 +1808,7 @@ export default function ControlFinanciero() {
                   onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, monto: e.target.value })}
                   className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      ? 'bg-slate-700 border-slate-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
                       : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                 />
@@ -1894,7 +1819,7 @@ export default function ControlFinanciero() {
                   onChange={(e) => setNuevoIngreso({ ...nuevoIngreso, fecha: e.target.value })}
                   className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      ? 'bg-slate-700 border-slate-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
                       : 'bg-white border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
                   }`}
                 />
@@ -1907,14 +1832,14 @@ export default function ControlFinanciero() {
               </div>
             </section>
 
-            <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
               <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Ingresos</h2>
               {ingresosMesActual.length === 0 ? (
                 <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay ingresos registrados.</p>
               ) : (
                 <ul className="space-y-3">
                   {ingresosMesActual.map((i) => (
-                    <li key={i.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    <li key={i.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                       {editandoIngreso === i.id ? (
                         // Modo edición
                         <div className="space-y-3">
@@ -2007,16 +1932,17 @@ export default function ControlFinanciero() {
                   ))}
                 </ul>
               )}
-              <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+              <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-slate-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
                 Total ingresos: <strong className={darkMode ? 'text-green-400' : 'text-green-600'}>{totalIngresos.toFixed(2)} €</strong>
               </div>
             </section>
-          </>
+          </div>
         )}
 
         {/* Vista: Gastos Unificados con Filtros */}
         {vistaActiva === 'gastos' && (
-          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="animate-fadeInLeft">
+          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
             <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Gastos</h2>
 
             {/* Filtros */}
@@ -2029,7 +1955,7 @@ export default function ControlFinanciero() {
                       ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
                       : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
                     : darkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-slate-700 text-gray-300 hover:bg-gray-600'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -2043,7 +1969,7 @@ export default function ControlFinanciero() {
                       ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
                       : 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg'
                     : darkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-slate-700 text-gray-300 hover:bg-gray-600'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -2057,7 +1983,7 @@ export default function ControlFinanciero() {
                       ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
                       : 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
                     : darkMode
-                    ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-slate-700 text-gray-300 hover:bg-gray-600'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
@@ -2082,7 +2008,7 @@ export default function ControlFinanciero() {
                       onChange={(e) => setNuevoGasto({ ...nuevoGasto, fecha: e.target.value })}
                       className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                         darkMode
-                          ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                          ? 'bg-slate-700 border-slate-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
                           : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
                       }`}
                     />
@@ -2091,7 +2017,7 @@ export default function ControlFinanciero() {
                       onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
                       className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                         darkMode
-                          ? 'bg-gray-700 border-gray-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
+                          ? 'bg-slate-700 border-slate-600 text-white focus:border-orange-500 focus:ring-orange-500/20'
                           : 'bg-white border-gray-200 focus:border-orange-500 focus:ring-orange-500/20'
                       }`}
                     >
@@ -2107,7 +2033,7 @@ export default function ControlFinanciero() {
                     onChange={(e) => setNuevoGasto({ ...nuevoGasto, categoria: e.target.value })}
                     className={`w-40 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                       darkMode
-                        ? 'bg-gray-700 border-gray-600 text-white focus:border-red-500 focus:ring-red-500/20'
+                        ? 'bg-slate-700 border-slate-600 text-white focus:border-red-500 focus:ring-red-500/20'
                         : 'bg-white border-gray-200 focus:border-red-500 focus:ring-red-500/20'
                     }`}
                   >
@@ -2122,7 +2048,7 @@ export default function ControlFinanciero() {
                   onChange={(e) => setNuevoGasto({ ...nuevoGasto, concepto: e.target.value })}
                   className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                      ? `bg-slate-700 border-slate-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                       : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                   }`}
                 />
@@ -2132,7 +2058,7 @@ export default function ControlFinanciero() {
                   onChange={(e) => setNuevoGasto({ ...nuevoGasto, monto: e.target.value })}
                   className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                     darkMode
-                      ? `bg-gray-700 border-gray-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
+                      ? `bg-slate-700 border-slate-600 text-white ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                       : `bg-white border-gray-200 ${tipoGastoActivo === 'fijo' ? 'focus:border-red-500 focus:ring-red-500/20' : 'focus:border-orange-500 focus:ring-orange-500/20'}`
                   }`}
                 />
@@ -2162,7 +2088,7 @@ export default function ControlFinanciero() {
               ) : (
                 <ul className="space-y-3">
                   {gastosFiltrados.map((g) => (
-                  <li key={g.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                  <li key={g.id} className={`p-4 rounded-xl transition-all duration-300 ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                     {editandoGasto === g.id ? (
                       // Modo edición
                       <div className="space-y-3">
@@ -2283,9 +2209,9 @@ export default function ControlFinanciero() {
             {gastosMesActual.length > 0 && (
               <div className="mt-6">
                 <h3 className={`text-lg font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Resumen por Categoría</h3>
-                <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
+                <div className={`overflow-hidden rounded-xl border-2 ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
                   <table className="w-full">
-                    <thead className={darkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                    <thead className={darkMode ? 'bg-slate-700' : 'bg-gray-50'}>
                       <tr>
                         <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Categoría</th>
                         <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Fijos</th>
@@ -2294,7 +2220,7 @@ export default function ControlFinanciero() {
                         <th className={`px-4 py-3 text-right text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>%</th>
                       </tr>
                     </thead>
-                    <tbody className={darkMode ? 'bg-gray-800' : 'bg-white'}>
+                    <tbody className={darkMode ? 'bg-slate-800' : 'bg-white'}>
                       {(() => {
                         const categorias = {};
 
@@ -2324,7 +2250,7 @@ export default function ControlFinanciero() {
                           .map(({ categoria, fijos, variables, total }) => {
                             const porcentaje = totalGastos > 0 ? (total / totalGastos) * 100 : 0;
                             return (
-                              <tr key={categoria} className={`border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                              <tr key={categoria} className={`border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
                                 <td className={`px-4 py-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{categoria}</td>
                                 <td className={`px-4 py-3 text-right ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
                                   {fijos > 0 ? fijos.toFixed(2) + '€' : '-'}
@@ -2349,7 +2275,7 @@ export default function ControlFinanciero() {
             )}
 
             {/* Total según filtro activo */}
-            <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className={`mt-4 pt-4 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
               {tipoGastoActivo === 'todos' ? (
                 <div className="space-y-2 text-sm">
                   <div className={`flex justify-between ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -2360,7 +2286,7 @@ export default function ControlFinanciero() {
                     <span>Total gastos variables:</span>
                     <strong className={darkMode ? 'text-orange-400' : 'text-orange-600'}>{totalGastosVariables.toFixed(2)} €</strong>
                   </div>
-                  <div className={`flex justify-between font-bold text-base pt-2 border-t ${darkMode ? 'border-gray-700 text-white' : 'border-gray-200 text-gray-900'}`}>
+                  <div className={`flex justify-between font-bold text-base pt-2 border-t ${darkMode ? 'border-slate-700 text-white' : 'border-gray-200 text-gray-900'}`}>
                     <span>Total general:</span>
                     <span className={darkMode ? 'text-blue-400' : 'text-blue-600'}>{totalGastos.toFixed(2)} €</span>
                   </div>
@@ -2376,11 +2302,13 @@ export default function ControlFinanciero() {
               )}
             </div>
           </section>
+          </div>
         )}
 
         {/* Vista: Deudas */}
         {vistaActiva === 'deudas' && (
-          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="animate-fadeInLeft">
+          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
             <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💳 Deudas</h2>
             <div className="flex gap-3 flex-wrap mb-4">
               <input
@@ -2389,7 +2317,7 @@ export default function ControlFinanciero() {
                 onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, nombre: e.target.value })}
                 className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                    ? 'bg-slate-700 border-slate-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
                     : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
                 }`}
               />
@@ -2399,7 +2327,7 @@ export default function ControlFinanciero() {
                 onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, montoTotal: e.target.value })}
                 className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                    ? 'bg-slate-700 border-slate-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
                     : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
                 }`}
               />
@@ -2409,7 +2337,7 @@ export default function ControlFinanciero() {
                 onChange={(e) => setNuevaDeuda({ ...nuevaDeuda, plazoMeses: e.target.value })}
                 className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
+                    ? 'bg-slate-700 border-slate-600 text-white focus:border-purple-500 focus:ring-purple-500/20'
                     : 'bg-white border-gray-200 focus:border-purple-500 focus:ring-purple-500/20'
                 }`}
               />
@@ -2429,7 +2357,7 @@ export default function ControlFinanciero() {
                   const cuotaMensual = d.cuotaMensual || (montoTotal / (d.plazoMeses || 1));
 
                   return (
-                    <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                    <li key={d.id} className={`p-5 rounded-xl transition-all duration-300 ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                       {editandoDeuda === d.id ? (
                         // Modo edición
                         <div className="space-y-3">
@@ -2574,15 +2502,17 @@ export default function ControlFinanciero() {
                 })}
               </ul>
             )}
-            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-slate-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
               Total deudas: <strong className={darkMode ? 'text-purple-400' : 'text-purple-600'}>{totalDeudas.toFixed(2)} €</strong>
             </div>
           </section>
+          </div>
         )}
 
         {/* Vista: Mis Ahorros */}
         {vistaActiva === 'objetivos' && (
-          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+          <div className="animate-fadeInLeft">
+          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
             <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>💰 Mis Ahorros</h2>
             <div className="flex gap-3 flex-wrap mb-4">
               <input
@@ -2591,7 +2521,7 @@ export default function ControlFinanciero() {
                 onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, nombre: e.target.value })}
                 className={`flex-1 min-w-[200px] px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
+                    ? 'bg-slate-700 border-slate-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
                     : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
                 }`}
               />
@@ -2601,7 +2531,7 @@ export default function ControlFinanciero() {
                 onChange={(e) => setNuevaCuentaAhorro({ ...nuevaCuentaAhorro, saldo: e.target.value })}
                 className={`w-32 px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4 ${
                   darkMode
-                    ? 'bg-gray-700 border-gray-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
+                    ? 'bg-slate-700 border-slate-600 text-white focus:border-teal-500 focus:ring-teal-500/20'
                     : 'bg-white border-gray-200 focus:border-teal-500 focus:ring-teal-500/20'
                 }`}
               />
@@ -2614,7 +2544,7 @@ export default function ControlFinanciero() {
             ) : (
               <ul className="space-y-4">
                 {cuentasAhorro.map((c) => (
-                  <li key={c.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-gray-50 border-gray-200'} border-2`}>
+                  <li key={c.id} className={`p-5 rounded-xl transition-all duration-300 hover:scale-[1.01] ${darkMode ? 'bg-slate-700/50 border-slate-600' : 'bg-gray-50 border-gray-200'} border-2`}>
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className={`font-bold text-lg ${darkMode ? 'text-white' : 'text-gray-900'}`}>{c.nombre}</div>
@@ -2651,94 +2581,38 @@ export default function ControlFinanciero() {
                 ))}
               </ul>
             )}
-            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-gray-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
+            <div className={`mt-4 pt-4 border-t text-sm ${darkMode ? 'border-slate-700 text-gray-300' : 'border-gray-200 text-gray-700'}`}>
               Total ahorros: <strong className={darkMode ? 'text-teal-400' : 'text-teal-600'}>{totalAhorros.toFixed(2)} €</strong>
             </div>
           </section>
-        )}
-
-        {/* Vista: Estadísticas */}
-        {vistaActiva === 'estadisticas' && (
-          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <h2 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📊 Estadísticas</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-green-600 to-green-700' : 'bg-gradient-to-br from-green-400 to-green-500'}`}>
-                <p className="text-white/80 text-sm font-medium mb-2">💰 Total Ingresos</p>
-                <p className="text-white text-3xl font-bold">{totalIngresos.toFixed(2)} €</p>
-              </div>
-              <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-red-600 to-red-700' : 'bg-gradient-to-br from-red-400 to-red-500'}`}>
-                <p className="text-white/80 text-sm font-medium mb-2">💸 Total Gastos</p>
-                <p className="text-white text-3xl font-bold">{totalGastos.toFixed(2)} €</p>
-              </div>
-              <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-blue-600 to-blue-700' : 'bg-gradient-to-br from-blue-400 to-blue-500'}`}>
-                <p className="text-white/80 text-sm font-medium mb-2">💵 Saldo Final</p>
-                <p className="text-white text-3xl font-bold">{saldoDisponible.toFixed(2)} €</p>
-              </div>
-              <div className={`p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
-                <p className="text-white/80 text-sm font-medium mb-2">🏦 Deuda Total</p>
-                <p className="text-white text-3xl font-bold">{deudaTotalCombinada.toFixed(2)} €</p>
-                <div className="mt-3 space-y-1 text-xs text-white/70">
-                  <div className="flex justify-between">
-                    <span>Deudas:</span>
-                    <span className="font-medium">{totalDeudas.toFixed(2)} €</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Préstamos:</span>
-                    <span className="font-medium">{totalPrestamos.toFixed(2)} €</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className={`mt-6 p-6 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
-              <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>📅 Historial Mensual</h3>
-              {historialMensual.length === 0 ? (
-                <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>No hay historial guardado</p>
-              ) : (
-                <div className="grid gap-4">
-                  {historialMensual.map(h => (
-                    <div key={h.id} className={`p-4 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow`}>
-                      <div className={`font-semibold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{h.mes}</div>
-                      <div className="grid grid-cols-3 gap-3 text-sm">
-                        <div className={darkMode ? 'text-green-400' : 'text-green-600'}>
-                          Ingresos: {h.totales?.totalIngresos?.toFixed(2)} €
-                        </div>
-                        <div className={darkMode ? 'text-red-400' : 'text-red-600'}>
-                          Gastos: {h.totales?.totalGastos?.toFixed(2)} €
-                        </div>
-                        <div className={darkMode ? 'text-blue-400' : 'text-blue-600'}>
-                          Saldo: {h.totales?.saldoDisponible?.toFixed(2)} €
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+          </div>
         )}
 
         {/* Vista: Evolución Temporal */}
         {vistaActiva === 'evolucion' && (
-          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-            <h2 className={`text-3xl font-bold mb-6 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-              📈 Evolución Temporal
-            </h2>
-            <p className={`text-sm mb-8 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-              Análisis histórico de tus finanzas a lo largo del tiempo
-            </p>
+          <div className="animate-fadeInLeft">
+          <section className={`p-6 rounded-2xl shadow-xl transition-all duration-300 ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+            <div className="mb-6">
+              <h2 className={`text-3xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                📈 Evolución Temporal
+              </h2>
+              <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                Análisis histórico de tus finanzas a lo largo del tiempo
+              </p>
+            </div>
 
             {(() => {
               const datosHistoricos = obtenerDatosHistoricos();
 
               if (datosHistoricos.length === 0) {
                 return (
-                  <div className={`p-12 rounded-xl text-center ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  <div className={`p-12 rounded-xl text-center ${darkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
                     <LineChart className={`mx-auto mb-4 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} size={64} />
                     <h3 className={`text-xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       Sin datos históricos
                     </h3>
                     <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>
-                      Comienza añadiendo ingresos y gastos para ver tu evolución temporal
+                      Guarda el mes actual para empezar a ver tu evolución temporal
                     </p>
                   </div>
                 );
@@ -2746,19 +2620,88 @@ export default function ControlFinanciero() {
 
               // Calcular valores máximos para escalar el gráfico
               const maxValor = Math.max(...datosHistoricos.map(m => Math.max(m.ingresos, m.gastos)));
-              const altura = 300;
+              const altura = 320;
 
               return (
                 <>
-                  {/* Gráfico de líneas */}
-                  <div className={`p-6 rounded-xl mb-6 ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  {/* Estadísticas resumidas en cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className={`p-5 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-green-600 to-green-700' : 'bg-gradient-to-br from-green-400 to-green-500'}`}>
+                      <p className="text-white/80 text-xs font-medium mb-1">💰 Total Ingresos</p>
+                      <p className="text-white text-2xl font-bold">
+                        {datosHistoricos.reduce((sum, m) => sum + m.ingresos, 0).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        {datosHistoricos.length} {datosHistoricos.length === 1 ? 'mes' : 'meses'}
+                      </p>
+                    </div>
+
+                    <div className={`p-5 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-red-600 to-red-700' : 'bg-gradient-to-br from-red-400 to-red-500'}`}>
+                      <p className="text-white/80 text-xs font-medium mb-1">💸 Total Gastos</p>
+                      <p className="text-white text-2xl font-bold">
+                        {datosHistoricos.reduce((sum, m) => sum + m.gastos, 0).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        Promedio: {(datosHistoricos.reduce((sum, m) => sum + m.gastos, 0) / datosHistoricos.length).toFixed(2)} €/mes
+                      </p>
+                    </div>
+
+                    <div className={`p-5 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-blue-600 to-blue-700' : 'bg-gradient-to-br from-blue-400 to-blue-500'}`}>
+                      <p className="text-white/80 text-xs font-medium mb-1">💵 Balance Total</p>
+                      <p className="text-white text-2xl font-bold">
+                        {datosHistoricos.reduce((sum, m) => sum + m.balance, 0).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        {datosHistoricos.filter(m => m.balance > 0).length} {datosHistoricos.filter(m => m.balance > 0).length === 1 ? 'mes positivo' : 'meses positivos'}
+                      </p>
+                    </div>
+
+                    <div className={`p-5 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
+                      <p className="text-white/80 text-xs font-medium mb-1">📊 Promedio Mensual</p>
+                      <p className="text-white text-2xl font-bold">
+                        {(datosHistoricos.reduce((sum, m) => sum + m.ingresos, 0) / datosHistoricos.length).toFixed(2)} €
+                      </p>
+                      <p className="text-white/70 text-xs mt-1">
+                        Ingresos promedio
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Gráfico de líneas mejorado */}
+                  <div className={`p-6 rounded-xl mb-6 ${darkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
                     <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-                      📊 Ingresos vs Gastos
+                      📊 Tendencia: Ingresos vs Gastos
                     </h3>
 
                     <div className="relative" style={{ height: altura + 60 + 'px' }}>
                       {/* Líneas del gráfico */}
                       <svg className="w-full" style={{ height: altura + 'px' }}>
+                        {/* Líneas de referencia horizontales */}
+                        {[0, 0.25, 0.5, 0.75, 1].map((factor, i) => {
+                          const y = altura - factor * (altura - 40);
+                          return (
+                            <g key={i}>
+                              <line
+                                x1="0%"
+                                y1={y}
+                                x2="100%"
+                                y2={y}
+                                stroke={darkMode ? '#374151' : '#e5e7eb'}
+                                strokeWidth="1"
+                                strokeDasharray="5,5"
+                              />
+                              <text
+                                x="0"
+                                y={y - 5}
+                                fill={darkMode ? '#9ca3af' : '#6b7280'}
+                                fontSize="10"
+                              >
+                                {(maxValor * factor).toFixed(0)}€
+                              </text>
+                            </g>
+                          );
+                        })}
+
                         {/* Línea de ingresos */}
                         <polyline
                           points={datosHistoricos.map((mes, i) => {
@@ -2787,35 +2730,41 @@ export default function ControlFinanciero() {
                           strokeLinejoin="round"
                         />
 
-                        {/* Puntos de ingresos */}
+                        {/* Puntos de ingresos con hover */}
                         {datosHistoricos.map((mes, i) => {
                           const x = (i / (datosHistoricos.length - 1)) * 100;
                           const y = altura - (mes.ingresos / maxValor) * (altura - 40);
                           return (
-                            <circle
-                              key={`ing-${i}`}
-                              cx={`${x}%`}
-                              cy={y}
-                              r="5"
-                              fill={darkMode ? '#4ade80' : '#22c55e'}
-                              className="hover:r-8 transition-all cursor-pointer"
-                            />
+                            <g key={`ing-${i}`}>
+                              <circle
+                                cx={`${x}%`}
+                                cy={y}
+                                r="6"
+                                fill={darkMode ? '#4ade80' : '#22c55e'}
+                                stroke={darkMode ? '#1e293b' : '#ffffff'}
+                                strokeWidth="2"
+                                className="hover:r-8 transition-all cursor-pointer"
+                              />
+                            </g>
                           );
                         })}
 
-                        {/* Puntos de gastos */}
+                        {/* Puntos de gastos con hover */}
                         {datosHistoricos.map((mes, i) => {
                           const x = (i / (datosHistoricos.length - 1)) * 100;
                           const y = altura - (mes.gastos / maxValor) * (altura - 40);
                           return (
-                            <circle
-                              key={`gas-${i}`}
-                              cx={`${x}%`}
-                              cy={y}
-                              r="5"
-                              fill={darkMode ? '#f87171' : '#ef4444'}
-                              className="hover:r-8 transition-all cursor-pointer"
-                            />
+                            <g key={`gas-${i}`}>
+                              <circle
+                                cx={`${x}%`}
+                                cy={y}
+                                r="6"
+                                fill={darkMode ? '#f87171' : '#ef4444'}
+                                stroke={darkMode ? '#1e293b' : '#ffffff'}
+                                strokeWidth="2"
+                                className="hover:r-8 transition-all cursor-pointer"
+                              />
+                            </g>
                           );
                         })}
                       </svg>
@@ -2825,7 +2774,7 @@ export default function ControlFinanciero() {
                         {datosHistoricos.map((mes, i) => (
                           <span
                             key={i}
-                            className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}
+                            className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}
                             style={{
                               width: `${100 / datosHistoricos.length}%`,
                               textAlign: i === 0 ? 'left' : i === datosHistoricos.length - 1 ? 'right' : 'center'
@@ -2837,64 +2786,21 @@ export default function ControlFinanciero() {
                       </div>
                     </div>
 
-                    {/* Leyenda */}
-                    <div className="flex gap-6 justify-center mt-4">
+                    {/* Leyenda mejorada */}
+                    <div className="flex gap-6 justify-center mt-6">
                       <div className="flex items-center gap-2">
                         <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-green-400' : 'bg-green-500'}`}></div>
-                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Ingresos</span>
+                        <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Ingresos</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className={`w-4 h-4 rounded-full ${darkMode ? 'bg-red-400' : 'bg-red-500'}`}></div>
-                        <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Gastos</span>
+                        <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Gastos</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Estadísticas acumuladas */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-green-600 to-green-700' : 'bg-gradient-to-br from-green-400 to-green-500'}`}>
-                      <p className="text-white/80 text-sm font-medium mb-2">💰 Total Ingresos</p>
-                      <p className="text-white text-2xl font-bold">
-                        {datosHistoricos.reduce((sum, m) => sum + m.ingresos, 0).toFixed(2)} €
-                      </p>
-                      <p className="text-white/70 text-xs mt-1">
-                        {datosHistoricos.length} {datosHistoricos.length === 1 ? 'mes' : 'meses'}
-                      </p>
-                    </div>
-
-                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-red-600 to-red-700' : 'bg-gradient-to-br from-red-400 to-red-500'}`}>
-                      <p className="text-white/80 text-sm font-medium mb-2">💸 Total Gastos</p>
-                      <p className="text-white text-2xl font-bold">
-                        {datosHistoricos.reduce((sum, m) => sum + m.gastos, 0).toFixed(2)} €
-                      </p>
-                      <p className="text-white/70 text-xs mt-1">
-                        Promedio: {(datosHistoricos.reduce((sum, m) => sum + m.gastos, 0) / datosHistoricos.length).toFixed(2)} €/mes
-                      </p>
-                    </div>
-
-                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-blue-600 to-blue-700' : 'bg-gradient-to-br from-blue-400 to-blue-500'}`}>
-                      <p className="text-white/80 text-sm font-medium mb-2">💵 Balance Total</p>
-                      <p className="text-white text-2xl font-bold">
-                        {datosHistoricos.reduce((sum, m) => sum + m.balance, 0).toFixed(2)} €
-                      </p>
-                      <p className="text-white/70 text-xs mt-1">
-                        {datosHistoricos.filter(m => m.balance > 0).length} {datosHistoricos.filter(m => m.balance > 0).length === 1 ? 'mes positivo' : 'meses positivos'}
-                      </p>
-                    </div>
-
-                    <div className={`p-6 rounded-xl shadow-lg ${darkMode ? 'bg-gradient-to-br from-purple-600 to-purple-700' : 'bg-gradient-to-br from-purple-400 to-purple-500'}`}>
-                      <p className="text-white/80 text-sm font-medium mb-2">📊 Promedio Mensual</p>
-                      <p className="text-white text-2xl font-bold">
-                        {(datosHistoricos.reduce((sum, m) => sum + m.ingresos, 0) / datosHistoricos.length).toFixed(2)} €
-                      </p>
-                      <p className="text-white/70 text-xs mt-1">
-                        Ingresos promedio
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Tabla de historial mensual */}
-                  <div className={`p-6 rounded-xl ${darkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                  {/* Tabla de historial mensual mejorada */}
+                  <div className={`p-6 rounded-xl ${darkMode ? 'bg-slate-700/50' : 'bg-gray-50'}`}>
                     <h3 className={`text-lg font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       📅 Detalle Mensual
                     </h3>
@@ -2902,7 +2808,7 @@ export default function ControlFinanciero() {
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
-                          <tr className={`border-b-2 ${darkMode ? 'border-gray-600' : 'border-gray-300'}`}>
+                          <tr className={`border-b-2 ${darkMode ? 'border-slate-600' : 'border-gray-300'}`}>
                             <th className={`px-4 py-3 text-left text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                               Mes
                             </th>
@@ -2926,26 +2832,28 @@ export default function ControlFinanciero() {
                             return (
                               <tr
                                 key={index}
-                                className={`border-b ${darkMode ? 'border-gray-700 hover:bg-gray-700/30' : 'border-gray-200 hover:bg-gray-100'} transition-colors`}
+                                className={`border-b ${darkMode ? 'border-slate-700 hover:bg-slate-700/30' : 'border-gray-200 hover:bg-gray-100'} transition-colors`}
                               >
                                 <td className={`px-4 py-3 font-medium ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                                   {mes.nombreMes}
                                 </td>
                                 <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
-                                  {mes.ingresos.toFixed(2)} €
+                                  +{mes.ingresos.toFixed(2)} €
                                 </td>
                                 <td className={`px-4 py-3 text-right font-semibold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
-                                  {mes.gastos.toFixed(2)} €
+                                  -{mes.gastos.toFixed(2)} €
                                 </td>
                                 <td className={`px-4 py-3 text-right font-bold ${mes.balance >= 0 ? (darkMode ? 'text-blue-400' : 'text-blue-600') : (darkMode ? 'text-orange-400' : 'text-orange-600')}`}>
-                                  {mes.balance.toFixed(2)} €
+                                  {mes.balance >= 0 ? '+' : ''}{mes.balance.toFixed(2)} €
                                 </td>
                                 <td className={`px-4 py-3 text-right ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                                  <span className={`inline-block px-2 py-1 rounded text-xs font-semibold ${
+                                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
                                     porcentajeAhorro >= 20
                                       ? darkMode ? 'bg-green-900/40 text-green-300' : 'bg-green-100 text-green-700'
                                       : porcentajeAhorro >= 10
                                       ? darkMode ? 'bg-yellow-900/40 text-yellow-300' : 'bg-yellow-100 text-yellow-700'
+                                      : porcentajeAhorro >= 0
+                                      ? darkMode ? 'bg-orange-900/40 text-orange-300' : 'bg-orange-100 text-orange-700'
                                       : darkMode ? 'bg-red-900/40 text-red-300' : 'bg-red-100 text-red-700'
                                   }`}>
                                     {porcentajeAhorro.toFixed(1)}%
@@ -2957,14 +2865,53 @@ export default function ControlFinanciero() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Insights adicionales */}
+                    <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-600' : 'border-gray-300'}`}>
+                      <h4 className={`text-sm font-bold mb-3 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                        💡 Análisis
+                      </h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className={`p-4 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mejor mes</p>
+                          <p className={`font-bold ${darkMode ? 'text-green-400' : 'text-green-600'}`}>
+                            {(() => {
+                              const mejorMes = datosHistoricos.reduce((max, mes) => mes.balance > max.balance ? mes : max);
+                              return `${mejorMes.nombreMes.split(' ')[0]} (+${mejorMes.balance.toFixed(2)}€)`;
+                            })()}
+                          </p>
+                        </div>
+                        <div className={`p-4 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Mayor gasto</p>
+                          <p className={`font-bold ${darkMode ? 'text-red-400' : 'text-red-600'}`}>
+                            {(() => {
+                              const mayorGasto = datosHistoricos.reduce((max, mes) => mes.gastos > max.gastos ? mes : max);
+                              return `${mayorGasto.nombreMes.split(' ')[0]} (-${mayorGasto.gastos.toFixed(2)}€)`;
+                            })()}
+                          </p>
+                        </div>
+                        <div className={`p-4 rounded-lg ${darkMode ? 'bg-slate-800' : 'bg-white'}`}>
+                          <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Tendencia general</p>
+                          <p className={`font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                            {(() => {
+                              const primerBalance = datosHistoricos[0].balance;
+                              const ultimoBalance = datosHistoricos[datosHistoricos.length - 1].balance;
+                              const tendencia = ultimoBalance > primerBalance ? '📈 Mejorando' : ultimoBalance < primerBalance ? '📉 Descendiendo' : '➡️ Estable';
+                              return tendencia;
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </>
               );
             })()}
           </section>
+          </div>
         )}
 
-      </main>
+</main>
     </div>
   );
 }

@@ -9,33 +9,51 @@ const urlsToCache = [
 
 // Instalación del service worker
 self.addEventListener('install', (event) => {
+  console.log('🔧 Service Worker: Instalando...');
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Cache abierto');
+        console.log('📦 Service Worker: Archivos en caché');
         return cache.addAll(urlsToCache);
       })
   );
+  // Forzar activación inmediata
+  self.skipWaiting();
 });
 
 // Activación del service worker
 self.addEventListener('activate', (event) => {
+  console.log('✅ Service Worker: Activado');
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
-            console.log('Eliminando cache antiguo:', cacheName);
+            console.log('🗑️ Service Worker: Eliminando caché antigua:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     })
   );
+  // Tomar control inmediato de todas las páginas
+  self.clients.claim();
 });
 
 // Estrategia: Network First, fallback to Cache
 self.addEventListener('fetch', (event) => {
+  // Ignorar peticiones no GET
+  if (event.request.method !== 'GET') return;
+
+  // Ignorar peticiones a APIs externas y hot reload
+  if (event.request.url.includes('supabase.co') ||
+      event.request.url.includes('googleapis.com') ||
+      event.request.url.includes('accounts.google.com') ||
+      event.request.url.includes('_next/webpack-hmr') ||
+      event.request.url.includes('_next/static/webpack/')) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -50,7 +68,26 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => {
         // Si falla la red, intentamos obtener del cache
-        return caches.match(event.request);
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Si no hay caché disponible, devolver respuesta offline
+          return new Response('Offline - No hay conexión disponible', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: new Headers({
+              'Content-Type': 'text/plain',
+            }),
+          });
+        });
       })
   );
+});
+
+// Escuchar mensajes del cliente
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
