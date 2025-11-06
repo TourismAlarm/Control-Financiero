@@ -111,7 +111,7 @@ export const frequencySchema = z.enum([
 
 export const recurringRuleSchema = z.object({
   id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string(), // Google ID (not UUID)
   account_id: z.string().uuid().nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
   type: transactionTypeSchema,
@@ -146,7 +146,7 @@ export const recurringRuleUpdateSchema = recurringRuleSchema.partial().required(
 
 export const budgetSchema = z.object({
   id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string(), // Google ID (not UUID)
   category_id: z.string().uuid(),
   amount: z
     .number()
@@ -191,7 +191,7 @@ export const budgetUpdateSchema = budgetSchema.partial().required({ id: true });
 
 export const transferSchema = z.object({
   id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string(), // Google ID (not UUID)
   from_account_id: z.string().uuid(),
   to_account_id: z.string().uuid(),
   amount: z
@@ -227,7 +227,7 @@ export const loanStatusSchema = z.enum(['active', 'paid', 'cancelled']);
 
 export const loanSchema = z.object({
   id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string(), // Google ID (not UUID)
   type: loanTypeSchema,
   contact_name: z.string().min(1, { message: 'El nombre del contacto es requerido' }).max(200),
   principal_amount: z
@@ -274,7 +274,7 @@ export const loanUpdateSchema = loanSchema.partial().required({ id: true });
 
 export const loanPaymentSchema = z.object({
   id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string(), // Google ID (not UUID)
   loan_id: z.string().uuid(),
   amount: z
     .number()
@@ -317,7 +317,7 @@ export const loanPaymentUpdateSchema = loanPaymentSchema.partial().required({ id
 
 export const savingsGoalSchema = z.object({
   id: z.string().uuid().optional(),
-  user_id: z.string().uuid(),
+  user_id: z.string(), // Google ID (not UUID)
   name: z.string().min(1, { message: 'El nombre es requerido' }).max(200),
   target_amount: z
     .number()
@@ -356,7 +356,7 @@ export const savingsGoalUpdateSchema = savingsGoalSchema.partial().required({ id
 // ==========================================
 
 export const profileSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string(), // Google ID (not UUID)
   email: z.string().email({ message: 'Email inválido' }),
   full_name: z.string().max(200).nullable().optional(),
   avatar_url: z.string().url().nullable().optional(),
