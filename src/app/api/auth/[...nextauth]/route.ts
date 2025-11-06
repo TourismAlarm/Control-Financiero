@@ -1,12 +1,12 @@
+import NextAuth from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import { createClient } from '@supabase/supabase-js'
 
 // Cliente admin de Supabase para operaciones del servidor
-// USA SERVICE_ROLE_KEY para bypass RLS
 function getSupabaseAdmin() {
   return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
       auth: {
         persistSession: false,
@@ -16,12 +16,12 @@ function getSupabaseAdmin() {
   )
 }
 
-export const authOptions = {
+const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
   pages: {
@@ -36,7 +36,7 @@ export const authOptions = {
         console.log('🔵 Email:', user.email)
         console.log('🔵 Name:', user.name)
 
-        // 1. Verificar si el usuario ya existe en la tabla users
+        // Verificar si el usuario ya existe
         const { data: existingUser, error: selectError } = await supabase
           .from('users')
           .select('google_id')
@@ -45,13 +45,13 @@ export const authOptions = {
 
         if (selectError) {
           console.error('❌ Error verificando usuario:', selectError)
-          return true // Permitir login aunque falle
+          return true
         }
 
         if (!existingUser) {
           console.log('🆕 Creando nuevo usuario...')
 
-          // 2. Crear usuario en la tabla users
+          // Crear usuario en la tabla users
           const { data: newUser, error: userError } = await supabase
             .from('users')
             .insert({
@@ -64,16 +64,16 @@ export const authOptions = {
 
           if (userError) {
             console.error('❌ Error creando usuario:', userError)
-            return false // Bloquear login si falla
+            return false
           }
 
           console.log('✅ Usuario creado:', newUser)
 
-          // 3. Crear perfil automáticamente
+          // Crear perfil automáticamente
           const { data: newProfile, error: profileError } = await supabase
             .from('profiles')
             .insert({
-              id: user.id, // Google ID
+              id: user.id,
               email: user.email,
               full_name: user.name || '',
               avatar_url: user.image || null,
@@ -85,7 +85,6 @@ export const authOptions = {
 
           if (profileError) {
             console.error('❌ Error creando perfil:', profileError)
-            // No bloquear login, el perfil se puede crear después
           } else {
             console.log('✅ Perfil creado:', newProfile)
           }
@@ -96,15 +95,22 @@ export const authOptions = {
         return true
       } catch (error) {
         console.error('❌ Error en signIn callback:', error)
-        return true // Permitir login aunque falle
+        return true
       }
     },
     async session({ session, token }) {
-      // Asegurar que session.user.id sea el Google ID
       if (session?.user) {
-        session.user.id = token.sub; // Google ID
+        session.user.id = token.sub!
       }
-      return session;
+      return session
     },
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id
+      }
+      return token
+    }
   },
-}
+})
+
+export { handler as GET, handler as POST }
