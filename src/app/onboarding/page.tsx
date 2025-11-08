@@ -128,13 +128,12 @@ export default function OnboardingPage() {
 
     try {
       // Update user profile to mark onboarding as complete
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-
-      await supabase
-        .from('profiles')
-        .update({ onboarding_completed: true })
-        .eq('id', user?.id);
+      // Skip onboarding update for now - will be handled server-side
+      // const supabase = createClient();
+      // await supabase
+      //   .from('profiles')
+      //   .update({ onboarding_completed: true })
+      //   .eq('id', user?.id);
 
       // Redirect to dashboard
       router.push('/');

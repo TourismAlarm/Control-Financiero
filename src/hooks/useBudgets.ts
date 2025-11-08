@@ -77,12 +77,14 @@ export function useBudgets(month?: number, year?: number) {
 
       const amountDecimal = toDecimal(validated.amount);
 
+      const insertData = {
+        ...validated,
+        amount: amountDecimal.toNumber(),
+      };
+
       const { data, error } = await supabase
         .from('budgets')
-        .insert({
-          ...validated,
-          amount: amountDecimal.toNumber(),
-        })
+        .insert(insertData as any)
         .select()
         .single();
 
@@ -115,6 +117,7 @@ export function useBudgets(month?: number, year?: number) {
 
       const { data, error } = await supabase
         .from('budgets')
+        // @ts-expect-error - Supabase type inference issue
         .update(updateData)
         .eq('id', validated.id)
         .eq('user_id', session.user.id)
@@ -224,7 +227,7 @@ export function useBudgets(month?: number, year?: number) {
 
   // Check if budget is over limit (requires actual spending data)
   // Returns false by default - component should calculate actual spending
-  const isOverBudget = (budgetId: string) => {
+  const isOverBudget = (_budgetId: string) => {
     return false; // Component should calculate this using useTransactions
   };
 

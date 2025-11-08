@@ -46,13 +46,14 @@ export function PatternDetector({ transactions }: PatternDetectorProps) {
   );
 
   const unusualExpenses = expenses.filter(t => Math.abs(t.amount) > avgExpense + 2 * stdDev);
-  if (unusualExpenses.length > 0) {
+  if (unusualExpenses.length > 0 && unusualExpenses[0]) {
+    const firstExpense = unusualExpenses[0];
     patterns.push({
       type: 'warning',
       icon: AlertTriangle,
       title: 'Gastos Inusuales Detectados',
       description: `Se han detectado ${unusualExpenses.length} transacción(es) significativamente superiores al promedio.`,
-      metric: `${Math.abs(unusualExpenses[0].amount).toFixed(2)}€ (${unusualExpenses[0].description.substring(0, 30)}...)`
+      metric: `${Math.abs(firstExpense.amount).toFixed(2)}€ (${(firstExpense.description || 'Sin descripción').substring(0, 30)}...)`
     });
   }
 
@@ -121,21 +122,22 @@ export function PatternDetector({ transactions }: PatternDetectorProps) {
 
   const recurringPatterns = Object.entries(descriptionGroups)
     .filter(([_, trans]) => trans.length >= 3)
-    .map(([desc, trans]) => ({
-      description: trans[0].description,
+    .map(([_, trans]) => ({
+      description: trans[0]?.description || 'Sin descripción',
       count: trans.length,
       avgAmount: trans.reduce((sum, t) => sum + Math.abs(t.amount), 0) / trans.length
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 3);
 
-  if (recurringPatterns.length > 0) {
+  if (recurringPatterns.length > 0 && recurringPatterns[0]) {
+    const firstPattern = recurringPatterns[0];
     patterns.push({
       type: 'info',
       icon: Calendar,
       title: 'Transacciones Recurrentes',
       description: `Se han identificado ${recurringPatterns.length} transacción(es) que se repiten regularmente.`,
-      metric: `${recurringPatterns[0].description.substring(0, 30)} (${recurringPatterns[0].count}x)`
+      metric: `${firstPattern.description.substring(0, 30)} (${firstPattern.count}x)`
     });
   }
 
@@ -173,11 +175,13 @@ export function PatternDetector({ transactions }: PatternDetectorProps) {
 
   expenses.forEach(t => {
     const day = new Date(t.date).getDay();
-    dayExpenses[day] += Math.abs(t.amount);
+    const dayKey = day.toString();
+    dayExpenses[dayKey] = (dayExpenses[dayKey] || 0) + Math.abs(t.amount);
   });
 
-  const maxDayIndex = Object.entries(dayExpenses)
-    .sort((a, b) => b[1] - a[1])[0][0];
+  const sortedDays = Object.entries(dayExpenses)
+    .sort((a, b) => b[1] - a[1]);
+  const maxDayIndex = sortedDays[0]?.[0] || '0';
 
   const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -186,7 +190,7 @@ export function PatternDetector({ transactions }: PatternDetectorProps) {
     icon: Sparkles,
     title: 'Patrón Semanal',
     description: `Los ${dayNames[parseInt(maxDayIndex)]}s son los días con más gastos en promedio.`,
-    metric: `${dayExpenses[maxDayIndex].toFixed(2)}€ total`
+    metric: `${(dayExpenses[maxDayIndex] || 0).toFixed(2)}€ total`
   });
 
   if (patterns.length === 0) {

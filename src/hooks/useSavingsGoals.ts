@@ -6,7 +6,6 @@ import {
   savingsGoalSchema,
   savingsGoalInsertSchema,
   savingsGoalUpdateSchema,
-  type SavingsGoal,
   type SavingsGoalInsert,
   type SavingsGoalUpdate,
 } from '@/lib/validations/schemas';
@@ -112,7 +111,8 @@ export function useSavingsGoals() {
 
       const { data, error } = await supabase
         .from('savings_goals')
-        .update(updateData as any)
+        // @ts-expect-error - Supabase type inference issue
+        .update(updateData)
         .eq('id', validated.id)
         .eq('user_id', session.user.id)
         .select()
@@ -171,10 +171,11 @@ export function useSavingsGoals() {
 
       const { data, error } = await supabase
         .from('savings_goals')
+        // @ts-expect-error - Supabase type inference issue
         .update({
           current_amount: newAmount.toNumber(),
           is_completed: isCompleted,
-        } as any)
+        })
         .eq('id', goalId)
         .eq('user_id', session.user.id)
         .select()

@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
-import { useBudgets } from '@/hooks/useBudgets';
 import { useFinancialSummary } from '@/hooks/useFinancialSummary';
 import { useSavingsGoals } from '@/hooks/useSavingsGoals';
 import { useRecurringRules } from '@/hooks/useRecurringRules';
@@ -36,20 +35,17 @@ export function Statistics() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const { calculateTotals, getCategoryBreakdown } = useTransactions(selectedMonth);
-  const { data: allTransactions = [] } = useTransactions(); // Para los gráficos de tendencias
+  const { calculateTotals } = useTransactions(selectedMonth);
+  const { transactions: allTransactions = [] } = useTransactions(); // Para los gráficos de tendencias
   const { getTotalBalance, getBalanceByType } = useAccounts();
-  const { getTotalBudget } = useBudgets();
   const { summary, getCategoryBreakdown: getSummaryCategoryBreakdown, getHealthScore } =
     useFinancialSummary(selectedMonth);
   const { getTotalSavings } = useSavingsGoals();
   const { calculateMonthlyImpact } = useRecurringRules();
 
   const totals = calculateTotals();
-  const categoryBreakdown = getCategoryBreakdown();
   const totalBalance = getTotalBalance();
   const balanceByType = getBalanceByType();
-  const totalBudget = getTotalBudget(selectedMonth);
   const totalSavings = getTotalSavings();
   const monthlyImpact = calculateMonthlyImpact();
   const healthScore = getHealthScore();

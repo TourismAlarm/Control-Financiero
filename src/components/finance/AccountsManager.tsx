@@ -136,7 +136,6 @@ export function AccountsManager() {
       balance: account.balance,
       currency: account.currency,
       is_active: account.is_active,
-      description: account.description || undefined,
     });
     setIsFormOpen(true);
   };
@@ -303,22 +302,6 @@ export function AccountsManager() {
               </div>
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Descripción (opcional)
-              </label>
-              <textarea
-                {...register('description')}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Información adicional sobre la cuenta"
-              />
-              {errors.description && (
-                <p className="text-red-500 text-xs mt-1">{errors.description.message}</p>
-              )}
-            </div>
-
             {/* Is Active */}
             <div className="flex items-center gap-2">
               <input
@@ -368,7 +351,7 @@ export function AccountsManager() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accounts.map((account) => {
+          {accounts.map((account: Account) => {
             const Icon = ACCOUNT_TYPE_ICONS[account.type as keyof typeof ACCOUNT_TYPE_ICONS] || Landmark;
             const isNegative = account.balance < 0;
 
@@ -404,7 +387,7 @@ export function AccountsManager() {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(account.id)}
+                      onClick={() => account.id && handleDelete(account.id)}
                       disabled={isDeleting}
                       className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                       title="Eliminar cuenta"
@@ -422,10 +405,6 @@ export function AccountsManager() {
                       : '•••••'}
                   </p>
                 </div>
-
-                {account.description && (
-                  <p className="text-xs text-gray-600 mb-2">{account.description}</p>
-                )}
 
                 {!account.is_active && (
                   <div className="mt-2 pt-2 border-t border-gray-200">

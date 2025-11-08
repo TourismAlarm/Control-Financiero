@@ -5,6 +5,7 @@ import { useTransactions } from './useTransactions';
 import { useAccounts } from './useAccounts';
 import { useBudgets } from './useBudgets';
 import { formatCurrency } from './useTransactions';
+import type { Transaction } from '@/lib/validations/schemas';
 
 /**
  * Custom hook for calculating financial summary and insights
@@ -51,7 +52,7 @@ export interface FinancialSummary {
 export function useFinancialSummary(month?: string) {
   const { data: session } = useSession();
   const { transactions, calculateTotals } = useTransactions(month);
-  const { accounts, getTotalBalance } = useAccounts();
+  const { accounts: _accounts, getTotalBalance } = useAccounts();
   const { budgets, getTotalBudgeted } = useBudgets();
 
   // Calculate financial summary
@@ -118,8 +119,8 @@ export function useFinancialSummary(month?: string) {
     const categoryMap = new Map<string, { amount: Decimal; category: string }>();
 
     transactions
-      .filter((t) => t.type === 'expense' && t.category_id)
-      .forEach((t) => {
+      .filter((t: Transaction) => t.type === 'expense' && t.category_id)
+      .forEach((t: Transaction) => {
         const categoryId = t.category_id!;
         const current = categoryMap.get(categoryId) || { amount: new Decimal(0), category: categoryId };
         categoryMap.set(categoryId, {
@@ -143,7 +144,7 @@ export function useFinancialSummary(month?: string) {
   };
 
   // Get spending trend (comparing to previous periods)
-  const getSpendingTrend = (periods: number = 6) => {
+  const getSpendingTrend = (_periods: number = 6) => {
     // This would require historical data analysis
     // For now, return empty array - to be implemented with historical data
     return [];
@@ -163,8 +164,8 @@ export function useFinancialSummary(month?: string) {
 
     budgets.forEach((budget) => {
       const categoryExpenses = transactions
-        .filter((t) => t.type === 'expense' && t.category_id === budget.category_id)
-        .reduce((sum, t) => sum.plus(toDecimal(t.amount)), new Decimal(0));
+        .filter((t: Transaction) => t.type === 'expense' && t.category_id === budget.category_id)
+        .reduce((sum: Decimal, t: Transaction) => sum.plus(toDecimal(t.amount)), new Decimal(0));
 
       const budgetAmount = toDecimal(budget.amount);
       const percentageUsed = budgetAmount.isZero()

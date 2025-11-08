@@ -45,7 +45,7 @@ export function autoCategorize(description: string, rules: CategorizationRule[] 
     .filter(rule => rule.keywords.some(keyword => lowerDesc.includes(keyword.toLowerCase())))
     .sort((a, b) => b.priority - a.priority); // Ordenar por prioridad
 
-  return matches.length > 0 ? matches[0].category : null;
+  return matches.length > 0 && matches[0] ? matches[0].category : null;
 }
 
 export function saveCustomRules(rules: CategorizationRule[]) {

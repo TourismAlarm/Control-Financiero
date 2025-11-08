@@ -57,7 +57,6 @@ export function RecurringTransactions() {
     handleSubmit,
     formState: { errors },
     reset,
-    watch,
   } = useForm<FormData>({
     resolver: zodResolver(recurringRuleInsertSchema) as any,
     defaultValues: editingRule || {
@@ -480,7 +479,7 @@ export function RecurringTransactions() {
                   </div>
                   <div className="flex gap-1">
                     <button
-                      onClick={() => handleToggle(rule.id)}
+                      onClick={() => rule.id && handleToggle(rule.id)}
                       disabled={isToggling}
                       className={`p-1.5 rounded transition-colors ${
                         rule.is_active
@@ -503,7 +502,7 @@ export function RecurringTransactions() {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(rule.id)}
+                      onClick={() => rule.id && handleDelete(rule.id)}
                       disabled={isDeleting}
                       className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                       title="Eliminar regla"

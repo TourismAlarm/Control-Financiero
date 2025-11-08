@@ -22,7 +22,7 @@ function linearRegression(values: number[]): { slope: number; intercept: number 
 
   const sumX = indices.reduce((a, b) => a + b, 0);
   const sumY = values.reduce((a, b) => a + b, 0);
-  const sumXY = indices.reduce((sum, x, i) => sum + x * values[i], 0);
+  const sumXY = indices.reduce((sum, x, i) => sum + x * (values[i] || 0), 0);
   const sumX2 = indices.reduce((sum, x) => sum + x * x, 0);
 
   const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
@@ -78,7 +78,7 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
   const incomeRegression = linearRegression(incomeValues);
 
   // Generar proyecciones
-  const projectedData: any[] = [...historicalData.map((d, i) => ({
+  const projectedData: any[] = [...historicalData.map((d) => ({
     month: d.month,
     monthLabel: new Date(d.month + '-01').toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }),
     gastosReales: d.gastos,
@@ -89,7 +89,9 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
   }))];
 
   // Añadir meses proyectados
-  const lastMonth = new Date(historicalData[historicalData.length - 1].month + '-01');
+  const lastHistoricalData = historicalData[historicalData.length - 1];
+  if (!lastHistoricalData) return <div>No hay datos suficientes para proyecciones</div>;
+  const lastMonth = new Date(lastHistoricalData.month + '-01');
 
   for (let i = 1; i <= projectionMonths; i++) {
     const projectionMonth = new Date(lastMonth);
@@ -114,11 +116,11 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
 
   // Calcular tendencia
   const avgExpense = expenseValues.reduce((a, b) => a + b, 0) / expenseValues.length;
-  const lastExpense = expenseValues[expenseValues.length - 1];
+  const lastExpense = expenseValues[expenseValues.length - 1] || 0;
   const expenseTrend = ((lastExpense - avgExpense) / avgExpense) * 100;
 
   const avgIncome = incomeValues.reduce((a, b) => a + b, 0) / incomeValues.length;
-  const lastIncome = incomeValues[incomeValues.length - 1];
+  const lastIncome = incomeValues[incomeValues.length - 1] || 0;
   const incomeTrend = ((lastIncome - avgIncome) / avgIncome) * 100;
 
   // Proyección del último mes
@@ -147,7 +149,7 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
             tickFormatter={(value) => `${value.toLocaleString()}€`}
           />
           <Tooltip
-            formatter={(value: number | null) => value !== null ? `${value.toFixed(2)}€` : 'N/A'}
+            formatter={(value) => typeof value === 'number' ? `${value.toFixed(2)}€` : 'N/A'}
             contentStyle={{
               backgroundColor: '#fff',
               border: '1px solid #e5e7eb',

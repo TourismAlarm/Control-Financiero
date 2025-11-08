@@ -24,12 +24,6 @@ interface Account {
   balance: number;
 }
 
-interface Category {
-  name: string;
-  total: number;
-  count: number;
-}
-
 export async function exportTransactionsToExcel(
   transactions: Transaction[],
   accounts: Account[],

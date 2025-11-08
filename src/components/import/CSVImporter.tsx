@@ -80,7 +80,7 @@ export function CSVImporter() {
   const [customTemplateName, setCustomTemplateName] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<BankTemplate[]>([]);
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload');
-  const [importStats, setImportStats] = useState({ total: 0, imported: 0, duplicates: 0, errors: 0 });
+  const [_importStats, setImportStats] = useState({ total: 0, imported: 0, duplicates: 0, errors: 0 });
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -228,12 +228,12 @@ export function CSVImporter() {
       const externalId = mapping.external_id ? row[mapping.external_id] : undefined;
 
       return {
-        date: mapping.date ? parseDate(row[mapping.date]) : '',
-        description: mapping.description ? row[mapping.description] : '',
-        amount: mapping.amount ? parseAmount(row[mapping.amount]) : 0,
-        category: mapping.category ? row[mapping.category] : undefined,
-        account: mapping.account ? row[mapping.account] : undefined,
-        external_id: externalId,
+        date: mapping.date ? parseDate(row[mapping.date] || '') : '',
+        description: (mapping.description ? row[mapping.description] : '') || '',
+        amount: mapping.amount ? parseAmount(row[mapping.amount] || '') : 0,
+        category: (mapping.category ? row[mapping.category] : '') || '',
+        account: (mapping.account ? row[mapping.account] : '') || '',
+        external_id: externalId || '',
         isDuplicate: externalId ? existingIds.has(externalId) : false,
         rawRow: row
       };

@@ -11,7 +11,6 @@ import {
   AlertCircle,
   CheckCircle,
   Calendar,
-  DollarSign,
   Target,
 } from 'lucide-react';
 import { useBudgets } from '@/hooks/useBudgets';
@@ -54,10 +53,10 @@ export function BudgetOverview() {
   } = useForm<FormData>({
     resolver: zodResolver(budgetInsertSchema) as any,
     defaultValues: editingBudget || {
-      category: '',
+      category_id: '',
       amount: '',
-      month: selectedMonth,
-      is_active: true,
+      month: parseInt(selectedMonth.split('-')[1] || '1'),
+      year: parseInt(selectedMonth.split('-')[0] || new Date().getFullYear().toString()),
     },
   });
 
@@ -114,11 +113,11 @@ export function BudgetOverview() {
   const handleEdit = (budget: Budget) => {
     setEditingBudget(budget);
     reset({
-      category: budget.category,
+      category_id: budget.category_id,
       amount: budget.amount,
       month: budget.month,
-      is_active: budget.is_active,
-      notes: budget.notes || undefined,
+      year: budget.year,
+      alert_threshold: budget.alert_threshold,
     });
     setIsFormOpen(true);
   };
@@ -198,12 +197,12 @@ export function BudgetOverview() {
                 </label>
                 <input
                   type="text"
-                  {...register('category')}
+                  {...register('category_id')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Ej: Comida, Transporte, Ocio"
                 />
-                {errors.category && (
-                  <p className="text-red-500 text-xs mt-1">{errors.category.message}</p>
+                {errors.category_id && (
+                  <p className="text-red-500 text-xs mt-1">{errors.category_id.message}</p>
                 )}
               </div>
 
@@ -238,32 +237,6 @@ export function BudgetOverview() {
                   <p className="text-red-500 text-xs mt-1">{errors.month.message}</p>
                 )}
               </div>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notas (opcional)
-              </label>
-              <textarea
-                {...register('notes')}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Información adicional sobre el presupuesto"
-              />
-              {errors.notes && (
-                <p className="text-red-500 text-xs mt-1">{errors.notes.message}</p>
-              )}
-            </div>
-
-            {/* Is Active */}
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                {...register('is_active')}
-                className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
-              />
-              <label className="text-sm text-gray-700">Presupuesto activo</label>
             </div>
 
             {/* Form Actions */}
@@ -306,53 +279,50 @@ export function BudgetOverview() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {budgets
-            .filter((b) => b.month === selectedMonth)
+            .filter((b) => {
+              const [year, month] = selectedMonth.split('-').map(Number);
+              return b.month === month && b.year === year;
+            })
             .map((budget) => {
-              const usage = getBudgetUsage(budget.id);
-              const isOver = isOverBudget(budget.id);
+              const usage = budget.id ? getBudgetUsage(budget.id) : null;
+              const isOver = budget.id ? isOverBudget(budget.id) : false;
               const percentageUsed = usage ? (usage.spent / usage.budgeted) * 100 : 0;
 
               return (
                 <div
                   key={budget.id}
                   className={`bg-white rounded-lg shadow p-5 border-l-4 transition-all hover:shadow-lg ${
-                    budget.is_active
-                      ? isOver
-                        ? 'border-red-500'
-                        : percentageUsed >= 80
-                        ? 'border-yellow-500'
-                        : 'border-green-500'
-                      : 'border-gray-300 opacity-60'
+                    isOver
+                      ? 'border-red-500'
+                      : percentageUsed >= 80
+                      ? 'border-yellow-500'
+                      : 'border-green-500'
                   }`}
                 >
                   <div className="flex justify-between items-start mb-3">
                     <div className="flex items-center gap-2">
                       <div
                         className={`p-2 rounded-lg ${
-                          budget.is_active
-                            ? isOver
-                              ? 'bg-red-100'
-                              : percentageUsed >= 80
-                              ? 'bg-yellow-100'
-                              : 'bg-green-100'
-                            : 'bg-gray-100'
+                          isOver
+                            ? 'bg-red-100'
+                            : percentageUsed >= 80
+                            ? 'bg-yellow-100'
+                            : 'bg-green-100'
                         }`}
                       >
                         <TrendingDown
                           className={`w-5 h-5 ${
-                            budget.is_active
-                              ? isOver
-                                ? 'text-red-600'
-                                : percentageUsed >= 80
-                                ? 'text-yellow-600'
-                                : 'text-green-600'
-                              : 'text-gray-400'
+                            isOver
+                              ? 'text-red-600'
+                              : percentageUsed >= 80
+                              ? 'text-yellow-600'
+                              : 'text-green-600'
                           }`}
                         />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{budget.category}</h3>
-                        <p className="text-xs text-gray-500">{budget.month}</p>
+                        <h3 className="font-semibold text-gray-900">Categoría {budget.category_id}</h3>
+                        <p className="text-xs text-gray-500">Mes {budget.month}/{budget.year}</p>
                       </div>
                     </div>
                     <div className="flex gap-1">
@@ -364,7 +334,7 @@ export function BudgetOverview() {
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(budget.id)}
+                        onClick={() => budget.id && handleDelete(budget.id)}
                         disabled={isDeleting}
                         className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                         title="Eliminar presupuesto"
@@ -391,7 +361,7 @@ export function BudgetOverview() {
                               isOver ? 'text-red-600' : 'text-gray-900'
                             }`}
                           >
-                            {usage.spentFormatted}
+                            €{usage.spent.toFixed(2)}
                           </span>
                         </div>
                         <div className="flex justify-between items-baseline">
@@ -401,7 +371,7 @@ export function BudgetOverview() {
                               isOver ? 'text-red-600' : 'text-green-600'
                             }`}
                           >
-                            {usage.remainingFormatted}
+                            €{(usage.budgeted - usage.spent).toFixed(2)}
                           </span>
                         </div>
                       </>
@@ -438,25 +408,16 @@ export function BudgetOverview() {
                     </div>
                   )}
 
-                  {/* Notes */}
-                  {budget.notes && (
-                    <p className="text-xs text-gray-600 mt-3 pt-3 border-t border-gray-200">
-                      {budget.notes}
-                    </p>
-                  )}
-
-                  {!budget.is_active && (
-                    <div className="mt-2 pt-2 border-t border-gray-200">
-                      <p className="text-xs text-gray-500 italic">Presupuesto inactivo</p>
-                    </div>
-                  )}
                 </div>
               );
             })}
         </div>
       )}
 
-      {budgets.filter((b) => b.month === selectedMonth).length === 0 && budgets.length > 0 && (
+      {budgets.filter((b) => {
+        const [year, month] = selectedMonth.split('-').map(Number);
+        return b.month === month && b.year === year;
+      }).length === 0 && budgets.length > 0 && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
           <Calendar className="w-10 h-10 text-blue-600 mx-auto mb-2" />
           <p className="text-blue-800 font-medium">No hay presupuestos para este mes</p>

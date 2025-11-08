@@ -8,11 +8,9 @@ import {
   Plus,
   Edit2,
   Trash2,
-  TrendingUp,
   Calendar,
   AlertCircle,
   CheckCircle,
-  DollarSign,
   Wallet,
 } from 'lucide-react';
 import { useSavingsGoals } from '@/hooks/useSavingsGoals';
@@ -425,7 +423,7 @@ export function SavingsGoals() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredGoals.map((goal) => {
-            const progress = getGoalProgress(goal.id);
+            const progress = goal.id ? getGoalProgress(goal.id) : null;
             if (!progress) return null;
 
             return (
@@ -465,7 +463,7 @@ export function SavingsGoals() {
                   <div className="flex gap-1">
                     {!goal.is_completed && (
                       <button
-                        onClick={() => setAddingToGoalId(goal.id)}
+                        onClick={() => goal.id && setAddingToGoalId(goal.id)}
                         className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
                         title="Añadir dinero"
                       >
@@ -480,7 +478,7 @@ export function SavingsGoals() {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => handleDelete(goal.id)}
+                      onClick={() => goal.id && handleDelete(goal.id)}
                       disabled={isDeleting}
                       className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                       title="Eliminar meta"

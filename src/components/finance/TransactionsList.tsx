@@ -42,7 +42,7 @@ export function TransactionsList({
   // Filter transactions
   let filteredTransactions = transactions;
   if (filterType !== 'all') {
-    filteredTransactions = filteredTransactions.filter((t) => t.type === filterType);
+    filteredTransactions = filteredTransactions.filter((t: Transaction) => t.type === filterType);
   }
 
   // Sort transactions
@@ -169,7 +169,7 @@ export function TransactionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredTransactions.map((transaction) => (
+          {filteredTransactions.map((transaction: Transaction) => (
             <div
               key={transaction.id}
               className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow"

@@ -131,8 +131,8 @@ export function useAccounts() {
   // Helper functions
   const getTotalBalance = () => {
     const total = accounts
-      .filter((acc) => acc.is_active)
-      .reduce((sum, acc) => sum.plus(toDecimal(acc.balance)), new Decimal(0));
+      .filter((acc: Account) => acc.is_active)
+      .reduce((sum: Decimal, acc: Account) => sum.plus(toDecimal(acc.balance)), new Decimal(0));
 
     return {
       total: total.toNumber(),
@@ -142,23 +142,26 @@ export function useAccounts() {
 
   const getBalanceByType = () => {
     const byType = accounts
-      .filter((acc) => acc.is_active)
-      .reduce((acc, account) => {
+      .filter((acc: Account) => acc.is_active)
+      .reduce((acc: Record<string, Decimal>, account: Account) => {
         const type = account.type;
         const current = acc[type] || new Decimal(0);
         acc[type] = current.plus(toDecimal(account.balance));
         return acc;
       }, {} as Record<string, Decimal>);
 
-    return Object.entries(byType).map(([type, balance]) => ({
-      type,
-      balance: balance.toNumber(),
-      balanceFormatted: formatCurrency(balance.toNumber()),
-    }));
+    return Object.entries(byType).map(([type, balance]) => {
+      const decimalBalance = balance as Decimal;
+      return {
+        type,
+        balance: decimalBalance.toNumber(),
+        balanceFormatted: formatCurrency(decimalBalance.toNumber()),
+      };
+    });
   };
 
   const getAccountById = (accountId: string) => {
-    return accounts.find((acc) => acc.id === accountId);
+    return accounts.find((acc: Account) => acc.id === accountId);
   };
 
   return {

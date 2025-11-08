@@ -115,7 +115,8 @@ export function useRecurringRules() {
 
       const { data, error } = await supabase
         .from('recurring_rules')
-        .update(updateData as any)
+        // @ts-expect-error - Supabase type inference issue
+        .update(updateData)
         .eq('id', validated.id)
         .eq('user_id', session.user.id)
         .select()
@@ -166,7 +167,8 @@ export function useRecurringRules() {
 
       const { data, error } = await supabase
         .from('recurring_rules')
-        .update({ is_active: !rule.is_active } as any)
+        // @ts-expect-error - Supabase type inference issue
+        .update({ is_active: !rule.is_active })
         .eq('id', ruleId)
         .eq('user_id', session.user.id)
         .select()

@@ -1,6 +1,6 @@
 'use client';
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, ComposedChart } from 'recharts';
+import { Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, ComposedChart } from 'recharts';
 
 interface Transaction {
   id: string;
@@ -74,7 +74,7 @@ export function MonthlyTrends({ transactions, months = 12 }: MonthlyTrendsProps)
 
   // Calcular tendencia (simple regresión lineal del balance)
   const trend = chartData.length > 1
-    ? (chartData[chartData.length - 1].balance - chartData[0].balance) / chartData.length
+    ? ((chartData[chartData.length - 1]?.balance || 0) - (chartData[0]?.balance || 0)) / chartData.length
     : 0;
 
   return (

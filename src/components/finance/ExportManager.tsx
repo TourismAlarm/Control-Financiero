@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Download, FileText, FileSpreadsheet, Database } from 'lucide-react';
+import { FileText, FileSpreadsheet, Database } from 'lucide-react';
 import { exportTransactionsToExcel } from '@/lib/export/exportExcel';
 import { exportMonthlyReportToPDF } from '@/lib/export/exportPDF';
 import { exportFullBackup } from '@/lib/export/exportJSON';

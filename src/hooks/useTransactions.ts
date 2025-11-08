@@ -41,8 +41,10 @@ export function useTransactions(month?: string) {
 
       if (month) {
         const [year, monthNum] = month.split('-');
-        params.append('month', monthNum);
-        params.append('year', year);
+        if (year && monthNum) {
+          params.append('month', monthNum);
+          params.append('year', year);
+        }
       }
 
       const res = await fetch(`/api/transactions?${params.toString()}`);
@@ -143,15 +145,15 @@ export function useTransactions(month?: string) {
   // Helper functions
   const getTotalIncome = () => {
     const total = transactions
-      .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum.plus(toDecimal(t.amount)), new Decimal(0));
+      .filter((t: Transaction) => t.type === 'income')
+      .reduce((sum: Decimal, t: Transaction) => sum.plus(toDecimal(t.amount)), new Decimal(0));
     return total.toNumber();
   };
 
   const getTotalExpenses = () => {
     const total = transactions
-      .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum.plus(toDecimal(t.amount)), new Decimal(0));
+      .filter((t: Transaction) => t.type === 'expense')
+      .reduce((sum: Decimal, t: Transaction) => sum.plus(toDecimal(t.amount)), new Decimal(0));
     return total.toNumber();
   };
 
@@ -160,11 +162,11 @@ export function useTransactions(month?: string) {
   };
 
   const getTransactionsByType = (type: 'income' | 'expense') => {
-    return transactions.filter((t) => t.type === type);
+    return transactions.filter((t: Transaction) => t.type === type);
   };
 
   const getTransactionsByCategory = (categoryId: string) => {
-    return transactions.filter((t) => t.category_id === categoryId);
+    return transactions.filter((t: Transaction) => t.category_id === categoryId);
   };
 
   const calculateTotals = () => {
