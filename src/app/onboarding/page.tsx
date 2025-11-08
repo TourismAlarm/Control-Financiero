@@ -66,6 +66,13 @@ export default function OnboardingPage() {
 
   const totalSteps = 3;
 
+  // Map Spanish account types to English API types
+  const accountTypeMap: Record<string, 'bank' | 'cash' | 'credit_card' | 'savings' | 'investment'> = {
+    'banco': 'bank',
+    'efectivo': 'cash',
+    'tarjeta': 'credit_card'
+  };
+
   const handleCreateDefaultCategories = async () => {
     setIsLoading(true);
     setError('');
@@ -102,7 +109,7 @@ export default function OnboardingPage() {
     try {
       await createAccount({
         name: accountData.name,
-        type: accountData.type,
+        type: accountTypeMap[accountData.type] || 'bank',
         balance: accountData.balance,
         currency: 'EUR',
         is_active: true,
