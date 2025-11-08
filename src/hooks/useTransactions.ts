@@ -167,6 +167,21 @@ export function useTransactions(month?: string) {
     return transactions.filter((t) => t.category_id === categoryId);
   };
 
+  const calculateTotals = () => {
+    const income = getTotalIncome();
+    const expenses = getTotalExpenses();
+    const balance = toDecimal(income).minus(toDecimal(expenses)).toNumber();
+
+    return {
+      income,
+      expenses,
+      balance,
+      incomeFormatted: formatCurrency(income),
+      expensesFormatted: formatCurrency(expenses),
+      balanceFormatted: formatCurrency(balance),
+    };
+  };
+
   return {
     // Data
     transactions,
@@ -192,6 +207,7 @@ export function useTransactions(month?: string) {
     getNetIncome,
     getTransactionsByType,
     getTransactionsByCategory,
+    calculateTotals,
     refetch,
   };
 }
