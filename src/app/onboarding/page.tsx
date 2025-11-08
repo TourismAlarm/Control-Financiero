@@ -50,7 +50,7 @@ const TUTORIAL_STEPS = [
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useUser();
-  const { createCategory } = useCategories();
+  const { create: createCategory } = useCategories();
   const { createAccount } = useAccounts();
 
   const [currentStep, setCurrentStep] = useState(0);
