@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { accountInsertSchema, accountSchema } from '@/lib/validations/schemas';
 
 // GET /api/accounts - Get all accounts for current user
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 
