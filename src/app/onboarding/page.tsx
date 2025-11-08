@@ -110,6 +110,7 @@ export default function OnboardingPage() {
       await createAccount({
         name: accountData.name,
         type: accountTypeMap[accountData.type] || 'bank',
+        user_id: user?.id || '',
         balance: accountData.balance,
         currency: 'EUR',
         is_active: true,
