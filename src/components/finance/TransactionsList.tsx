@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, Trash2, Calendar, FileText } from 'lucide-react';
+import { Edit2, Trash2, Calendar, FileText, Plus, TrendingUp, TrendingDown } from 'lucide-react';
 import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
 import { useToast } from '@/hooks/use-toast';
+import { TransactionForm } from './TransactionForm';
 import type { Transaction } from '@/lib/validations/schemas';
 
 /**
@@ -38,6 +39,9 @@ export function TransactionsList({
   const [filterType, setFilterType] = useState<'income' | 'expense' | 'all'>(type);
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formType, setFormType] = useState<'income' | 'expense'>('expense');
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   // Filter transactions
   let filteredTransactions = transactions;
@@ -76,6 +80,32 @@ export function TransactionsList({
     }
   };
 
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setFormType(transaction.type);
+    setIsFormOpen(true);
+    if (onEdit) {
+      onEdit(transaction);
+    }
+  };
+
+  const handleNewTransaction = (transactionType: 'income' | 'expense') => {
+    setEditingTransaction(null);
+    setFormType(transactionType);
+    setIsFormOpen(true);
+  };
+
+  const handleFormSuccess = () => {
+    setIsFormOpen(false);
+    setEditingTransaction(null);
+    toast('Transacción guardada correctamente', 'success');
+  };
+
+  const handleFormCancel = () => {
+    setIsFormOpen(false);
+    setEditingTransaction(null);
+  };
+
   const totals = calculateTotals();
 
   if (isLoading) {
@@ -88,6 +118,39 @@ export function TransactionsList({
 
   return (
     <div className="space-y-4">
+      {/* Header with Action Buttons */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold text-gray-800">Transacciones</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleNewTransaction('income')}
+            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            <TrendingUp className="w-4 h-4" />
+            Nuevo Ingreso
+          </button>
+          <button
+            onClick={() => handleNewTransaction('expense')}
+            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            <TrendingDown className="w-4 h-4" />
+            Nuevo Gasto
+          </button>
+        </div>
+      </div>
+
+      {/* Transaction Form Modal */}
+      {isFormOpen && (
+        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-blue-500">
+          <TransactionForm
+            type={formType}
+            transaction={editingTransaction || undefined}
+            onSuccess={handleFormSuccess}
+            onCancel={handleFormCancel}
+          />
+        </div>
+      )}
+
       {/* Filters */}
       {showFilters && (
         <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
@@ -228,15 +291,13 @@ export function TransactionsList({
                 </span>
 
                 <div className="flex gap-2">
-                  {onEdit && (
-                    <button
-                      onClick={() => onEdit(transaction)}
-                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                      title="Editar"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleEdit(transaction)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    title="Editar"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
 
                   <button
                     onClick={() =>

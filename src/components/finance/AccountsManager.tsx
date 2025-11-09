@@ -20,6 +20,9 @@ import {
 import { useAccounts } from '@/hooks/useAccounts';
 import { accountInsertSchema, type AccountInsert, type Account } from '@/lib/validations/schemas';
 
+// Client-side schema without user_id (added server-side from session)
+const accountClientSchema = accountInsertSchema.omit({ user_id: true });
+
 /**
  * Accounts Manager Component
  * Allows users to view, create, edit, and delete bank accounts
@@ -67,7 +70,7 @@ export function AccountsManager() {
     formState: { errors },
     reset,
   } = useForm<FormData>({
-    resolver: zodResolver(accountInsertSchema) as any,
+    resolver: zodResolver(accountClientSchema) as any,
     defaultValues: editingAccount || {
       name: '',
       type: 'bank',
@@ -80,9 +83,11 @@ export function AccountsManager() {
   const totalBalance = getTotalBalance();
   const balanceByType = getBalanceByType();
 
-  const onSubmit = handleSubmit(async (data) => {
-    try {
-      console.log('💳 AccountsManager - Enviando datos:', data);
+  const onSubmit = handleSubmit(
+    async (data) => {
+      console.log('✅ FORMULARIO VÁLIDO - Ejecutando onSubmit');
+      try {
+        console.log('💳 AccountsManager - Enviando datos:', data);
 
       const submitData = {
         ...data,
@@ -126,6 +131,10 @@ export function AccountsManager() {
       console.error('❌ AccountsManager - Error en onSubmit:', error);
       alert(`Error: ${error.message || 'Error desconocido'}`);
     }
+  },
+  (errors) => {
+    console.error('❌ FORMULARIO INVÁLIDO - Errores de validación:', errors);
+    alert('Por favor corrige los errores en el formulario:\n' + Object.entries(errors).map(([field, error]: [string, any]) => `- ${field}: ${error.message}`).join('\n'));
   });
 
   const handleEdit = (account: Account) => {
@@ -316,6 +325,7 @@ export function AccountsManager() {
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
+                onClick={() => console.log('🔵 BOTÓN SUBMIT CLICKEADO')}
                 disabled={isCreating || isUpdating}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >

@@ -5,8 +5,17 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { DollarSign, Save, X } from 'lucide-react';
 import { transactionInsertSchema, type TransactionInsert } from '@/lib/validations/schemas';
-import { useTransactions } from '@/hooks/useTransactions';
+import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
+import { useAccounts } from '@/hooks/useAccounts';
+import { useCategories } from '@/hooks/useCategories';
 import { useToast } from '@/hooks/use-toast';
+
+// Client-side schema without user_id (added server-side from session)
+// Make account_id and category_id required
+const transactionClientSchema = transactionInsertSchema.omit({ user_id: true }).extend({
+  account_id: z.string().uuid({ message: 'Debes seleccionar una cuenta' }),
+  category_id: z.string().uuid({ message: 'Debes seleccionar una categoría' }),
+});
 
 /**
  * Unified Transaction Form Component
@@ -32,10 +41,15 @@ export function TransactionForm({
   categoryId,
 }: TransactionFormProps) {
   const { createTransaction, updateTransaction, isCreating, isUpdating } = useTransactions();
+  const { accounts, isLoading: accountsLoading } = useAccounts();
+  const { categories, isLoading: categoriesLoading } = useCategories();
   const { toast } = useToast();
 
+  // Filter categories by transaction type
+  const filteredCategories = categories.filter(cat => cat.type === type);
+
   // Form data type with flexible amount field for input handling
-  type FormData = Omit<z.infer<typeof transactionInsertSchema>, 'amount'> & { amount: string | number };
+  type FormData = Omit<z.infer<typeof transactionClientSchema>, 'amount'> & { amount: string | number };
 
   const {
     register,
@@ -43,14 +57,14 @@ export function TransactionForm({
     formState: { errors },
     reset,
   } = useForm<FormData>({
-    resolver: zodResolver(transactionInsertSchema) as any,
+    resolver: zodResolver(transactionClientSchema) as any,
     defaultValues: transaction || {
       type,
       amount: '' as any,
       description: '',
       date: new Date().toISOString().split('T')[0],
-      account_id: accountId || null,
-      category_id: categoryId || null,
+      account_id: accountId || '',
+      category_id: categoryId || '',
       notes: '',
       tags: [],
     },
@@ -179,6 +193,52 @@ export function TransactionForm({
         />
         {errors.date && (
           <p className="text-red-500 text-sm mt-1">{errors.date.message}</p>
+        )}
+      </div>
+
+      {/* Account */}
+      <div>
+        <label htmlFor="account_id" className="block text-sm font-medium mb-1">
+          Cuenta *
+        </label>
+        <select
+          {...register('account_id')}
+          id="account_id"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          disabled={isLoading || accountsLoading}
+        >
+          <option value="">Selecciona una cuenta</option>
+          {accounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.name} - {formatCurrency(account.balance, account.currency)}
+            </option>
+          ))}
+        </select>
+        {errors.account_id && (
+          <p className="text-red-500 text-sm mt-1">{errors.account_id.message}</p>
+        )}
+      </div>
+
+      {/* Category */}
+      <div>
+        <label htmlFor="category_id" className="block text-sm font-medium mb-1">
+          Categoría *
+        </label>
+        <select
+          {...register('category_id')}
+          id="category_id"
+          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          disabled={isLoading || categoriesLoading}
+        >
+          <option value="">Selecciona una categoría</option>
+          {filteredCategories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.icon ? `${category.icon} ` : ''}{category.name}
+            </option>
+          ))}
+        </select>
+        {errors.category_id && (
+          <p className="text-red-500 text-sm mt-1">{errors.category_id.message}</p>
         )}
       </div>
 
