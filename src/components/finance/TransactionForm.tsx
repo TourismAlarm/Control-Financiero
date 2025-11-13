@@ -215,7 +215,7 @@ export function TransactionForm({
           disabled={isLoading || accountsLoading}
         >
           <option value="">Selecciona una cuenta</option>
-          {accounts.map((account) => (
+          {accounts.map((account: any) => (
             <option key={account.id} value={account.id}>
               {account.name} - {formatCurrency(account.balance, account.currency)}
             </option>
@@ -238,7 +238,7 @@ export function TransactionForm({
           disabled={isLoading || categoriesLoading}
         >
           <option value="">Selecciona una categoría</option>
-          {filteredCategories.map((category) => (
+          {filteredCategories.map((category: any) => (
             <option key={category.id} value={category.id}>
               {category.icon ? `${category.icon} ` : ''}{category.name}
             </option>
