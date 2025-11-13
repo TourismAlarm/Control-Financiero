@@ -9,6 +9,8 @@ import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
 import { useToast } from '@/hooks/use-toast';
+import { useLiveCategorySuggestions } from '@/hooks/useMLCategorization';
+import { CategorySuggestions } from '@/components/ml/CategorySuggestions';
 
 // Client-side schema without user_id (added server-side from session)
 // Make account_id and category_id required
@@ -56,6 +58,8 @@ export function TransactionForm({
     handleSubmit,
     formState: { errors },
     reset,
+    watch,
+    setValue,
   } = useForm<FormData>({
     resolver: zodResolver(transactionClientSchema) as any,
     defaultValues: transaction || {
@@ -69,6 +73,31 @@ export function TransactionForm({
       tags: [],
     },
   });
+
+  // Watch description and amount for ML suggestions
+  const watchedDescription = watch('description');
+  const watchedAmount = watch('amount');
+  const watchedCategoryId = watch('category_id');
+
+  // Get ML suggestions in real-time (only when not editing an existing transaction)
+  const {
+    data: mlSuggestions,
+    isLoading: isSuggestionsLoading,
+  } = useLiveCategorySuggestions(
+    watchedDescription || '',
+    watchedAmount ? (typeof watchedAmount === 'string' ? parseFloat(watchedAmount) : watchedAmount) : undefined,
+    type,
+    {
+      enabled: !transaction?.id && !!watchedDescription, // Only for new transactions
+      minLength: 3,
+    }
+  );
+
+  // Handler for selecting a suggested category
+  const handleSelectSuggestion = (categoryId: string) => {
+    setValue('category_id', categoryId, { shouldValidate: true });
+    toast('Categoría sugerida aplicada', 'success');
+  };
 
   const onSubmit = handleSubmit(async (data) => {
     try {
@@ -241,6 +270,18 @@ export function TransactionForm({
           <p className="text-red-500 text-sm mt-1">{errors.category_id.message}</p>
         )}
       </div>
+
+      {/* ML Category Suggestions - Only show for new transactions */}
+      {!transaction?.id && watchedDescription && watchedDescription.length >= 3 && (
+        <div className="mt-4">
+          <CategorySuggestions
+            suggestions={mlSuggestions?.suggestions || []}
+            onSelect={handleSelectSuggestion}
+            selectedCategoryId={watchedCategoryId}
+            isLoading={isSuggestionsLoading}
+          />
+        </div>
+      )}
 
       {/* Notes (Optional) */}
       <div>

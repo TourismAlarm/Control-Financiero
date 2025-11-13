@@ -12,7 +12,8 @@ import {
   PiggyBank,
   BarChart3,
   Upload,
-  Download
+  Download,
+  Brain
 } from 'lucide-react';
 
 // Import modular components
@@ -25,10 +26,11 @@ import { SavingsGoals } from '@/components/finance/SavingsGoals';
 import { Statistics } from '@/components/finance/Statistics';
 import { CSVImporter } from '@/components/import/CSVImporter';
 import { ExportManager } from '@/components/finance/ExportManager';
+import { MLDashboard } from '@/components/ml/MLDashboard';
 import { ConnectionStatus } from '@/components/offline/ConnectionStatus';
 import { InstallPrompt } from '@/components/offline/InstallPrompt';
 
-type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'statistics' | 'import' | 'export';
+type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'statistics' | 'import' | 'export' | 'ml';
 
 const tabs = [
   { id: 'dashboard' as TabId, label: 'Dashboard', icon: LayoutDashboard },
@@ -38,6 +40,7 @@ const tabs = [
   { id: 'recurring' as TabId, label: 'Recurrentes', icon: Repeat },
   { id: 'savings' as TabId, label: 'Ahorros', icon: PiggyBank },
   { id: 'statistics' as TabId, label: 'Estadísticas', icon: BarChart3 },
+  { id: 'ml' as TabId, label: 'ML Categorización', icon: Brain },
   { id: 'import' as TabId, label: 'Importar', icon: Upload },
   { id: 'export' as TabId, label: 'Exportar', icon: Download },
 ];
@@ -144,6 +147,7 @@ export default function Home() {
         {activeTab === 'recurring' && <RecurringTransactions />}
         {activeTab === 'savings' && <SavingsGoals />}
         {activeTab === 'statistics' && <Statistics />}
+        {activeTab === 'ml' && <MLDashboard />}
         {activeTab === 'import' && <CSVImporter />}
         {activeTab === 'export' && <ExportManager />}
       </main>
