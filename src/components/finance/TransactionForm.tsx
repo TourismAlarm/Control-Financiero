@@ -58,7 +58,14 @@ export function TransactionForm({
     reset,
   } = useForm<FormData>({
     resolver: zodResolver(transactionClientSchema) as any,
-    defaultValues: transaction || {
+    defaultValues: transaction ? {
+      ...transaction,
+      // Convert null to empty string for required fields
+      account_id: transaction.account_id || '',
+      category_id: transaction.category_id || '',
+      notes: transaction.notes || '',
+      tags: transaction.tags || [],
+    } : {
       type,
       amount: '' as any,
       description: '',
