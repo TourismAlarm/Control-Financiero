@@ -1,11 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, Trash2, Calendar, FileText, Plus, TrendingUp, TrendingDown } from 'lucide-react';
+import { Edit2, Trash2, Calendar, FileText, TrendingUp, TrendingDown } from 'lucide-react';
 import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
 import { useToast } from '@/hooks/use-toast';
 import { TransactionForm } from './TransactionForm';
 import type { Transaction } from '@/lib/validations/schemas';
+// @ts-ignore - JS module
+import useLoans from '@/hooks/useLoans';
+import {
+  detectLoanTransaction,
+  findLoanByName,
+  findPaymentIndexByAmountAndDate,
+  getLoanDeletionWarning,
+  canBeSyncedWithLoan,
+  // @ts-ignore - JS module
+} from '@/lib/loanSync';
 
 /**
  * Transactions List Component
@@ -35,6 +45,7 @@ export function TransactionsList({
     calculateTotals,
   } = useTransactions(month);
   const { toast } = useToast();
+  const { loans, deletePayment } = useLoans();
 
   const [filterType, setFilterType] = useState<'income' | 'expense' | 'all'>(type);
   const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
@@ -67,16 +78,84 @@ export function TransactionsList({
     filteredTransactions = filteredTransactions.slice(0, limit);
   }
 
-  const handleDelete = (id: string, description: string) => {
-    if (confirm(`¿Estás seguro de eliminar "${description}"?`)) {
-      deleteTransaction(id, {
-        onSuccess: () => {
-          toast('Transacción eliminada correctamente', 'success');
-        },
-        onError: (error) => {
-          toast(`Error al eliminar: ${error.message}`, 'error');
-        },
-      });
+  const handleDelete = async (id: string, description: string, transaction: Transaction) => {
+    try {
+      // Verificar si la transacción está relacionada con un préstamo
+      const isLoanRelated = canBeSyncedWithLoan(transaction);
+
+      if (isLoanRelated) {
+        const loanInfo = detectLoanTransaction(transaction);
+
+        if (loanInfo) {
+          // Encontrar el préstamo correspondiente
+          const relatedLoan = findLoanByName(loans, (loanInfo as any).loanName);
+
+          if (relatedLoan) {
+            // Generar mensaje de advertencia personalizado
+            const warningMessage = getLoanDeletionWarning(loanInfo);
+
+            // Confirmar con el usuario
+            if (confirm(warningMessage)) {
+              // Eliminar la transacción
+              deleteTransaction(id, {
+                onSuccess: async () => {
+                  // Intentar eliminar el pago del préstamo también
+                  try {
+                    let paymentIndex = -1;
+
+                    // Buscar el índice del pago
+                    if ((loanInfo as any).type === 'cuota' && (loanInfo as any).paymentNumber) {
+                      // Buscar por número de pago primero
+                      paymentIndex = (relatedLoan as any).pagos_realizados?.findIndex(
+                        (p: any) => p.numero_pago === (loanInfo as any).paymentNumber
+                      ) ?? -1;
+                    }
+
+                    // Si no se encontró por número, buscar por monto y fecha
+                    if (paymentIndex === -1) {
+                      paymentIndex = findPaymentIndexByAmountAndDate(
+                        relatedLoan,
+                        transaction.amount,
+                        typeof transaction.date === 'string' ? transaction.date : transaction.date?.toISOString() || new Date().toISOString()
+                      );
+                    }
+
+                    // Si se encontró el pago, eliminarlo
+                    if (paymentIndex >= 0) {
+                      await deletePayment((relatedLoan as any).id, paymentIndex);
+                      toast('✅ Transacción y pago del préstamo eliminados correctamente', 'success');
+                    } else {
+                      toast('⚠️ Transacción eliminada, pero no se encontró el pago correspondiente en el préstamo', 'success');
+                    }
+                  } catch (loanError) {
+                    console.error('Error deleting loan payment:', loanError);
+                    toast('⚠️ Transacción eliminada, pero hubo un error al eliminar el pago del préstamo', 'success');
+                  }
+                },
+                onError: (error) => {
+                  toast(`Error al eliminar: ${error.message}`, 'error');
+                },
+              });
+            }
+            return; // Salir porque ya manejamos el caso con préstamo
+          }
+        }
+      }
+
+      // Caso normal: transacción sin relación con préstamos
+      if (confirm(`¿Estás seguro de eliminar "${description}"?`)) {
+        deleteTransaction(id, {
+          onSuccess: () => {
+            toast('Transacción eliminada correctamente', 'success');
+          },
+          onError: (error) => {
+            toast(`Error al eliminar: ${error.message}`, 'error');
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error in handleDelete:', error);
+      toast('Error al procesar la eliminación', 'error');
     }
   };
 
@@ -144,7 +223,7 @@ export function TransactionsList({
         <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-blue-500">
           <TransactionForm
             type={formType}
-            transaction={editingTransaction || undefined}
+            transaction={editingTransaction ? { ...editingTransaction, id: String(editingTransaction.id) } : undefined}
             onSuccess={handleFormSuccess}
             onCancel={handleFormCancel}
           />
@@ -301,7 +380,7 @@ export function TransactionsList({
 
                   <button
                     onClick={() =>
-                      handleDelete(String(transaction.id!), transaction.description || '')
+                      handleDelete(String(transaction.id!), transaction.description || '', transaction)
                     }
                     disabled={isDeleting}
                     className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"

@@ -14,8 +14,11 @@ import {
   Bell,
   Filter,
   Search,
+  Download,
+  FileText,
 } from 'lucide-react';
 import { formatCurrency, formatDate, daysUntil } from '@/lib/loanCalculations';
+import { exportPaymentsToCSV, exportPaymentsToPDF, exportAmortizationToCSV } from '@/lib/exportUtils';
 
 /**
  * Vista detallada de un préstamo individual
@@ -28,12 +31,19 @@ export default function LoanDetailView({
   onDelete,
   onMarkPayment,
   onExtraPayment,
+  onEditPaymentDate,
+  onEditPaymentAmount,
+  onDeletePayment,
   darkMode = false,
 }) {
   const [filterStatus, setFilterStatus] = useState('all'); // all, paid, pending
   const [searchDate, setSearchDate] = useState('');
   const [showExtraPaymentModal, setShowExtraPaymentModal] = useState(false);
   const [extraPaymentAmount, setExtraPaymentAmount] = useState('');
+  const [editingPaymentIndex, setEditingPaymentIndex] = useState(null);
+  const [editingPaymentDate, setEditingPaymentDate] = useState('');
+  const [editingPaymentAmount, setEditingPaymentAmount] = useState('');
+  const [editingField, setEditingField] = useState(null); // 'date', 'amount', or null
 
   const daysUntilPayment = daysUntil(loan.nextPaymentDate);
   const progress = loan.progress || 0;
@@ -284,9 +294,24 @@ export default function LoanDetailView({
       {/* SECCIÓN 4 - TABLA DE AMORTIZACIÓN */}
       <div className={`rounded-2xl shadow-lg overflow-hidden ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
         <div className="p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}">
-          <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-            Tabla de Amortización
-          </h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Tabla de Amortización
+            </h3>
+
+            <button
+              onClick={() => exportAmortizationToCSV(loan, amortizationTable)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                darkMode
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+              title="Exportar tabla de amortización a CSV"
+            >
+              <Download size={18} />
+              Exportar CSV
+            </button>
+          </div>
 
           {/* Filtros */}
           <div className="flex flex-wrap gap-3">
@@ -461,6 +486,188 @@ export default function LoanDetailView({
           <p className={`${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
             {loan.notes}
           </p>
+        </div>
+      )}
+
+      {/* Historial de Pagos Realizados */}
+      {loan.pagos_realizados && loan.pagos_realizados.length > 0 && (
+        <div className={`rounded-2xl shadow-lg overflow-hidden ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white'}`}>
+          <div className={`p-6 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+                  Historial de Pagos Realizados ({loan.pagos_realizados.length})
+                </h3>
+                <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Pagos registrados manualmente. Puedes editar la fecha, el monto o eliminar registros.
+                </p>
+              </div>
+
+              {loan.pagos_realizados.length > 0 && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => exportPaymentsToCSV(loan)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                      darkMode
+                        ? 'bg-green-600 hover:bg-green-700 text-white'
+                        : 'bg-green-500 hover:bg-green-600 text-white'
+                    }`}
+                    title="Exportar a CSV"
+                  >
+                    <FileText size={18} />
+                    CSV
+                  </button>
+                  <button
+                    onClick={() => exportPaymentsToPDF(loan)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                      darkMode
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-red-500 hover:bg-red-600 text-white'
+                    }`}
+                    title="Exportar a PDF"
+                  >
+                    <Download size={18} />
+                    PDF
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className={darkMode ? 'bg-gray-900' : 'bg-gray-50'}>
+                <tr>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    #
+                  </th>
+                  <th className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Fecha
+                  </th>
+                  <th className={`px-4 py-3 text-right text-xs font-medium uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Monto
+                  </th>
+                  <th className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className={`divide-y ${darkMode ? 'divide-gray-700' : 'divide-gray-200'}`}>
+                {loan.pagos_realizados.map((pago, index) => (
+                  <tr key={index} className={darkMode ? 'hover:bg-gray-700/50' : 'hover:bg-gray-50'}>
+                    <td className={`px-4 py-3 whitespace-nowrap text-sm ${darkMode ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {pago.numero_pago || index + 1}
+                    </td>
+                    <td className={`px-4 py-3 whitespace-nowrap ${darkMode ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {editingPaymentIndex === index && editingField === 'date' ? (
+                        <input
+                          type="date"
+                          value={editingPaymentDate}
+                          onChange={(e) => setEditingPaymentDate(e.target.value)}
+                          className={`px-2 py-1 rounded border ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingPaymentIndex(index);
+                            setEditingField('date');
+                            setEditingPaymentDate(pago.fecha.split('T')[0]);
+                          }}
+                          className={`text-sm hover:underline text-left ${darkMode ? 'hover:text-blue-400' : 'hover:text-blue-600'}`}
+                        >
+                          {formatDate(pago.fecha)}
+                        </button>
+                      )}
+                    </td>
+                    <td className={`px-4 py-3 whitespace-nowrap text-sm text-right font-medium ${darkMode ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {editingPaymentIndex === index && editingField === 'amount' ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={editingPaymentAmount}
+                          onChange={(e) => setEditingPaymentAmount(e.target.value)}
+                          className={`px-2 py-1 rounded border w-32 ${darkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingPaymentIndex(index);
+                            setEditingField('amount');
+                            setEditingPaymentAmount(pago.monto.toString());
+                          }}
+                          className={`hover:underline ${darkMode ? 'hover:text-blue-400' : 'hover:text-blue-600'}`}
+                        >
+                          {formatCurrency(pago.monto)}
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-center">
+                      <div className="flex justify-center gap-2">
+                        {editingPaymentIndex === index && editingField ? (
+                          <>
+                            <button
+                              onClick={async () => {
+                                try {
+                                  if (editingField === 'date') {
+                                    await onEditPaymentDate(loan.id, index, editingPaymentDate);
+                                    alert('✅ Fecha actualizada correctamente');
+                                  } else if (editingField === 'amount') {
+                                    await onEditPaymentAmount(loan.id, index, parseFloat(editingPaymentAmount));
+                                    alert('✅ Monto actualizado correctamente');
+                                  }
+                                  setEditingPaymentIndex(null);
+                                  setEditingField(null);
+                                  setEditingPaymentDate('');
+                                  setEditingPaymentAmount('');
+                                } catch (err) {
+                                  alert('❌ Error al actualizar: ' + err.message);
+                                }
+                              }}
+                              className="p-1 rounded text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30"
+                              title="Guardar"
+                            >
+                              <CheckCircle size={18} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingPaymentIndex(null);
+                                setEditingField(null);
+                                setEditingPaymentDate('');
+                                setEditingPaymentAmount('');
+                              }}
+                              className="p-1 rounded text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              title="Cancelar"
+                            >
+                              <Circle size={18} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={async () => {
+                                if (confirm('¿Estás seguro de eliminar este pago? Esta acción no se puede deshacer.')) {
+                                  try {
+                                    await onDeletePayment(loan.id, index);
+                                    alert('✅ Pago eliminado correctamente');
+                                  } catch (err) {
+                                    alert('❌ Error al eliminar el pago: ' + err.message);
+                                  }
+                                }
+                              }}
+                              className={`p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30 ${darkMode ? 'text-red-400' : 'text-red-600'}`}
+                              title="Eliminar pago"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

@@ -12,7 +12,8 @@ import {
   PiggyBank,
   BarChart3,
   Upload,
-  Download
+  Download,
+  CreditCard
 } from 'lucide-react';
 
 // Import modular components
@@ -25,10 +26,11 @@ import { SavingsGoals } from '@/components/finance/SavingsGoals';
 import { Statistics } from '@/components/finance/Statistics';
 import { CSVImporter } from '@/components/import/CSVImporter';
 import { ExportManager } from '@/components/finance/ExportManager';
+import LoanManager from '@/components/loans/LoanManager';
 import { ConnectionStatus } from '@/components/offline/ConnectionStatus';
 import { InstallPrompt } from '@/components/offline/InstallPrompt';
 
-type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'statistics' | 'import' | 'export';
+type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'loans' | 'statistics' | 'import' | 'export';
 
 const tabs = [
   { id: 'dashboard' as TabId, label: 'Dashboard', icon: LayoutDashboard },
@@ -37,6 +39,7 @@ const tabs = [
   { id: 'budgets' as TabId, label: 'Presupuestos', icon: Target },
   { id: 'recurring' as TabId, label: 'Recurrentes', icon: Repeat },
   { id: 'savings' as TabId, label: 'Ahorros', icon: PiggyBank },
+  { id: 'loans' as TabId, label: 'Deudas', icon: CreditCard },
   { id: 'statistics' as TabId, label: 'Estadísticas', icon: BarChart3 },
   { id: 'import' as TabId, label: 'Importar', icon: Upload },
   { id: 'export' as TabId, label: 'Exportar', icon: Download },
@@ -143,6 +146,7 @@ export default function Home() {
         {activeTab === 'budgets' && <BudgetOverview />}
         {activeTab === 'recurring' && <RecurringTransactions />}
         {activeTab === 'savings' && <SavingsGoals />}
+        {activeTab === 'loans' && <LoanManager />}
         {activeTab === 'statistics' && <Statistics />}
         {activeTab === 'import' && <CSVImporter />}
         {activeTab === 'export' && <ExportManager />}
