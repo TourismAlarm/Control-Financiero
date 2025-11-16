@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -75,48 +76,48 @@ export function RecurringTransactions() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('📝 RecurringTransactions - Enviando datos:', data);
+      logger.log('📝 RecurringTransactions - Enviando datos:', data);
 
       const submitData = {
         ...data,
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount,
       };
 
-      console.log('📝 RecurringTransactions - Datos procesados:', submitData);
+      logger.log('📝 RecurringTransactions - Datos procesados:', submitData);
 
       if (editingRule?.id) {
-        console.log('📝 RecurringTransactions - Actualizando regla:', editingRule.id);
+        logger.log('📝 RecurringTransactions - Actualizando regla:', editingRule.id);
         updateRecurringRule({ ...submitData, id: editingRule.id } as any, {
           onSuccess: () => {
-            console.log('✅ RecurringTransactions - Regla actualizada exitosamente');
+            logger.log('✅ RecurringTransactions - Regla actualizada exitosamente');
             alert('Regla actualizada exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingRule(null);
           },
           onError: (error: any) => {
-            console.error('❌ RecurringTransactions - Error al actualizar:', error);
+            logger.error('❌ RecurringTransactions - Error al actualizar:', error);
             alert(`Error al actualizar la regla: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
-        console.log('📝 RecurringTransactions - Creando nueva regla');
+        logger.log('📝 RecurringTransactions - Creando nueva regla');
         createRecurringRule(submitData as any, {
           onSuccess: () => {
-            console.log('✅ RecurringTransactions - Regla creada exitosamente');
+            logger.log('✅ RecurringTransactions - Regla creada exitosamente');
             alert('Regla creada exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingRule(null);
           },
           onError: (error: any) => {
-            console.error('❌ RecurringTransactions - Error al crear:', error);
+            logger.error('❌ RecurringTransactions - Error al crear:', error);
             alert(`Error al crear la regla: ${error.message || 'Error desconocido'}`);
           }
         });
       }
     } catch (error: any) {
-      console.error('❌ RecurringTransactions - Error en onSubmit:', error);
+      logger.error('❌ RecurringTransactions - Error en onSubmit:', error);
       alert(`Error: ${error.message || 'Error desconocido'}`);
     }
   });

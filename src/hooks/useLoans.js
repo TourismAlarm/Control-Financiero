@@ -10,6 +10,7 @@ import {
   calculateTotalInterestPaid,
   calculateMonthlyPayment,
 } from '@/lib/loanCalculations';
+import { logger } from '@/lib/logger';
 
 /**
  * Hook personalizado para gestionar préstamos
@@ -92,7 +93,7 @@ export default function useLoans() {
 
       setLoans(loansWithCalculations);
     } catch (err) {
-      console.error('Error fetching loans:', err);
+      logger.error('Error fetching loans:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -146,7 +147,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error adding loan:', err);
+      logger.error('Error adding loan:', err);
       setError(err.message);
       throw err;
     }
@@ -207,7 +208,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error updating loan:', err);
+      logger.error('Error updating loan:', err);
       setError(err.message);
       throw err;
     }
@@ -235,7 +236,7 @@ export default function useLoans() {
       // Actualizar la lista local
       setLoans(prevLoans => prevLoans.filter(loan => loan.id !== loanId));
     } catch (err) {
-      console.error('Error deleting loan:', err);
+      logger.error('Error deleting loan:', err);
       setError(err.message);
       throw err;
     }
@@ -253,7 +254,7 @@ export default function useLoans() {
         new Date(loan.start_date)
       );
     } catch (err) {
-      console.error('Error generating amortization table:', err);
+      logger.error('Error generating amortization table:', err);
       return [];
     }
   };
@@ -305,7 +306,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error marking payment as paid:', err);
+      logger.error('Error marking payment as paid:', err);
       setError(err.message);
       throw err;
     }
@@ -414,7 +415,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error making extra payment:', err);
+      logger.error('Error making extra payment:', err);
       setError(err.message);
       throw err;
     }
@@ -457,7 +458,7 @@ export default function useLoans() {
         ),
       };
     } catch (err) {
-      console.error('Error simulating extra payment:', err);
+      logger.error('Error simulating extra payment:', err);
       return null;
     }
   };
@@ -509,7 +510,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error editing payment date:', err);
+      logger.error('Error editing payment date:', err);
       setError(err.message);
       throw err;
     }
@@ -562,7 +563,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error editing payment amount:', err);
+      logger.error('Error editing payment amount:', err);
       setError(err.message);
       throw err;
     }
@@ -611,7 +612,7 @@ export default function useLoans() {
 
       return data;
     } catch (err) {
-      console.error('Error deleting payment:', err);
+      logger.error('Error deleting payment:', err);
       setError(err.message);
       throw err;
     }

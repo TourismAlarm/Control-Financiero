@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Edit2, Trash2, Calendar, FileText, TrendingUp, TrendingDown } from 'lucide-react';
 import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
 import { useToast } from '@/hooks/use-toast';
@@ -128,7 +129,7 @@ export function TransactionsList({
                       toast('⚠️ Transacción eliminada, pero no se encontró el pago correspondiente en el préstamo', 'success');
                     }
                   } catch (loanError) {
-                    console.error('Error deleting loan payment:', loanError);
+                    logger.error('Error deleting loan payment:', loanError);
                     toast('⚠️ Transacción eliminada, pero hubo un error al eliminar el pago del préstamo', 'success');
                   }
                 },
@@ -154,7 +155,7 @@ export function TransactionsList({
         });
       }
     } catch (error) {
-      console.error('Error in handleDelete:', error);
+      logger.error('Error in handleDelete:', error);
       toast('Error al procesar la eliminación', 'error');
     }
   };

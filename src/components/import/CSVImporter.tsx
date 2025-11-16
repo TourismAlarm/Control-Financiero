@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { logger } from '@/lib/logger';
 import Papa from 'papaparse';
 import { Upload, Download, Check, X, AlertCircle, Save } from 'lucide-react';
 import { useSession } from 'next-auth/react';
@@ -99,7 +100,7 @@ export function CSVImporter() {
         autoDetectColumns(Object.keys(data[0] || {}));
       },
       error: (error) => {
-        console.error('Error parsing CSV:', error);
+        logger.error('Error parsing CSV:', error);
         alert('Error al leer el archivo CSV');
       }
     });
@@ -277,7 +278,7 @@ export function CSVImporter() {
           errors++;
         }
       } catch (error) {
-        console.error('Error importing transaction:', error);
+        logger.error('Error importing transaction:', error);
         errors++;
       }
     }

@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 /**
  * Loan API Routes
@@ -81,7 +82,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ GET /api/loans error:', error);
+      logger.error('❌ GET /api/loans error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -98,7 +99,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(parsedData);
   } catch (error: any) {
-    console.error('❌ GET /api/loans unexpected error:', error);
+    logger.error('❌ GET /api/loans unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ POST /api/loans error:', error);
+      logger.error('❌ POST /api/loans error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(parsedData, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST /api/loans unexpected error:', error);
+    logger.error('❌ POST /api/loans unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -216,7 +217,7 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ PUT /api/loans error:', error);
+      logger.error('❌ PUT /api/loans error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -233,7 +234,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json(parsedData);
   } catch (error: any) {
-    console.error('❌ PUT /api/loans unexpected error:', error);
+    logger.error('❌ PUT /api/loans unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -276,13 +277,13 @@ export async function DELETE(request: NextRequest) {
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('❌ DELETE /api/loans error:', error);
+      logger.error('❌ DELETE /api/loans error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ message: 'Loan deleted successfully' });
   } catch (error: any) {
-    console.error('❌ DELETE /api/loans unexpected error:', error);
+    logger.error('❌ DELETE /api/loans unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

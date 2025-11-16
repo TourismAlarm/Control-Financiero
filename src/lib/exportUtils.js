@@ -157,7 +157,7 @@ export async function exportPaymentsToPDF(loan) {
     // Descargar PDF
     pdf.save(`historial_pagos_${sanitizeFileName(loan.nombre || loan.name)}.pdf`);
   } catch (error) {
-    console.error('Error generando PDF:', error);
+    logger.error('Error generando PDF:', error);
     alert('Error al generar PDF. Intenta exportar a CSV en su lugar.');
   } finally {
     // Limpiar elemento temporal

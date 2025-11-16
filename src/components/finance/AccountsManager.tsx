@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -85,55 +86,55 @@ export function AccountsManager() {
 
   const onSubmit = handleSubmit(
     async (data) => {
-      console.log('✅ FORMULARIO VÁLIDO - Ejecutando onSubmit');
+      logger.log('✅ FORMULARIO VÁLIDO - Ejecutando onSubmit');
       try {
-        console.log('💳 AccountsManager - Enviando datos:', data);
+        logger.log('💳 AccountsManager - Enviando datos:', data);
 
       const submitData = {
         ...data,
         balance: typeof data.balance === 'string' ? parseFloat(data.balance) : data.balance,
       };
 
-      console.log('💳 AccountsManager - Datos procesados:', submitData);
+      logger.log('💳 AccountsManager - Datos procesados:', submitData);
 
       if (editingAccount?.id) {
-        console.log('💳 AccountsManager - Actualizando cuenta:', editingAccount.id);
+        logger.log('💳 AccountsManager - Actualizando cuenta:', editingAccount.id);
         updateAccount({ ...submitData, id: editingAccount.id } as any, {
           onSuccess: () => {
-            console.log('✅ AccountsManager - Cuenta actualizada exitosamente');
+            logger.log('✅ AccountsManager - Cuenta actualizada exitosamente');
             alert('Cuenta actualizada exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingAccount(null);
           },
           onError: (error: any) => {
-            console.error('❌ AccountsManager - Error al actualizar:', error);
+            logger.error('❌ AccountsManager - Error al actualizar:', error);
             alert(`Error al actualizar la cuenta: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
-        console.log('💳 AccountsManager - Creando nueva cuenta');
+        logger.log('💳 AccountsManager - Creando nueva cuenta');
         createAccount(submitData as any, {
           onSuccess: () => {
-            console.log('✅ AccountsManager - Cuenta creada exitosamente');
+            logger.log('✅ AccountsManager - Cuenta creada exitosamente');
             alert('Cuenta creada exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingAccount(null);
           },
           onError: (error: any) => {
-            console.error('❌ AccountsManager - Error al crear:', error);
+            logger.error('❌ AccountsManager - Error al crear:', error);
             alert(`Error al crear la cuenta: ${error.message || 'Error desconocido'}`);
           }
         });
       }
     } catch (error: any) {
-      console.error('❌ AccountsManager - Error en onSubmit:', error);
+      logger.error('❌ AccountsManager - Error en onSubmit:', error);
       alert(`Error: ${error.message || 'Error desconocido'}`);
     }
   },
   (errors) => {
-    console.error('❌ FORMULARIO INVÁLIDO - Errores de validación:', errors);
+    logger.error('❌ FORMULARIO INVÁLIDO - Errores de validación:', errors);
     alert('Por favor corrige los errores en el formulario:\n' + Object.entries(errors).map(([field, error]: [string, any]) => `- ${field}: ${error.message}`).join('\n'));
   });
 
@@ -325,7 +326,7 @@ export function AccountsManager() {
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
-                onClick={() => console.log('🔵 BOTÓN SUBMIT CLICKEADO')}
+                onClick={() => logger.log('🔵 BOTÓN SUBMIT CLICKEADO')}
                 disabled={isCreating || isUpdating}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >

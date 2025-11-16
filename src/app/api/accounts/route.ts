@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { accountInsertSchema, accountSchema } from '@/lib/validations/schemas';
+import { logger } from '@/lib/logger';
 
 // GET /api/accounts - Get all accounts for current user
 export async function GET() {
@@ -20,7 +21,7 @@ export async function GET() {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ GET /api/accounts error:', error);
+      logger.error('❌ GET /api/accounts error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -29,7 +30,7 @@ export async function GET() {
 
     return NextResponse.json(validated);
   } catch (error: any) {
-    console.error('❌ GET /api/accounts unexpected error:', error);
+    logger.error('❌ GET /api/accounts unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
@@ -58,14 +59,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ POST /api/accounts error:', error);
+      logger.error('❌ POST /api/accounts error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const result = accountSchema.parse(data);
     return NextResponse.json(result, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST /api/accounts unexpected error:', error);
+    logger.error('❌ POST /api/accounts unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
@@ -108,14 +109,14 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ PUT /api/accounts error:', error);
+      logger.error('❌ PUT /api/accounts error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const result = accountSchema.parse(data);
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('❌ PUT /api/accounts unexpected error:', error);
+    logger.error('❌ PUT /api/accounts unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
@@ -144,13 +145,13 @@ export async function DELETE(request: NextRequest) {
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('❌ DELETE /api/accounts error:', error);
+      logger.error('❌ DELETE /api/accounts error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('❌ DELETE /api/accounts unexpected error:', error);
+    logger.error('❌ DELETE /api/accounts unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }

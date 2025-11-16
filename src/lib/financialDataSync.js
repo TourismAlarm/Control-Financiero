@@ -12,7 +12,7 @@ export async function loadFinancialData(mesActual) {
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error('Error en loadFinancialData:', error);
+    logger.error('Error en loadFinancialData:', error);
     return null;
   }
 }
@@ -34,7 +34,7 @@ export async function saveFinancialData(data) {
     const result = await response.json();
     return result;
   } catch (error) {
-    console.error('Error en saveFinancialData:', error);
+    logger.error('Error en saveFinancialData:', error);
     return null;
   }
 }

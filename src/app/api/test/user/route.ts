@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { logger } from '@/lib/logger';
 
 /**
  * GET /api/test/user
@@ -55,7 +56,7 @@ export async function GET() {
       message: '✅ User found in database with Google ID',
     });
   } catch (error: any) {
-    console.error('❌ GET /api/test/user error:', error);
+    logger.error('❌ GET /api/test/user error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }

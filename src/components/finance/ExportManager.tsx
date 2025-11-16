@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { FileText, FileSpreadsheet, Database } from 'lucide-react';
 import { exportTransactionsToExcel } from '@/lib/export/exportExcel';
 import { exportMonthlyReportToPDF } from '@/lib/export/exportPDF';
@@ -28,7 +29,7 @@ export function ExportManager() {
 
       await exportTransactionsToExcel(transactions, accounts, selectedMonth);
     } catch (error) {
-      console.error('Error exporting to Excel:', error);
+      logger.error('Error exporting to Excel:', error);
       alert('Error al exportar a Excel');
     } finally {
       setIsExporting(false);
@@ -47,7 +48,7 @@ export function ExportManager() {
         session?.user?.name || session?.user?.email || 'Usuario'
       );
     } catch (error) {
-      console.error('Error exporting to PDF:', error);
+      logger.error('Error exporting to PDF:', error);
       alert('Error al exportar a PDF');
     } finally {
       setIsExporting(false);
@@ -69,7 +70,7 @@ export function ExportManager() {
 
       exportFullBackup(transactions, accounts, categories);
     } catch (error) {
-      console.error('Error exporting backup:', error);
+      logger.error('Error exporting backup:', error);
       alert('Error al exportar backup');
     } finally {
       setIsExporting(false);

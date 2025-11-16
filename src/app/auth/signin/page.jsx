@@ -1,11 +1,12 @@
 'use client';
 
 import { signIn } from 'next-auth/react';
+import { logger } from '@/lib/logger';
 
 export default function SignIn() {
   const handleLogin = () => {
-    console.log('🔵 Click en botón de login detectado');
-    console.log('🔵 Llamando a signIn("google")...');
+    logger.log('🔵 Click en botón de login detectado');
+    logger.log('🔵 Llamando a signIn("google")...');
     signIn('google', { callbackUrl: '/' });
   };
 

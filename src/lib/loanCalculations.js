@@ -178,7 +178,7 @@ export function formatDate(date) {
 
     return `${day}/${month}/${year}`;
   } catch (error) {
-    console.error('Error formateando fecha:', error);
+    logger.error('Error formateando fecha:', error);
     return 'Error en fecha';
   }
 }

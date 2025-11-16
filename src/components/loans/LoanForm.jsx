@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 import { X } from 'lucide-react';
 
 /**
@@ -118,7 +119,7 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
 
       await onSubmit(dataToSubmit);
     } catch (error) {
-      console.error('Error submitting form:', error);
+      logger.error('Error submitting form:', error);
       setErrors({ submit: error.message || 'Error al guardar el préstamo' });
     } finally {
       setLoading(false);

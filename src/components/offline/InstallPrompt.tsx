@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { logger } from '@/lib/logger';
 import { Download, X } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
@@ -61,9 +62,9 @@ export function InstallPrompt() {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
-      console.log('✅ Usuario aceptó la instalación');
+      logger.log('✅ Usuario aceptó la instalación');
     } else {
-      console.log('❌ Usuario rechazó la instalación');
+      logger.log('❌ Usuario rechazó la instalación');
     }
 
     setDeferredPrompt(null);

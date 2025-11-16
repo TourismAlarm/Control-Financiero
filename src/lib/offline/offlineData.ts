@@ -1,4 +1,5 @@
 import { db, STORES } from './indexedDB';
+import { logger } from '@/lib/logger';
 import { syncQueue } from './syncQueue';
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
@@ -31,7 +32,7 @@ class OfflineDataManager {
       const now = Date.now();
 
       if (cacheTimestamp && (now - cacheTimestamp < CACHE_DURATION)) {
-        console.log('📦 Usando transacciones del caché');
+        logger.log('📦 Usando transacciones del caché');
         return await db.getAll<Transaction>(STORES.TRANSACTIONS);
       }
 
@@ -45,15 +46,15 @@ class OfflineDataManager {
         await db.putMany(STORES.TRANSACTIONS, data);
         await db.setCacheTimestamp(cacheKey, now);
 
-        console.log('🌐 Transacciones obtenidas del servidor y cacheadas');
+        logger.log('🌐 Transacciones obtenidas del servidor y cacheadas');
         return data;
       } catch (error) {
-        console.error('❌ Error obteniendo transacciones del servidor:', error);
+        logger.error('❌ Error obteniendo transacciones del servidor:', error);
         // Caer de vuelta al caché
         return await db.getAll<Transaction>(STORES.TRANSACTIONS);
       }
     } else {
-      console.log('📴 Offline: usando transacciones del caché');
+      logger.log('📴 Offline: usando transacciones del caché');
       return await db.getAll<Transaction>(STORES.TRANSACTIONS);
     }
   }
@@ -67,7 +68,7 @@ class OfflineDataManager {
       const now = Date.now();
 
       if (cacheTimestamp && (now - cacheTimestamp < CACHE_DURATION)) {
-        console.log('📦 Usando cuentas del caché');
+        logger.log('📦 Usando cuentas del caché');
         return await db.getAll<Account>(STORES.ACCOUNTS);
       }
 
@@ -79,14 +80,14 @@ class OfflineDataManager {
         await db.putMany(STORES.ACCOUNTS, data);
         await db.setCacheTimestamp('accounts', now);
 
-        console.log('🌐 Cuentas obtenidas del servidor y cacheadas');
+        logger.log('🌐 Cuentas obtenidas del servidor y cacheadas');
         return data;
       } catch (error) {
-        console.error('❌ Error obteniendo cuentas del servidor:', error);
+        logger.error('❌ Error obteniendo cuentas del servidor:', error);
         return await db.getAll<Account>(STORES.ACCOUNTS);
       }
     } else {
-      console.log('📴 Offline: usando cuentas del caché');
+      logger.log('📴 Offline: usando cuentas del caché');
       return await db.getAll<Account>(STORES.ACCOUNTS);
     }
   }
@@ -100,7 +101,7 @@ class OfflineDataManager {
       const now = Date.now();
 
       if (cacheTimestamp && (now - cacheTimestamp < CACHE_DURATION)) {
-        console.log('📦 Usando categorías del caché');
+        logger.log('📦 Usando categorías del caché');
         return await db.getAll<Category>(STORES.CATEGORIES);
       }
 
@@ -112,14 +113,14 @@ class OfflineDataManager {
         await db.putMany(STORES.CATEGORIES, data);
         await db.setCacheTimestamp('categories', now);
 
-        console.log('🌐 Categorías obtenidas del servidor y cacheadas');
+        logger.log('🌐 Categorías obtenidas del servidor y cacheadas');
         return data;
       } catch (error) {
-        console.error('❌ Error obteniendo categorías del servidor:', error);
+        logger.error('❌ Error obteniendo categorías del servidor:', error);
         return await db.getAll<Category>(STORES.CATEGORIES);
       }
     } else {
-      console.log('📴 Offline: usando categorías del caché');
+      logger.log('📴 Offline: usando categorías del caché');
       return await db.getAll<Category>(STORES.CATEGORIES);
     }
   }
@@ -140,13 +141,13 @@ class OfflineDataManager {
         });
         return await response.json();
       } catch (error) {
-        console.error('❌ Error creando transacción en el servidor:', error);
+        logger.error('❌ Error creando transacción en el servidor:', error);
         // Añadir a la cola de sincronización
         await syncQueue.addToQueue('CREATE', STORES.TRANSACTIONS, transaction);
         return transaction;
       }
     } else {
-      console.log('📴 Offline: transacción guardada localmente');
+      logger.log('📴 Offline: transacción guardada localmente');
       await syncQueue.addToQueue('CREATE', STORES.TRANSACTIONS, transaction);
       return transaction;
     }
@@ -167,12 +168,12 @@ class OfflineDataManager {
         });
         return await response.json();
       } catch (error) {
-        console.error('❌ Error actualizando transacción en el servidor:', error);
+        logger.error('❌ Error actualizando transacción en el servidor:', error);
         await syncQueue.addToQueue('UPDATE', STORES.TRANSACTIONS, transaction);
         return transaction;
       }
     } else {
-      console.log('📴 Offline: transacción actualizada localmente');
+      logger.log('📴 Offline: transacción actualizada localmente');
       await syncQueue.addToQueue('UPDATE', STORES.TRANSACTIONS, transaction);
       return transaction;
     }
@@ -188,11 +189,11 @@ class OfflineDataManager {
       try {
         await fetch(`/api/transactions/${id}`, { method: 'DELETE' });
       } catch (error) {
-        console.error('❌ Error eliminando transacción en el servidor:', error);
+        logger.error('❌ Error eliminando transacción en el servidor:', error);
         await syncQueue.addToQueue('DELETE', STORES.TRANSACTIONS, { id });
       }
     } else {
-      console.log('📴 Offline: transacción eliminada localmente');
+      logger.log('📴 Offline: transacción eliminada localmente');
       await syncQueue.addToQueue('DELETE', STORES.TRANSACTIONS, { id });
     }
   }
@@ -202,7 +203,7 @@ class OfflineDataManager {
    */
   async invalidateCache(): Promise<void> {
     await db.clear(STORES.CACHE_TIMESTAMP);
-    console.log('🗑️ Caché invalidado');
+    logger.log('🗑️ Caché invalidado');
   }
 
   /**
@@ -215,7 +216,7 @@ class OfflineDataManager {
       db.clear(STORES.CATEGORIES),
       db.clear(STORES.CACHE_TIMESTAMP)
     ]);
-    console.log('🗑️ Todos los datos offline limpiados');
+    logger.log('🗑️ Todos los datos offline limpiados');
   }
 }
 

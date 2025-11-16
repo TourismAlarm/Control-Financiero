@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
+import { logger } from '@/lib/logger';
 
 // GET - Obtener datos financieros del usuario
 export async function GET(request) {
@@ -26,7 +27,7 @@ export async function GET(request) {
       .maybeSingle();
 
     if (financialError && financialError.code !== 'PGRST116') {
-      console.error('Error obteniendo datos financieros:', financialError);
+      logger.error('Error obteniendo datos financieros:', financialError);
       return NextResponse.json({ error: financialError.message }, { status: 500 });
     }
 
@@ -38,7 +39,7 @@ export async function GET(request) {
       .maybeSingle();
 
     if (historyError && historyError.code !== 'PGRST116') {
-      console.error('Error obteniendo historial:', historyError);
+      logger.error('Error obteniendo historial:', historyError);
       return NextResponse.json({ error: historyError.message }, { status: 500 });
     }
 
@@ -55,7 +56,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
-    console.error('Error en GET /api/financial-data:', error);
+    logger.error('Error en GET /api/financial-data:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -92,7 +93,7 @@ export async function POST(request) {
       .maybeSingle();
 
     if (financialError) {
-      console.error('Error guardando datos financieros:', financialError);
+      logger.error('Error guardando datos financieros:', financialError);
       return NextResponse.json({ error: financialError.message }, { status: 500 });
     }
 
@@ -108,7 +109,7 @@ export async function POST(request) {
         });
 
       if (historyError) {
-        console.error('Error guardando historial:', historyError);
+        logger.error('Error guardando historial:', historyError);
         return NextResponse.json({ error: historyError.message }, { status: 500 });
       }
     }
@@ -119,7 +120,7 @@ export async function POST(request) {
     });
 
   } catch (error) {
-    console.error('Error en POST /api/financial-data:', error);
+    logger.error('Error en POST /api/financial-data:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

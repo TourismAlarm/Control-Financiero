@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { transactionInsertSchema, transactionSchema } from '@/lib/validations/schemas';
+import { logger } from '@/lib/logger';
 
 // GET /api/transactions - Get all transactions for current user
 export async function GET(request: NextRequest) {
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ GET /api/transactions error:', error);
+      logger.error('❌ GET /api/transactions error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(validated);
   } catch (error: any) {
-    console.error('❌ GET /api/transactions unexpected error:', error);
+    logger.error('❌ GET /api/transactions unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
@@ -77,14 +78,14 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ POST /api/transactions error:', error);
+      logger.error('❌ POST /api/transactions error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const result = transactionSchema.parse(data);
     return NextResponse.json(result, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST /api/transactions unexpected error:', error);
+    logger.error('❌ POST /api/transactions unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
@@ -127,14 +128,14 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ PUT /api/transactions error:', error);
+      logger.error('❌ PUT /api/transactions error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     const result = transactionSchema.parse(data);
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('❌ PUT /api/transactions unexpected error:', error);
+    logger.error('❌ PUT /api/transactions unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }
@@ -162,13 +163,13 @@ export async function DELETE(request: NextRequest) {
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('❌ DELETE /api/transactions error:', error);
+      logger.error('❌ DELETE /api/transactions error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error('❌ DELETE /api/transactions unexpected error:', error);
+    logger.error('❌ DELETE /api/transactions unexpected error:', error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
   }
 }

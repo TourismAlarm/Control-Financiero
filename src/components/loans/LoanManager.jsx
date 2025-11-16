@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Plus, TrendingDown, CreditCard, Calendar, AlertCircle, Calculator, BarChart3, List } from 'lucide-react';
 import useLoans from '@/hooks/useLoans';
 import { useTransactions } from '@/hooks/useTransactions';
@@ -70,7 +71,7 @@ export default function LoanManager({
           is_active: true,
         });
       } catch (err) {
-        console.error('Error creating default account:', err);
+        logger.error('Error creating default account:', err);
       }
     }
 
@@ -84,7 +85,7 @@ export default function LoanManager({
           color: '#ef4444',
         });
       } catch (err) {
-        console.error('Error creating debt category:', err);
+        logger.error('Error creating debt category:', err);
       }
     }
 
@@ -121,7 +122,7 @@ export default function LoanManager({
         alert('⚠️ Cuota marcada como pagada, pero no se pudo crear transacción automática');
       }
     } catch (err) {
-      console.error('Error marking payment:', err);
+      logger.error('Error marking payment:', err);
       alert('❌ Error al marcar el pago: ' + err.message);
       throw err;
     }
@@ -157,7 +158,7 @@ export default function LoanManager({
         alert('⚠️ Amortización realizada, pero no se pudo crear transacción automática');
       }
     } catch (err) {
-      console.error('Error making extra payment:', err);
+      logger.error('Error making extra payment:', err);
       alert('❌ Error al realizar amortización: ' + err.message);
       throw err;
     }
@@ -207,14 +208,14 @@ export default function LoanManager({
       if (matchingTransaction) {
         try {
           await deleteTransaction(matchingTransaction.id);
-          console.log('✅ Transacción sincronizada eliminada:', matchingTransaction.description);
+          logger.log('✅ Transacción sincronizada eliminada:', matchingTransaction.description);
         } catch (transError) {
-          console.warn('⚠️ No se pudo eliminar la transacción sincronizada:', transError);
+          logger.warn('⚠️ No se pudo eliminar la transacción sincronizada:', transError);
           // No lanzar error, el pago ya se eliminó
         }
       }
     } catch (err) {
-      console.error('Error deleting payment:', err);
+      logger.error('Error deleting payment:', err);
       throw err;
     }
   };
@@ -225,7 +226,7 @@ export default function LoanManager({
       await addLoan(loanData);
       setShowForm(false);
     } catch (err) {
-      console.error('Error adding loan:', err);
+      logger.error('Error adding loan:', err);
       throw err;
     }
   };
@@ -261,7 +262,7 @@ export default function LoanManager({
       await deleteLoan(loanId);
       setSelectedLoanId(null);
     } catch (err) {
-      console.error('Error deleting loan:', err);
+      logger.error('Error deleting loan:', err);
       throw err;
     }
   };

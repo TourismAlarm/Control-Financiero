@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { logger } from '@/lib/logger';
 import { Download, X } from 'lucide-react';
 
 export default function PWAInstaller() {
@@ -13,10 +14,10 @@ export default function PWAInstaller() {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-          console.log('✅ Service Worker registrado:', registration);
+          logger.log('✅ Service Worker registrado:', registration);
         })
         .catch((error) => {
-          console.log('❌ Error al registrar Service Worker:', error);
+          logger.log('❌ Error al registrar Service Worker:', error);
         });
     }
 
@@ -46,9 +47,9 @@ export default function PWAInstaller() {
     const { outcome } = await deferredPrompt.userChoice;
 
     if (outcome === 'accepted') {
-      console.log('✅ Usuario aceptó instalar la PWA');
+      logger.log('✅ Usuario aceptó instalar la PWA');
     } else {
-      console.log('❌ Usuario rechazó instalar la PWA');
+      logger.log('❌ Usuario rechazó instalar la PWA');
     }
 
     setDeferredPrompt(null);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -84,7 +85,7 @@ export function SavingsGoals() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('💰 SavingsGoals - Enviando datos:', data);
+      logger.log('💰 SavingsGoals - Enviando datos:', data);
 
       const submitData = {
         ...data,
@@ -94,41 +95,41 @@ export function SavingsGoals() {
           typeof data.current_amount === 'string' ? parseFloat(data.current_amount) : data.current_amount,
       };
 
-      console.log('💰 SavingsGoals - Datos procesados:', submitData);
+      logger.log('💰 SavingsGoals - Datos procesados:', submitData);
 
       if (editingGoal?.id) {
-        console.log('💰 SavingsGoals - Actualizando meta:', editingGoal.id);
+        logger.log('💰 SavingsGoals - Actualizando meta:', editingGoal.id);
         updateSavingsGoal({ ...submitData, id: editingGoal.id } as any, {
           onSuccess: () => {
-            console.log('✅ SavingsGoals - Meta actualizada exitosamente');
+            logger.log('✅ SavingsGoals - Meta actualizada exitosamente');
             alert('Meta actualizada exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingGoal(null);
           },
           onError: (error: any) => {
-            console.error('❌ SavingsGoals - Error al actualizar:', error);
+            logger.error('❌ SavingsGoals - Error al actualizar:', error);
             alert(`Error al actualizar la meta: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
-        console.log('💰 SavingsGoals - Creando nueva meta');
+        logger.log('💰 SavingsGoals - Creando nueva meta');
         createSavingsGoal(submitData as any, {
           onSuccess: () => {
-            console.log('✅ SavingsGoals - Meta creada exitosamente');
+            logger.log('✅ SavingsGoals - Meta creada exitosamente');
             alert('Meta creada exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingGoal(null);
           },
           onError: (error: any) => {
-            console.error('❌ SavingsGoals - Error al crear:', error);
+            logger.error('❌ SavingsGoals - Error al crear:', error);
             alert(`Error al crear la meta: ${error.message || 'Error desconocido'}`);
           }
         });
       }
     } catch (error: any) {
-      console.error('❌ SavingsGoals - Error en onSubmit:', error);
+      logger.error('❌ SavingsGoals - Error en onSubmit:', error);
       alert(`Error: ${error.message || 'Error desconocido'}`);
     }
   });
@@ -137,22 +138,22 @@ export function SavingsGoals() {
     if (!addingToGoalId) return;
 
     try {
-      console.log('💰 SavingsGoals - Añadiendo dinero a meta:', addingToGoalId);
+      logger.log('💰 SavingsGoals - Añadiendo dinero a meta:', addingToGoalId);
       const amount = typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount;
       addToGoal({ goalId: addingToGoalId, amount }, {
         onSuccess: () => {
-          console.log('✅ SavingsGoals - Dinero añadido exitosamente');
+          logger.log('✅ SavingsGoals - Dinero añadido exitosamente');
           alert(`Añadidos ${amount}€ a la meta`);
           resetAddMoney();
           setAddingToGoalId(null);
         },
         onError: (error: any) => {
-          console.error('❌ SavingsGoals - Error al añadir dinero:', error);
+          logger.error('❌ SavingsGoals - Error al añadir dinero:', error);
           alert(`Error al añadir dinero: ${error.message || 'Error desconocido'}`);
         }
       });
     } catch (error: any) {
-      console.error('❌ SavingsGoals - Error en onAddMoney:', error);
+      logger.error('❌ SavingsGoals - Error en onAddMoney:', error);
       alert(`Error: ${error.message || 'Error desconocido'}`);
     }
   });

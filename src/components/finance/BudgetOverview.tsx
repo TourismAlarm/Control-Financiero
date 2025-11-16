@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { logger } from '@/lib/logger';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -64,48 +65,48 @@ export function BudgetOverview() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('🎯 BudgetOverview - Enviando datos:', data);
+      logger.log('🎯 BudgetOverview - Enviando datos:', data);
 
       const submitData = {
         ...data,
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount,
       };
 
-      console.log('🎯 BudgetOverview - Datos procesados:', submitData);
+      logger.log('🎯 BudgetOverview - Datos procesados:', submitData);
 
       if (editingBudget?.id) {
-        console.log('🎯 BudgetOverview - Actualizando presupuesto:', editingBudget.id);
+        logger.log('🎯 BudgetOverview - Actualizando presupuesto:', editingBudget.id);
         updateBudget({ ...submitData, id: editingBudget.id } as any, {
           onSuccess: () => {
-            console.log('✅ BudgetOverview - Presupuesto actualizado exitosamente');
+            logger.log('✅ BudgetOverview - Presupuesto actualizado exitosamente');
             alert('Presupuesto actualizado exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingBudget(null);
           },
           onError: (error: any) => {
-            console.error('❌ BudgetOverview - Error al actualizar:', error);
+            logger.error('❌ BudgetOverview - Error al actualizar:', error);
             alert(`Error al actualizar el presupuesto: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
-        console.log('🎯 BudgetOverview - Creando nuevo presupuesto');
+        logger.log('🎯 BudgetOverview - Creando nuevo presupuesto');
         createBudget(submitData as any, {
           onSuccess: () => {
-            console.log('✅ BudgetOverview - Presupuesto creado exitosamente');
+            logger.log('✅ BudgetOverview - Presupuesto creado exitosamente');
             alert('Presupuesto creado exitosamente');
             reset();
             setIsFormOpen(false);
             setEditingBudget(null);
           },
           onError: (error: any) => {
-            console.error('❌ BudgetOverview - Error al crear:', error);
+            logger.error('❌ BudgetOverview - Error al crear:', error);
             alert(`Error al crear el presupuesto: ${error.message || 'Error desconocido'}`);
           }
         });
       }
     } catch (error: any) {
-      console.error('❌ BudgetOverview - Error en onSubmit:', error);
+      logger.error('❌ BudgetOverview - Error en onSubmit:', error);
       alert(`Error: ${error.message || 'Error desconocido'}`);
     }
   });

@@ -1,6 +1,7 @@
 'use client';
 
 import { useForm } from 'react-hook-form';
+import { logger } from '@/lib/logger';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { DollarSign, Save, X } from 'lucide-react';
@@ -78,7 +79,7 @@ export function TransactionForm({
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('💸 TransactionForm - Enviando datos:', data);
+      logger.log('💸 TransactionForm - Enviando datos:', data);
 
       // Convert amount to number
       const submitData = {
@@ -86,44 +87,44 @@ export function TransactionForm({
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount,
       };
 
-      console.log('💸 TransactionForm - Datos procesados:', submitData);
+      logger.log('💸 TransactionForm - Datos procesados:', submitData);
 
       if (transaction?.id) {
         // Update existing transaction
-        console.log('💸 TransactionForm - Actualizando transacción:', transaction.id);
+        logger.log('💸 TransactionForm - Actualizando transacción:', transaction.id);
         updateTransaction(
           { ...submitData, id: transaction.id } as any,
           {
             onSuccess: () => {
-              console.log('✅ TransactionForm - Transacción actualizada exitosamente');
+              logger.log('✅ TransactionForm - Transacción actualizada exitosamente');
               toast(`${type === 'income' ? 'Ingreso' : 'Gasto'} actualizado correctamente`, 'success');
               reset();
               onSuccess?.();
             },
             onError: (error) => {
-              console.error('❌ TransactionForm - Error al actualizar:', error);
+              logger.error('❌ TransactionForm - Error al actualizar:', error);
               toast(`Error al actualizar: ${error.message}`, 'error');
             },
           }
         );
       } else {
         // Create new transaction
-        console.log('💸 TransactionForm - Creando nueva transacción');
+        logger.log('💸 TransactionForm - Creando nueva transacción');
         createTransaction(submitData as any, {
           onSuccess: () => {
-            console.log('✅ TransactionForm - Transacción creada exitosamente');
+            logger.log('✅ TransactionForm - Transacción creada exitosamente');
             toast(`${type === 'income' ? 'Ingreso' : 'Gasto'} añadido correctamente`, 'success');
             reset();
             onSuccess?.();
           },
           onError: (error) => {
-            console.error('❌ TransactionForm - Error al crear:', error);
+            logger.error('❌ TransactionForm - Error al crear:', error);
             toast(`Error al crear: ${error.message}`, 'error');
           },
         });
       }
     } catch (error: any) {
-      console.error('❌ TransactionForm - Error en onSubmit:', error);
+      logger.error('❌ TransactionForm - Error en onSubmit:', error);
       toast(`Error: ${error.message || 'Error desconocido'}`, 'error');
     }
   });
