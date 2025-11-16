@@ -1,26 +1,15 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { env } from '@/lib/env';
 
 export async function GET() {
   try {
-    // Verificar variables de entorno
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Missing Supabase credentials',
-          hasUrl: !!supabaseUrl,
-          hasKey: !!supabaseKey,
-        },
-        { status: 500 }
-      );
-    }
-
-    // Crear cliente Supabase
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Environment variables are validated at build time via env.ts
+    // No need for runtime checks - they're guaranteed to exist
+    const supabase = createClient(
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      env.SUPABASE_SERVICE_ROLE_KEY
+    );
 
     // Intentar query simple
     const { data, error } = await supabase
