@@ -3,8 +3,8 @@
 import { signIn } from 'next-auth/react';
 import { logger } from '@/lib/logger';
 
-export default function SignIn() {
-  const handleLogin = () => {
+export default function SignIn(): JSX.Element {
+  const handleLogin = (): void => {
     logger.log('🔵 Click en botón de login detectado');
     logger.log('🔵 Llamando a signIn("google")...');
     signIn('google', { callbackUrl: '/' });

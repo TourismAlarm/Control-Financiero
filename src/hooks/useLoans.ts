@@ -8,25 +8,165 @@ import {
   calculateNextPaymentDate,
   calculateProgress,
   calculateTotalInterestPaid,
-  calculateMonthlyPayment,
 } from '@/lib/loanCalculations';
 import { logger } from '@/lib/logger';
 
 /**
+ * Types for Loan Management
+ */
+
+// Registro de pago
+interface PaymentRecord {
+  fecha: string;
+  monto: number;
+  numero_pago?: number;
+  tipo?: 'cuota' | 'amortizacion';
+}
+
+// Amortización extra
+interface ExtraPayment {
+  fecha: string;
+  monto: number;
+  nota?: string;
+}
+
+// Préstamo de la base de datos (nombres en español)
+interface LoanDB {
+  id: string;
+  user_id: string;
+  nombre: string;
+  tipo_prestamo?: string;
+  monto_total: number;
+  tasa_interes: number;
+  cuota_mensual: number | null;
+  plazo_meses: number;
+  fecha_inicio: string;
+  descripcion: string | null;
+  pagos_realizados: PaymentRecord[];
+  amortizaciones_extras: ExtraPayment[];
+  estado: 'activo' | 'completado' | 'cancelado';
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Préstamo con cálculos adicionales (nombres en inglés + español)
+interface LoanWithCalculations extends LoanDB {
+  // Nombres en inglés para compatibilidad
+  name: string;
+  type?: string;
+  initial_amount: number;
+  interest_rate: number;
+  monthly_payment: number | null;
+  total_months: number;
+  start_date: string;
+  notes: string | null;
+  status: 'activo' | 'completado' | 'cancelado';
+  paid_months: number;
+  current_balance: number;
+  endDate: Date;
+  nextPaymentDate: Date;
+  progress: number;
+  remainingBalance: number;
+}
+
+// Datos para crear un nuevo préstamo
+interface LoanData {
+  name: string;
+  type?: string;
+  initial_amount: number | string;
+  interest_rate?: number | string;
+  monthly_payment: number | string;
+  total_months?: number;
+  start_date: string;
+  notes?: string;
+}
+
+// Datos para actualizar un préstamo
+interface LoanUpdates {
+  name?: string;
+  type?: string;
+  initial_amount?: number | string;
+  interest_rate?: number | string;
+  monthly_payment?: number | string;
+  total_months?: number;
+  start_date?: string;
+  notes?: string;
+  status?: 'activo' | 'completado' | 'cancelado';
+  // Campos en español
+  nombre?: string;
+  tipo_prestamo?: string;
+  monto_total?: number | string;
+  tasa_interes?: number | string;
+  cuota_mensual?: number | string;
+  plazo_meses?: number;
+  fecha_inicio?: string;
+  descripcion?: string;
+  estado?: 'activo' | 'completado' | 'cancelado';
+  pagos_realizados?: PaymentRecord[];
+  amortizaciones_extras?: ExtraPayment[];
+}
+
+// Pago próximo
+interface UpcomingPayment {
+  loan: LoanWithCalculations;
+  date: Date;
+  amount: number;
+}
+
+// Estadísticas de préstamos
+interface LoanStatistics {
+  totalLoans: number;
+  activeLoans: number;
+  completedLoans: number;
+  totalDebt: number;
+  totalMonthlyPayment: number;
+  totalInterestPaid: number;
+  nextPayment: UpcomingPayment | null;
+  upcomingPayments: UpcomingPayment[];
+}
+
+// Resultado de simulación de pago extra
+interface ExtraPaymentSimulation {
+  newBalance: number;
+  monthsSaved: number;
+  interestSaved: number;
+  newEndDate: Date;
+}
+
+// Valor de retorno del hook
+interface UseLoansReturn {
+  loans: LoanWithCalculations[];
+  loading: boolean;
+  error: string | null;
+  addLoan: (loanData: LoanData) => Promise<LoanDB>;
+  updateLoan: (loanId: string, updates: LoanUpdates) => Promise<LoanDB>;
+  deleteLoan: (loanId: string) => Promise<void>;
+  getAmortizationTable: (loan: LoanWithCalculations) => unknown[];
+  markPaymentAsPaid: (loanId: string) => Promise<LoanDB>;
+  makeExtraPayment: (loanId: string, amount: number | string) => Promise<LoanDB>;
+  editPaymentDate: (loanId: string, paymentIndex: number, newDate: string) => Promise<LoanDB>;
+  editPaymentAmount: (loanId: string, paymentIndex: number, newAmount: number | string) => Promise<LoanDB>;
+  deletePayment: (loanId: string, paymentIndex: number) => Promise<LoanDB>;
+  getStatistics: () => LoanStatistics;
+  simulateExtraPayment: (loan: LoanWithCalculations, extraAmount: number) => ExtraPaymentSimulation | null;
+  refreshLoans: () => Promise<void>;
+}
+
+/**
  * Hook personalizado para gestionar préstamos
  */
-export default function useLoans() {
+export default function useLoans(): UseLoansReturn {
   const { data: session } = useSession();
   const supabase = createClient();
 
-  const [loans, setLoans] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [loans, setLoans] = useState<LoanWithCalculations[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   /**
    * Obtener todos los préstamos del usuario
    */
-  const fetchLoans = useCallback(async () => {
+  const fetchLoans = useCallback(async (): Promise<void> => {
     if (!session?.user?.id) {
       setLoading(false);
       return;
@@ -46,7 +186,7 @@ export default function useLoans() {
 
       // Calcular datos adicionales para cada préstamo
       // Mapear nombres en español a inglés para compatibilidad
-      const loansWithCalculations = data.map(loan => {
+      const loansWithCalculations: LoanWithCalculations[] = (data as LoanDB[]).map(loan => {
         // Extraer pagos realizados del JSONB
         const pagosArray = Array.isArray(loan.pagos_realizados) ? loan.pagos_realizados : [];
         const paidMonths = pagosArray.length;
@@ -80,8 +220,8 @@ export default function useLoans() {
           total_months: loan.plazo_meses,
           start_date: loan.fecha_inicio,
           notes: loan.descripcion,
-          status: loan.estado, // 'activo', 'completado', etc.
-          estado: loan.estado, // Mantener también en español
+          status: loan.estado,
+          estado: loan.estado,
           paid_months: paidMonths,
           current_balance: remainingBalance,
           endDate,
@@ -93,8 +233,9 @@ export default function useLoans() {
 
       setLoans(loansWithCalculations);
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error fetching loans:', err);
-      setError(err.message);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -103,7 +244,7 @@ export default function useLoans() {
   /**
    * Agregar un nuevo préstamo
    */
-  const addLoan = async (loanData) => {
+  const addLoan = async (loanData: LoanData): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -116,7 +257,7 @@ export default function useLoans() {
       if (!totalMonths && loanData.monthly_payment && loanData.initial_amount) {
         // Estimar el plazo basado en la cuota mensual
         totalMonths = Math.ceil(
-          loanData.initial_amount / loanData.monthly_payment
+          Number(loanData.initial_amount) / Number(loanData.monthly_payment)
         );
       }
 
@@ -125,13 +266,13 @@ export default function useLoans() {
         user_id: session.user.id,
         nombre: loanData.name,
         tipo_prestamo: loanData.type || 'personal',
-        monto_total: parseFloat(loanData.initial_amount),
-        tasa_interes: parseFloat(loanData.interest_rate || 0),
-        cuota_mensual: parseFloat(loanData.monthly_payment),
-        plazo_meses: totalMonths,
+        monto_total: parseFloat(String(loanData.initial_amount)),
+        tasa_interes: parseFloat(String(loanData.interest_rate || 0)),
+        cuota_mensual: parseFloat(String(loanData.monthly_payment)),
+        plazo_meses: totalMonths || 0,
         fecha_inicio: loanData.start_date,
         descripcion: loanData.notes || null,
-        estado: 'activo',
+        estado: 'activo' as const,
       };
 
       const { data, error: insertError } = await supabase
@@ -145,10 +286,11 @@ export default function useLoans() {
       // Actualizar la lista local
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error adding loan:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -156,7 +298,7 @@ export default function useLoans() {
   /**
    * Actualizar un préstamo existente
    */
-  const updateLoan = async (loanId, updates) => {
+  const updateLoan = async (loanId: string, updates: LoanUpdates): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -165,14 +307,14 @@ export default function useLoans() {
       setError(null);
 
       // Mapear nombres de inglés a español si es necesario
-      const mappedUpdates = {};
+      const mappedUpdates: Record<string, unknown> = {};
 
       if (updates.name !== undefined) mappedUpdates.nombre = updates.name;
       if (updates.type !== undefined) mappedUpdates.tipo_prestamo = updates.type;
-      if (updates.initial_amount !== undefined) mappedUpdates.monto_total = parseFloat(updates.initial_amount);
-      if (updates.interest_rate !== undefined) mappedUpdates.tasa_interes = parseFloat(updates.interest_rate);
-      if (updates.monthly_payment !== undefined) mappedUpdates.cuota_mensual = parseFloat(updates.monthly_payment);
-      if (updates.total_months !== undefined) mappedUpdates.plazo_meses = parseInt(updates.total_months);
+      if (updates.initial_amount !== undefined) mappedUpdates.monto_total = parseFloat(String(updates.initial_amount));
+      if (updates.interest_rate !== undefined) mappedUpdates.tasa_interes = parseFloat(String(updates.interest_rate));
+      if (updates.monthly_payment !== undefined) mappedUpdates.cuota_mensual = parseFloat(String(updates.monthly_payment));
+      if (updates.total_months !== undefined) mappedUpdates.plazo_meses = parseInt(String(updates.total_months));
       if (updates.start_date !== undefined) mappedUpdates.fecha_inicio = updates.start_date;
       if (updates.notes !== undefined) mappedUpdates.descripcion = updates.notes;
       if (updates.status !== undefined) mappedUpdates.estado = updates.status;
@@ -180,10 +322,10 @@ export default function useLoans() {
       // Pasar también propiedades que ya están en español
       if (updates.nombre !== undefined) mappedUpdates.nombre = updates.nombre;
       if (updates.tipo_prestamo !== undefined) mappedUpdates.tipo_prestamo = updates.tipo_prestamo;
-      if (updates.monto_total !== undefined) mappedUpdates.monto_total = parseFloat(updates.monto_total);
-      if (updates.tasa_interes !== undefined) mappedUpdates.tasa_interes = parseFloat(updates.tasa_interes);
-      if (updates.cuota_mensual !== undefined) mappedUpdates.cuota_mensual = parseFloat(updates.cuota_mensual);
-      if (updates.plazo_meses !== undefined) mappedUpdates.plazo_meses = parseInt(updates.plazo_meses);
+      if (updates.monto_total !== undefined) mappedUpdates.monto_total = parseFloat(String(updates.monto_total));
+      if (updates.tasa_interes !== undefined) mappedUpdates.tasa_interes = parseFloat(String(updates.tasa_interes));
+      if (updates.cuota_mensual !== undefined) mappedUpdates.cuota_mensual = parseFloat(String(updates.cuota_mensual));
+      if (updates.plazo_meses !== undefined) mappedUpdates.plazo_meses = parseInt(String(updates.plazo_meses));
       if (updates.fecha_inicio !== undefined) mappedUpdates.fecha_inicio = updates.fecha_inicio;
       if (updates.descripcion !== undefined) mappedUpdates.descripcion = updates.descripcion;
       if (updates.estado !== undefined) mappedUpdates.estado = updates.estado;
@@ -206,10 +348,11 @@ export default function useLoans() {
       // Actualizar la lista local
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error updating loan:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -217,7 +360,7 @@ export default function useLoans() {
   /**
    * Eliminar un préstamo
    */
-  const deleteLoan = async (loanId) => {
+  const deleteLoan = async (loanId: string): Promise<void> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -236,8 +379,9 @@ export default function useLoans() {
       // Actualizar la lista local
       setLoans(prevLoans => prevLoans.filter(loan => loan.id !== loanId));
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error deleting loan:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -245,7 +389,7 @@ export default function useLoans() {
   /**
    * Obtener la tabla de amortización de un préstamo
    */
-  const getAmortizationTable = (loan) => {
+  const getAmortizationTable = (loan: LoanWithCalculations): unknown[] => {
     try {
       return generateAmortizationTable(
         loan.initial_amount,
@@ -263,7 +407,7 @@ export default function useLoans() {
    * Marcar un pago como realizado
    * Agrega un registro al array JSONB pagos_realizados
    */
-  const markPaymentAsPaid = async (loanId) => {
+  const markPaymentAsPaid = async (loanId: string): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -278,9 +422,9 @@ export default function useLoans() {
       const currentPayments = loan.pagos_realizados || [];
 
       // Crear nuevo registro de pago
-      const newPayment = {
+      const newPayment: PaymentRecord = {
         fecha: new Date().toISOString(),
-        monto: loan.monthly_payment,
+        monto: loan.monthly_payment || 0,
         numero_pago: currentPayments.length + 1,
       };
 
@@ -304,10 +448,11 @@ export default function useLoans() {
       // Refrescar la lista
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error marking payment as paid:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -315,7 +460,7 @@ export default function useLoans() {
   /**
    * Calcular estadísticas generales de todos los préstamos
    */
-  const getStatistics = useCallback(() => {
+  const getStatistics = useCallback((): LoanStatistics => {
     // Filtrar por 'activo' (español) que es lo que viene de la BD
     const activeLoans = loans.filter(loan => loan.estado === 'activo' || loan.status === 'activo');
 
@@ -344,14 +489,14 @@ export default function useLoans() {
       .map(loan => ({
         loan,
         date: loan.nextPaymentDate,
-        amount: loan.monthly_payment || loan.cuota_mensual,
+        amount: loan.monthly_payment || loan.cuota_mensual || 0,
       }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return {
       totalLoans: loans.length,
       activeLoans: activeLoans.length,
-      completedLoans: loans.filter(l => l.estado === 'completado' || l.status === 'completed').length,
+      completedLoans: loans.filter(l => l.estado === 'completado' || l.status === 'completado').length,
       totalDebt,
       totalMonthlyPayment,
       totalInterestPaid,
@@ -363,7 +508,7 @@ export default function useLoans() {
   /**
    * Realizar amortización anticipada
    */
-  const makeExtraPayment = async (loanId, amount) => {
+  const makeExtraPayment = async (loanId: string, amount: number | string): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -374,7 +519,7 @@ export default function useLoans() {
       const loan = loans.find(l => l.id === loanId);
       if (!loan) throw new Error('Préstamo no encontrado');
 
-      const amountNum = parseFloat(amount);
+      const amountNum = parseFloat(String(amount));
       if (isNaN(amountNum) || amountNum <= 0) {
         throw new Error('Cantidad inválida');
       }
@@ -388,7 +533,7 @@ export default function useLoans() {
       const currentExtraPayments = loan.amortizaciones_extras || [];
 
       // Crear nueva amortización
-      const newExtraPayment = {
+      const newExtraPayment: ExtraPayment = {
         fecha: new Date().toISOString(),
         monto: amountNum,
       };
@@ -413,10 +558,11 @@ export default function useLoans() {
       // Refrescar la lista
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error making extra payment:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -424,13 +570,13 @@ export default function useLoans() {
   /**
    * Simular pago extra
    */
-  const simulateExtraPayment = (loan, extraAmount) => {
+  const simulateExtraPayment = (loan: LoanWithCalculations, extraAmount: number): ExtraPaymentSimulation | null => {
     try {
       const currentBalance = loan.remainingBalance || loan.current_balance;
       const newBalance = Math.max(0, currentBalance - extraAmount);
 
       // Calcular cuántos meses se ahorran
-      const monthlyPayment = loan.monthly_payment;
+      const monthlyPayment = loan.monthly_payment || 0;
       const remainingMonths = loan.total_months - loan.paid_months;
 
       // Recalcular el plazo con el nuevo balance
@@ -466,7 +612,7 @@ export default function useLoans() {
   /**
    * Editar la fecha de un pago específico
    */
-  const editPaymentDate = async (loanId, paymentIndex, newDate) => {
+  const editPaymentDate = async (loanId: string, paymentIndex: number, newDate: string): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -487,7 +633,7 @@ export default function useLoans() {
       // Actualizar la fecha del pago específico
       const updatedPayments = [...currentPayments];
       updatedPayments[paymentIndex] = {
-        ...updatedPayments[paymentIndex],
+        ...updatedPayments[paymentIndex]!,
         fecha: newDate,
       };
 
@@ -508,10 +654,11 @@ export default function useLoans() {
       // Refrescar la lista
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error editing payment date:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -519,7 +666,7 @@ export default function useLoans() {
   /**
    * Editar el monto de un pago específico
    */
-  const editPaymentAmount = async (loanId, paymentIndex, newAmount) => {
+  const editPaymentAmount = async (loanId: string, paymentIndex: number, newAmount: number | string): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -540,8 +687,8 @@ export default function useLoans() {
       // Actualizar el monto del pago específico
       const updatedPayments = [...currentPayments];
       updatedPayments[paymentIndex] = {
-        ...updatedPayments[paymentIndex],
-        monto: parseFloat(newAmount),
+        ...updatedPayments[paymentIndex]!,
+        monto: parseFloat(String(newAmount)),
       };
 
       // Actualizar en Supabase
@@ -561,10 +708,11 @@ export default function useLoans() {
       // Refrescar la lista
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error editing payment amount:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };
@@ -572,7 +720,7 @@ export default function useLoans() {
   /**
    * Eliminar un pago específico del array pagos_realizados
    */
-  const deletePayment = async (loanId, paymentIndex) => {
+  const deletePayment = async (loanId: string, paymentIndex: number): Promise<LoanDB> => {
     if (!session?.user?.id) {
       throw new Error('Usuario no autenticado');
     }
@@ -610,10 +758,11 @@ export default function useLoans() {
       // Refrescar la lista
       await fetchLoans();
 
-      return data;
+      return data as LoanDB;
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
       logger.error('Error deleting payment:', err);
-      setError(err.message);
+      setError(errorMessage);
       throw err;
     }
   };

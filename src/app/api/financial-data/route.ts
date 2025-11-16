@@ -1,11 +1,39 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { createServerClient } from '@/lib/supabase-server';
 import { logger } from '@/lib/logger';
 
+/**
+ * Types for Financial Data
+ */
+interface FinancialDataItem {
+  id?: string;
+  nombre: string;
+  monto: number;
+  categoria?: string;
+  fecha?: string;
+}
+
+interface MonthlyHistoryItem {
+  mes: string;
+  ingresos_total: number;
+  gastos_total: number;
+  ahorro: number;
+}
+
+interface PostRequestBody {
+  mesActual: string;
+  ingresos?: FinancialDataItem[];
+  gastosFijos?: FinancialDataItem[];
+  gastosVariables?: FinancialDataItem[];
+  deudas?: FinancialDataItem[];
+  objetivos?: FinancialDataItem[];
+  historial?: MonthlyHistoryItem[];
+}
+
 // GET - Obtener datos financieros del usuario
-export async function GET(request) {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
 
@@ -56,13 +84,14 @@ export async function GET(request) {
     });
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     logger.error('Error en GET /api/financial-data:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
 // POST - Guardar/Actualizar datos financieros del usuario
-export async function POST(request) {
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     const session = await getServerSession(authOptions);
 
@@ -70,7 +99,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    const body = await request.json();
+    const body = await request.json() as PostRequestBody;
     const { mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos, historial } = body;
 
     const supabase = await createServerClient();
@@ -120,7 +149,8 @@ export async function POST(request) {
     });
 
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
     logger.error('Error en POST /api/financial-data:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
