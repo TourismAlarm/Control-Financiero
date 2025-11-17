@@ -15,7 +15,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const mesActual = searchParams.get('mes') || new Date().toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
 
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Obtener datos financieros del mes actual
     const { data: financialData, error: financialError } = await supabase
@@ -72,7 +72,7 @@ export async function POST(request) {
     const body = await request.json();
     const { mesActual, ingresos, gastosFijos, gastosVariables, deudas, objetivos, historial } = body;
 
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
 
     // Guardar/Actualizar datos financieros
     const { data: financialData, error: financialError } = await supabase

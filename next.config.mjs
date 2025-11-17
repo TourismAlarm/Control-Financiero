@@ -4,6 +4,10 @@ import withPWA from 'next-pwa';
 const nextConfig = {
   /* config options here */
   reactStrictMode: true,
+  eslint: {
+    ignoreDuringBuilds: false,
+    dirs: ['src', 'app', 'components', 'lib', 'hooks']
+  },
 };
 
 const pwaConfig = withPWA({
