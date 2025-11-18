@@ -46,13 +46,15 @@ function CategoryForm({ type, category, onSuccess, onCancel }: CategoryFormProps
           name: category.name,
           type: category.type,
           icon: category.icon || '',
-          color: category.color || '#3B82F6',
+          color: category.color || '#6B7280',
+          is_system: category.is_system || false,
         }
       : {
           name: '',
           type,
           icon: '',
-          color: '#3B82F6',
+          color: '#6B7280',
+          is_system: false,
         },
   });
 
