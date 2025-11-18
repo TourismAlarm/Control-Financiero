@@ -20,7 +20,10 @@ import { categoryInsertSchema, type CategoryInsert } from '@/lib/validations/sch
  */
 
 // Client-side schema without user_id (added server-side from session)
-const categoryClientSchema = categoryInsertSchema.omit({ user_id: true });
+// Make is_system explicitly required for the form
+const categoryClientSchema = categoryInsertSchema.omit({ user_id: true, is_system: true }).extend({
+  is_system: z.boolean(),
+});
 
 type FormData = z.infer<typeof categoryClientSchema>;
 
