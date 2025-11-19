@@ -51,13 +51,13 @@ export interface FinancialSummary {
 
 export function useFinancialSummary(month?: string) {
   const { data: session } = useSession();
-  const { transactions, calculateTotals } = useTransactions(month);
-  const { accounts: _accounts, getTotalBalance } = useAccounts();
-  const { budgets, getTotalBudgeted } = useBudgets();
+  const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month);
+  const { accounts: _accounts, getTotalBalance, isLoading: accountsLoading } = useAccounts();
+  const { budgets, getTotalBudgeted, isLoading: budgetsLoading } = useBudgets();
 
   // Calculate financial summary
   const summary = useQuery<FinancialSummary>({
-    queryKey: ['financial-summary', session?.user?.id, month],
+    queryKey: ['financial-summary', session?.user?.id, month, transactions.length],
     queryFn: () => {
       // Calculate transaction totals
       const transactionTotals = calculateTotals();
@@ -104,7 +104,7 @@ export function useFinancialSummary(month?: string) {
         hasPositiveBalance,
       };
     },
-    enabled: !!session?.user?.id,
+    enabled: !!session?.user?.id && !transactionsLoading && !accountsLoading && !budgetsLoading,
     staleTime: 1 * 60 * 1000, // 1 minute
   });
 
@@ -224,7 +224,7 @@ export function useFinancialSummary(month?: string) {
   return {
     // Main summary data
     summary: summary.data,
-    isLoading: summary.isLoading,
+    isLoading: summary.isLoading || transactionsLoading || accountsLoading || budgetsLoading,
     error: summary.error,
     refetch: summary.refetch,
 
