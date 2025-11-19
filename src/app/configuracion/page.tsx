@@ -187,7 +187,7 @@ export default function ConfiguracionPage() {
                     Si cobras el día {formData.financial_month_start_day} de cada mes, tus transacciones se agruparán de forma que el dinero que cobras esté en el mes correcto.
                   </p>
                   <p className="text-xs text-blue-700 dark:text-blue-300">
-                    <strong>Ejemplo:</strong> Si cobras el 26, las transacciones del 26 Nov - 25 Dic se mostrarán como "Diciembre".
+                    <strong>Ejemplo:</strong> Si cobras el 26, las transacciones del 26 Nov - 25 Dic se mostrarán como &quot;Diciembre&quot;.
                   </p>
                 </div>
               </div>
