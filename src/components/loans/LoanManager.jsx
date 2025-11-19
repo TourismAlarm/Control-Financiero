@@ -49,9 +49,12 @@ export default function LoanManager({
 
   const statistics = getStatistics();
 
-  // Helper para asegurar que existan cuenta y categoría de deudas
+  // Helper para obtener cuenta y categoría de deudas
   const ensureAccountAndCategory = async () => {
+    // Buscar cuenta activa
     let account = accounts.find(a => a.is_active) || accounts[0];
+
+    // Buscar categoría de deudas (ahora es categoría por defecto)
     let debtCategory = categories.find(c =>
       c.type === 'expense' &&
       (c.name.toLowerCase().includes('deuda') ||
@@ -59,32 +62,20 @@ export default function LoanManager({
        c.name.toLowerCase().includes('prestamo'))
     );
 
-    // Si no hay cuenta, crear una por defecto
-    if (!account && accounts.length === 0) {
-      try {
-        account = await createAccount({
-          name: 'Cuenta Principal',
-          type: 'bank',
-          balance: 0,
-          currency: 'EUR',
-          is_active: true,
-        });
-      } catch (err) {
-        console.error('Error creating default account:', err);
-      }
+    // Si no hay cuenta, mostrar error específico
+    if (!account) {
+      throw new Error('No tienes ninguna cuenta registrada. Por favor, crea una cuenta primero en la sección de Cuentas.');
     }
 
-    // Si no hay categoría de deudas, crear una
+    // Si no hay categoría de deudas (no debería pasar con categorías por defecto)
     if (!debtCategory) {
-      try {
-        debtCategory = await createCategory({
-          name: 'Deudas y Préstamos',
-          type: 'expense',
-          icon: '💳',
-          color: '#ef4444',
-        });
-      } catch (err) {
-        console.error('Error creating debt category:', err);
+      // Usar "Otros Gastos" como fallback
+      debtCategory = categories.find(c =>
+        c.type === 'expense' && c.name.toLowerCase().includes('otros')
+      );
+
+      if (!debtCategory) {
+        throw new Error('No se encontró categoría de gastos. Por favor, recarga la página.');
       }
     }
 
@@ -103,23 +94,20 @@ export default function LoanManager({
       // Marcar el pago en la base de datos
       await markPaymentAsPaid(loanId);
 
-      // Asegurar que existan cuenta y categoría
+      // Obtener cuenta y categoría
       const { account, debtCategory } = await ensureAccountAndCategory();
 
-      if (account && debtCategory) {
-        await createTransactionAsync({
-          type: 'expense',
-          amount: loan.monthly_payment || loan.cuota_mensual,
-          description: `Cuota préstamo ${loan.name} #${(loan.paid_months || 0) + 1}`,
-          date: new Date().toISOString().split('T')[0],
-          account_id: account.id,
-          category_id: debtCategory.id,
-        });
+      // Crear transacción automática
+      await createTransactionAsync({
+        type: 'expense',
+        amount: loan.monthly_payment || loan.cuota_mensual,
+        description: `Cuota préstamo ${loan.name} #${(loan.paid_months || 0) + 1}`,
+        date: new Date().toISOString().split('T')[0],
+        account_id: account.id,
+        category_id: debtCategory.id,
+      });
 
-        alert('✅ Cuota marcada como pagada y registrada en transacciones');
-      } else {
-        alert('⚠️ Cuota marcada como pagada, pero no se pudo crear transacción automática');
-      }
+      alert('✅ Cuota marcada como pagada y registrada en transacciones');
     } catch (err) {
       console.error('Error marking payment:', err);
       alert('❌ Error al marcar el pago: ' + err.message);
@@ -139,23 +127,20 @@ export default function LoanManager({
       // Realizar amortización en la base de datos
       await makeExtraPayment(loanId, amount);
 
-      // Asegurar que existan cuenta y categoría
+      // Obtener cuenta y categoría
       const { account, debtCategory } = await ensureAccountAndCategory();
 
-      if (account && debtCategory) {
-        await createTransactionAsync({
-          type: 'expense',
-          amount: amount,
-          description: `Amortización anticipada ${loan.name}`,
-          date: new Date().toISOString().split('T')[0],
-          account_id: account.id,
-          category_id: debtCategory.id,
-        });
+      // Crear transacción automática
+      await createTransactionAsync({
+        type: 'expense',
+        amount: amount,
+        description: `Amortización anticipada ${loan.name}`,
+        date: new Date().toISOString().split('T')[0],
+        account_id: account.id,
+        category_id: debtCategory.id,
+      });
 
-        alert('✅ Amortización realizada y registrada en transacciones');
-      } else {
-        alert('⚠️ Amortización realizada, pero no se pudo crear transacción automática');
-      }
+      alert('✅ Amortización realizada y registrada en transacciones');
     } catch (err) {
       console.error('Error making extra payment:', err);
       alert('❌ Error al realizar amortización: ' + err.message);
