@@ -58,7 +58,7 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
     }
 
     if (!formData.start_date) {
-      newErrors.start_date = 'La fecha de inicio es requerida';
+      newErrors.start_date = 'La fecha de primera cuota es requerida';
     }
 
     setErrors(newErrors);
@@ -266,9 +266,9 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
             </div>
           </div>
 
-          {/* Fecha de inicio */}
+          {/* Fecha primera cuota */}
           <div>
-            <label className={labelClass}>Fecha de inicio *</label>
+            <label className={labelClass}>Fecha primera cuota *</label>
             <input
               type="date"
               value={formData.start_date}
@@ -277,7 +277,7 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
             />
             {errors.start_date && <p className={errorClass}>{errors.start_date}</p>}
             <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Fecha en que comenzó el préstamo
+              Fecha de vencimiento de la primera cuota (a mes vencido)
             </p>
           </div>
 

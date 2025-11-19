@@ -39,6 +39,8 @@ export default function LoanDetailView({
   const [filterStatus, setFilterStatus] = useState('all'); // all, paid, pending
   const [searchDate, setSearchDate] = useState('');
   const [showExtraPaymentModal, setShowExtraPaymentModal] = useState(false);
+  const [showMarkPaymentModal, setShowMarkPaymentModal] = useState(false);
+  const [markPaymentDate, setMarkPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [extraPaymentAmount, setExtraPaymentAmount] = useState('');
   const [editingPaymentIndex, setEditingPaymentIndex] = useState(null);
   const [editingPaymentDate, setEditingPaymentDate] = useState('');
@@ -275,7 +277,10 @@ export default function LoanDetailView({
             </div>
           </div>
           <button
-            onClick={() => onMarkPayment(loan.id)}
+            onClick={() => {
+              setMarkPaymentDate(new Date().toISOString().split('T')[0]);
+              setShowMarkPaymentModal(true);
+            }}
             disabled={loan.paid_months >= loan.total_months}
             className={`
               flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300
@@ -667,6 +672,84 @@ export default function LoanDetailView({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Marcar como Pagado */}
+      {showMarkPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className={`rounded-2xl p-6 max-w-md w-full shadow-2xl ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h3 className={`text-xl font-bold mb-4 ${darkMode ? 'text-white' : 'text-gray-900'}`}>
+              Marcar Cuota como Pagada
+            </h3>
+
+            <div className="mb-4 space-y-4">
+              <div>
+                <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  Cuota #{loan.paid_months + 1} - <strong className={darkMode ? 'text-white' : 'text-gray-900'}>{formatCurrency(loan.monthly_payment)}</strong>
+                </p>
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Fecha de pago
+                </label>
+                <input
+                  type="date"
+                  value={markPaymentDate}
+                  onChange={(e) => setMarkPaymentDate(e.target.value)}
+                  className={`
+                    w-full px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4
+                    ${darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-blue-500/20'
+                    }
+                  `}
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    if (onMarkPayment) {
+                      await onMarkPayment(loan.id, markPaymentDate);
+                      setShowMarkPaymentModal(false);
+                    }
+                  } catch (err) {
+                    // El error ya se maneja en el handler
+                  }
+                }}
+                disabled={!markPaymentDate}
+                className={`
+                  flex-1 py-3 rounded-xl font-semibold transition-all duration-300
+                  ${!markPaymentDate
+                    ? 'bg-gray-400 cursor-not-allowed text-white'
+                    : darkMode
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-blue-500 hover:bg-blue-600 text-white'
+                  }
+                `}
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => {
+                  setShowMarkPaymentModal(false);
+                }}
+                className={`
+                  flex-1 py-3 rounded-xl font-semibold transition-all duration-300
+                  ${darkMode
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-900'
+                  }
+                `}
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         </div>
       )}
