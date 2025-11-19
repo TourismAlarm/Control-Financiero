@@ -7,10 +7,12 @@ import {
   type TransactionInsert,
   type TransactionUpdate,
 } from '@/lib/validations/schemas';
+import { getFinancialMonthRange, isDateInFinancialMonth } from '@/lib/financialMonth';
 
 /**
  * Custom hook for managing transactions using API routes
  * All operations go through /api/transactions with NextAuth session validation
+ * Supports custom financial months based on user's payday
  */
 
 const QUERY_KEY = 'transactions';
@@ -24,22 +26,33 @@ export const formatCurrency = (amount: number | string): string => {
   }).format(Number(amount));
 };
 
-export function useTransactions(month?: string) {
+export function useTransactions(month?: string, financialMonthStartDay: number = 1) {
   const { data: session, status } = useSession();
   const queryClient = useQueryClient();
 
   // Fetch transactions query
   const {
-    data: transactions = [],
+    data: allTransactions = [],
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: [QUERY_KEY, session?.user?.id, month],
+    queryKey: [QUERY_KEY, session?.user?.id, month, financialMonthStartDay],
     queryFn: async () => {
       const params = new URLSearchParams();
 
-      if (month) {
+      // For custom financial months (startDay != 1), we need to fetch a wider range
+      // to ensure we get all transactions in the financial month period
+      if (month && financialMonthStartDay !== 1) {
+        // Get transactions from 2 months before to 1 month after to ensure coverage
+        const [year, monthNum] = month.split('-').map(Number);
+        const startMonth = monthNum === 1 ? 12 : monthNum - 1;
+        const startYear = monthNum === 1 ? year - 1 : year;
+
+        // Fetch without month/year params to get all transactions
+        // We'll filter on the client side
+      } else if (month) {
+        // Standard calendar month
         const [year, monthNum] = month.split('-');
         if (year && monthNum) {
           params.append('month', monthNum);
@@ -60,6 +73,12 @@ export function useTransactions(month?: string) {
     enabled: status === 'authenticated' && !!session?.user?.id,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Filter transactions by financial month if custom start day is set
+  const transactions =
+    month && financialMonthStartDay !== 1
+      ? allTransactions.filter((t) => isDateInFinancialMonth(t.date, month, financialMonthStartDay))
+      : allTransactions;
 
   // Create transaction mutation
   const {

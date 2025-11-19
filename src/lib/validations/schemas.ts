@@ -361,6 +361,14 @@ export const profileSchema = z.object({
   full_name: z.string().max(200).nullable().optional(),
   avatar_url: z.string().url().nullable().optional(),
   currency: z.string().default('EUR'),
+  financial_month_start_day: z
+    .number()
+    .int()
+    .min(1)
+    .max(28)
+    .default(1)
+    .optional(),
+  onboarding_completed: z.boolean().default(false).optional(),
   created_at: z.string().or(z.date()).optional(),
   updated_at: z.string().or(z.date()).optional(),
 });
