@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase/client';
-import { profileSchema, type Profile, type ProfileUpdate } from '@/lib/validations/schemas';
+import { profileSchema, type ProfileUpdate } from '@/lib/validations/schemas';
 
 /**
  * Custom hook for managing user profile with TanStack Query
@@ -51,6 +51,7 @@ export function useProfile() {
 
       const { data, error } = await supabase
         .from('profiles')
+        // @ts-expect-error - Supabase type inference issue with profiles table
         .update(updates)
         .eq('id', session.user.id)
         .select()

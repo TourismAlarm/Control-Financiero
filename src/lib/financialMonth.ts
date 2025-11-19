@@ -23,27 +23,31 @@ export function getFinancialMonthRange(monthString: string, startDay: number = 1
 } {
   // If startDay is 1, use standard calendar month
   if (startDay === 1) {
-    const [year, month] = monthString.split('-').map(Number);
+    const parts = monthString.split('-').map(Number);
+    const year = parts[0] as number;
+    const month = parts[1] as number;
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0); // Last day of month
 
     return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      startDate: startDate.toISOString().split('T')[0]!,
+      endDate: endDate.toISOString().split('T')[0]!,
       displayLabel: monthString,
     };
   }
 
   // Custom financial month
-  const [year, month] = monthString.split('-').map(Number);
+  const parts = monthString.split('-').map(Number);
+  const year = parts[0] as number;
+  const month = parts[1] as number;
 
   // Financial month starts on startDay of PREVIOUS month
   // and ends on (startDay - 1) of CURRENT month
   const startDate = new Date(year, month - 2, startDay); // Previous month
   const endDate = new Date(year, month - 1, startDay - 1); // Current month
 
-  const startDateStr = startDate.toISOString().split('T')[0];
-  const endDateStr = endDate.toISOString().split('T')[0];
+  const startDateStr = startDate.toISOString().split('T')[0]!;
+  const endDateStr = endDate.toISOString().split('T')[0]!;
 
   // Format display label like "Nov 26 - Dic 25"
   const startMonthName = startDate.toLocaleString('es-ES', { month: 'short' });
@@ -91,10 +95,11 @@ export function getCurrentFinancialMonth(startDay: number = 1): string {
  */
 export function getRecentFinancialMonths(count: number = 12, startDay: number = 1): string[] {
   const months: string[] = [];
-  const today = new Date();
   const currentFinancialMonth = getCurrentFinancialMonth(startDay);
 
-  let [year, month] = currentFinancialMonth.split('-').map(Number);
+  const parts = currentFinancialMonth.split('-').map(Number);
+  let year = parts[0] as number;
+  let month = parts[1] as number;
 
   for (let i = 0; i < count; i++) {
     months.push(`${year}-${String(month).padStart(2, '0')}`);
@@ -117,7 +122,9 @@ export function getRecentFinancialMonths(count: number = 12, startDay: number = 
  * @returns Formatted string like "Diciembre 2024" or "Nov 26 - Dic 25, 2024"
  */
 export function formatFinancialMonth(monthString: string, startDay: number = 1): string {
-  const [year, month] = monthString.split('-').map(Number);
+  const parts = monthString.split('-').map(Number);
+  const year = parts[0] as number;
+  const month = parts[1] as number;
 
   if (startDay === 1) {
     // Standard month format

@@ -7,7 +7,7 @@ import {
   type TransactionInsert,
   type TransactionUpdate,
 } from '@/lib/validations/schemas';
-import { getFinancialMonthRange, isDateInFinancialMonth } from '@/lib/financialMonth';
+import { isDateInFinancialMonth } from '@/lib/financialMonth';
 
 /**
  * Custom hook for managing transactions using API routes
@@ -41,16 +41,10 @@ export function useTransactions(month?: string, financialMonthStartDay: number =
     queryFn: async () => {
       const params = new URLSearchParams();
 
-      // For custom financial months (startDay != 1), we need to fetch a wider range
-      // to ensure we get all transactions in the financial month period
+      // For custom financial months (startDay != 1), we fetch all transactions
+      // and filter on the client side to handle cross-month periods
       if (month && financialMonthStartDay !== 1) {
-        // Get transactions from 2 months before to 1 month after to ensure coverage
-        const [year, monthNum] = month.split('-').map(Number);
-        const startMonth = monthNum === 1 ? 12 : monthNum - 1;
-        const startYear = monthNum === 1 ? year - 1 : year;
-
-        // Fetch without month/year params to get all transactions
-        // We'll filter on the client side
+        // Don't add month/year params - fetch all and filter client-side
       } else if (month) {
         // Standard calendar month
         const [year, monthNum] = month.split('-');
@@ -77,7 +71,7 @@ export function useTransactions(month?: string, financialMonthStartDay: number =
   // Filter transactions by financial month if custom start day is set
   const transactions =
     month && financialMonthStartDay !== 1
-      ? allTransactions.filter((t) => isDateInFinancialMonth(t.date, month, financialMonthStartDay))
+      ? allTransactions.filter((t: Transaction) => t.date && isDateInFinancialMonth(t.date, month, financialMonthStartDay))
       : allTransactions;
 
   // Create transaction mutation
