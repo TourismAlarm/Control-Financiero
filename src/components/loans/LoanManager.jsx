@@ -83,7 +83,7 @@ export default function LoanManager({
   };
 
   // Handler para marcar pago que también crea un gasto
-  const handleMarkPayment = async (loanId) => {
+  const handleMarkPayment = async (loanId, paymentDate = null) => {
     try {
       // Encontrar el préstamo
       const loan = loans.find(l => l.id === loanId);
@@ -97,12 +97,15 @@ export default function LoanManager({
       // Obtener cuenta y categoría
       const { account, debtCategory } = await ensureAccountAndCategory();
 
+      // Usar la fecha proporcionada o la fecha actual
+      const transactionDate = paymentDate || new Date().toISOString().split('T')[0];
+
       // Crear transacción automática
       await createTransactionAsync({
         type: 'expense',
         amount: loan.monthly_payment || loan.cuota_mensual,
         description: `Cuota préstamo ${loan.name} #${(loan.paid_months || 0) + 1}`,
-        date: new Date().toISOString().split('T')[0],
+        date: transactionDate,
         account_id: account.id,
         category_id: debtCategory.id,
       });
