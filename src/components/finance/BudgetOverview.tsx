@@ -30,7 +30,8 @@ interface BudgetOverviewProps {
 
 export function BudgetOverview({ selectedMonth: initialMonth, financialMonthStartDay = 1 }: BudgetOverviewProps = {}) {
   // financialMonthStartDay is available for future use when budgets need to align with custom financial months
-  console.log('BudgetOverview - Financial month start day:', financialMonthStartDay);
+  // Using void to satisfy TypeScript/ESLint that the parameter is intentionally unused for now
+  void financialMonthStartDay;
 
   const {
     budgets,

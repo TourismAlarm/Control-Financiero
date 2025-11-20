@@ -13,6 +13,7 @@ interface Transaction {
 
 interface PatternDetectorProps {
   transactions: Transaction[];
+  financialMonthStartDay?: number;
 }
 
 interface Pattern {
@@ -23,7 +24,10 @@ interface Pattern {
   metric?: string;
 }
 
-export function PatternDetector({ transactions }: PatternDetectorProps) {
+export function PatternDetector({ transactions, financialMonthStartDay = 1 }: PatternDetectorProps) {
+  // financialMonthStartDay received for potential future pattern analysis based on financial months
+  void financialMonthStartDay;
+
   const patterns: Pattern[] = [];
 
   if (transactions.length < 10) {

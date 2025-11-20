@@ -12,6 +12,7 @@ interface Transaction {
 interface CategoryDistributionProps {
   transactions: Transaction[];
   type?: 'income' | 'expense';
+  financialMonthStartDay?: number;
 }
 
 const COLORS = [
@@ -27,7 +28,10 @@ const COLORS = [
   '#14b8a6', // teal
 ];
 
-export function CategoryDistribution({ transactions, type = 'expense' }: CategoryDistributionProps) {
+export function CategoryDistribution({ transactions, type = 'expense', financialMonthStartDay = 1 }: CategoryDistributionProps) {
+  // financialMonthStartDay received but not used here as transactions are already filtered by parent
+  void financialMonthStartDay;
+
   // Filtrar por tipo y agrupar por categoría
   const categoryData = transactions
     .filter(t => t.type === type)

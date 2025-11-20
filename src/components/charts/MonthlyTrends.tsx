@@ -1,6 +1,7 @@
 'use client';
 
 import { Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, ComposedChart } from 'recharts';
+import { getRecentFinancialMonths, isDateInFinancialMonth } from '@/lib/financialMonth';
 
 interface Transaction {
   id: string;
@@ -12,29 +13,36 @@ interface Transaction {
 interface MonthlyTrendsProps {
   transactions: Transaction[];
   months?: number; // Número de meses a mostrar
+  financialMonthStartDay?: number;
 }
 
-export function MonthlyTrends({ transactions, months = 12 }: MonthlyTrendsProps) {
-  // Agrupar por mes
-  const monthlyData = transactions.reduce((acc, transaction) => {
-    const date = new Date(transaction.date);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+export function MonthlyTrends({ transactions, months = 12, financialMonthStartDay = 1 }: MonthlyTrendsProps) {
+  // Get recent financial months based on start day
+  const recentMonths = getRecentFinancialMonths(months, financialMonthStartDay);
 
-    if (!acc[monthKey]) {
-      acc[monthKey] = {
-        month: monthKey,
-        ingresos: 0,
-        gastos: 0,
-        balance: 0,
-        ahorroAcumulado: 0
-      };
-    }
+  // Agrupar por mes financiero
+  const monthlyData = recentMonths.reduce((acc, monthKey) => {
+    acc[monthKey] = {
+      month: monthKey,
+      ingresos: 0,
+      gastos: 0,
+      balance: 0,
+      ahorroAcumulado: 0
+    };
 
-    if (transaction.type === 'income') {
-      acc[monthKey].ingresos += transaction.amount;
-    } else {
-      acc[monthKey].gastos += Math.abs(transaction.amount);
-    }
+    // Filter transactions for this financial month
+    transactions.forEach(transaction => {
+      if (transaction.date && isDateInFinancialMonth(transaction.date, monthKey, financialMonthStartDay)) {
+        const monthData = acc[monthKey];
+        if (monthData) {
+          if (transaction.type === 'income') {
+            monthData.ingresos += transaction.amount;
+          } else {
+            monthData.gastos += Math.abs(transaction.amount);
+          }
+        }
+      }
+    });
 
     return acc;
   }, {} as Record<string, { month: string; ingresos: number; gastos: number; balance: number; ahorroAcumulado: number }>);

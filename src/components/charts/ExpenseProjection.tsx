@@ -13,6 +13,7 @@ interface Transaction {
 interface ExpenseProjectionProps {
   transactions: Transaction[];
   projectionMonths?: number;
+  financialMonthStartDay?: number;
 }
 
 // Regresión lineal simple
@@ -31,7 +32,11 @@ function linearRegression(values: number[]): { slope: number; intercept: number 
   return { slope, intercept };
 }
 
-export function ExpenseProjection({ transactions, projectionMonths = 3 }: ExpenseProjectionProps) {
+export function ExpenseProjection({ transactions, projectionMonths = 3, financialMonthStartDay = 1 }: ExpenseProjectionProps) {
+  // Note: For projection purposes, we use simplified month grouping
+  // A more sophisticated version would use financial month ranges
+  void financialMonthStartDay;
+
   // Agrupar por mes
   const monthlyData = transactions.reduce((acc, transaction) => {
     const date = new Date(transaction.date);

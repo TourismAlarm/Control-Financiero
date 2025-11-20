@@ -1,6 +1,7 @@
 'use client';
 
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { getRecentFinancialMonths, isDateInFinancialMonth } from '@/lib/financialMonth';
 
 interface Transaction {
   id: string;
@@ -12,30 +13,35 @@ interface Transaction {
 
 interface IncomeVsExpensesProps {
   transactions: Transaction[];
+  financialMonthStartDay?: number;
 }
 
-export function IncomeVsExpenses({ transactions }: IncomeVsExpensesProps) {
-  // Agrupar por mes
-  const monthlyData = transactions.reduce((acc, transaction) => {
-    const date = new Date(transaction.date);
-    const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+export function IncomeVsExpenses({ transactions, financialMonthStartDay = 1 }: IncomeVsExpensesProps) {
+  // Get recent 6 financial months
+  const recentMonths = getRecentFinancialMonths(6, financialMonthStartDay);
 
-    if (!acc[monthKey]) {
-      acc[monthKey] = {
-        month: monthKey,
-        ingresos: 0,
-        gastos: 0,
-        balance: 0
-      };
-    }
+  // Agrupar por mes financiero
+  const monthlyData = recentMonths.reduce((acc, monthKey) => {
+    acc[monthKey] = {
+      month: monthKey,
+      ingresos: 0,
+      gastos: 0,
+      balance: 0
+    };
 
-    if (transaction.type === 'income') {
-      acc[monthKey].ingresos += transaction.amount;
-    } else {
-      acc[monthKey].gastos += Math.abs(transaction.amount);
-    }
-
-    acc[monthKey].balance = acc[monthKey].ingresos - acc[monthKey].gastos;
+    // Filter transactions for this financial month
+    transactions.forEach(transaction => {
+      if (transaction.date && isDateInFinancialMonth(transaction.date, monthKey, financialMonthStartDay)) {
+        const monthData = acc[monthKey];
+        if (monthData) {
+          if (transaction.type === 'income') {
+            monthData.ingresos += transaction.amount;
+          } else {
+            monthData.gastos += Math.abs(transaction.amount);
+          }
+        }
+      }
+    });
 
     return acc;
   }, {} as Record<string, { month: string; ingresos: number; gastos: number; balance: number }>);
@@ -43,7 +49,6 @@ export function IncomeVsExpenses({ transactions }: IncomeVsExpensesProps) {
   // Convertir a array y ordenar por mes
   const chartData = Object.values(monthlyData)
     .sort((a, b) => a.month.localeCompare(b.month))
-    .slice(-6) // Últimos 6 meses
     .map(item => ({
       ...item,
       monthLabel: new Date(item.month + '-01').toLocaleDateString('es-ES', { month: 'short', year: '2-digit' })

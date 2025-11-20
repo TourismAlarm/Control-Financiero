@@ -348,22 +348,22 @@ export function Statistics({ selectedMonth: initialMonth, financialMonthStartDay
       {/* Interactive Charts */}
       <div className="space-y-6">
         {/* Income vs Expenses Chart */}
-        <IncomeVsExpenses transactions={allTransactions} />
+        <IncomeVsExpenses transactions={allTransactions} financialMonthStartDay={financialMonthStartDay} />
 
         {/* Category Distribution Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <CategoryDistribution transactions={allTransactions} type="expense" />
-          <CategoryDistribution transactions={allTransactions} type="income" />
+          <CategoryDistribution transactions={allTransactions} type="expense" financialMonthStartDay={financialMonthStartDay} />
+          <CategoryDistribution transactions={allTransactions} type="income" financialMonthStartDay={financialMonthStartDay} />
         </div>
 
         {/* Monthly Trends */}
-        <MonthlyTrends transactions={allTransactions} months={12} />
+        <MonthlyTrends transactions={allTransactions} months={12} financialMonthStartDay={financialMonthStartDay} />
 
         {/* Expense Projection */}
-        <ExpenseProjection transactions={allTransactions} projectionMonths={3} />
+        <ExpenseProjection transactions={allTransactions} projectionMonths={3} financialMonthStartDay={financialMonthStartDay} />
 
         {/* Pattern Detector */}
-        <PatternDetector transactions={allTransactions} />
+        <PatternDetector transactions={allTransactions} financialMonthStartDay={financialMonthStartDay} />
       </div>
     </div>
   );
