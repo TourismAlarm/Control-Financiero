@@ -73,6 +73,7 @@ export function useSavingsGoals() {
           ...validated,
           target_amount: targetDecimal.toNumber(),
           current_amount: currentDecimal.toNumber(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .select()
         .single();
@@ -99,6 +100,7 @@ export function useSavingsGoals() {
 
       const validated = savingsGoalUpdateSchema.parse(goal);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateData: any = { ...validated };
       if (validated.target_amount !== undefined) {
         const targetDecimal = toDecimal(validated.target_amount);

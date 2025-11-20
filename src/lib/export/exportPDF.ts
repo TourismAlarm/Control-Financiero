@@ -88,6 +88,7 @@ export async function exportMonthlyReportToPDF(
   });
 
   // Pie de página
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pageCount = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);

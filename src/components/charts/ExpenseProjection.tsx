@@ -83,7 +83,17 @@ export function ExpenseProjection({ transactions, projectionMonths = 3, financia
   const incomeRegression = linearRegression(incomeValues);
 
   // Generar proyecciones
-  const projectedData: any[] = [...historicalData.map((d) => ({
+  interface ProjectionDataPoint {
+    month: string;
+    monthLabel: string;
+    gastosReales: number | null;
+    ingresosReales: number | null;
+    gastosProyectados: number | null;
+    ingresosProyectados: number | null;
+    isProjection: boolean;
+  }
+
+  const projectedData: ProjectionDataPoint[] = [...historicalData.map((d) => ({
     month: d.month,
     monthLabel: new Date(d.month + '-01').toLocaleDateString('es-ES', { month: 'short', year: '2-digit' }),
     gastosReales: d.gastos,

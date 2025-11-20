@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function exportToJSON(data: any, fileName?: string) {
   const jsonString = JSON.stringify(data, null, 2);
   const blob = new Blob([jsonString], { type: 'application/json' });
@@ -13,6 +14,7 @@ export function exportToJSON(data: any, fileName?: string) {
   URL.revokeObjectURL(url);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function exportFullBackup(transactions: any[], accounts: any[], categories: any[]) {
   const backup = {
     version: '1.0',

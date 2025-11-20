@@ -44,6 +44,7 @@ export function useAccounts() {
       }
 
       const data = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return data.map((item: any) => accountSchema.parse(item));
     },
     enabled: status === 'authenticated' && !!session?.user?.id,

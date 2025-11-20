@@ -8,7 +8,6 @@ import {
   calculateNextPaymentDate,
   calculateProgress,
   calculateTotalInterestPaid,
-  calculateMonthlyPayment,
 } from '@/lib/loanCalculations';
 
 /**

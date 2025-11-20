@@ -18,6 +18,7 @@ interface PatternDetectorProps {
 
 interface Pattern {
   type: 'warning' | 'info' | 'success';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   title: string;
   description: string;
@@ -125,8 +126,8 @@ export function PatternDetector({ transactions, financialMonthStartDay = 1 }: Pa
   });
 
   const recurringPatterns = Object.entries(descriptionGroups)
-    .filter(([_, trans]) => trans.length >= 3)
-    .map(([_, trans]) => ({
+    .filter(([, trans]) => trans.length >= 3)
+    .map(([, trans]) => ({
       description: trans[0]?.description || 'Sin descripción',
       count: trans.length,
       avgAmount: trans.reduce((sum, t) => sum + Math.abs(t.amount), 0) / trans.length

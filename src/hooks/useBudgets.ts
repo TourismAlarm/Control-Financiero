@@ -84,6 +84,7 @@ export function useBudgets(month?: number, year?: number) {
 
       const { data, error } = await supabase
         .from('budgets')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .insert(insertData as any)
         .select()
         .single();
@@ -109,6 +110,7 @@ export function useBudgets(month?: number, year?: number) {
 
       const validated = budgetUpdateSchema.parse(budget);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateData: any = { ...validated };
       if (validated.amount !== undefined) {
         const amountDecimal = toDecimal(validated.amount);
@@ -227,7 +229,9 @@ export function useBudgets(month?: number, year?: number) {
 
   // Check if budget is over limit (requires actual spending data)
   // Returns false by default - component should calculate actual spending
-  const isOverBudget = (_budgetId: string) => {
+  const isOverBudget = (budgetId: string) => {
+    // budgetId parameter reserved for future implementation
+    void budgetId;
     return false; // Component should calculate this using useTransactions
   };
 

@@ -80,7 +80,6 @@ export function CSVImporter() {
   const [customTemplateName, setCustomTemplateName] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<BankTemplate[]>([]);
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload');
-  const [_importStats, setImportStats] = useState({ total: 0, imported: 0, duplicates: 0, errors: 0 });
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -222,6 +221,7 @@ export function CSVImporter() {
     // Obtener transacciones existentes para detectar duplicados
     const response = await fetch('/api/transactions');
     const existingTransactions = await response.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const existingIds = new Set(existingTransactions.map((t: any) => t.external_id).filter(Boolean));
 
     const parsed: ParsedTransaction[] = csvData.map(row => {
@@ -281,13 +281,6 @@ export function CSVImporter() {
         errors++;
       }
     }
-
-    setImportStats({
-      total: parsedTransactions.length,
-      imported,
-      duplicates,
-      errors
-    });
 
     alert(`Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`);
     resetImport();

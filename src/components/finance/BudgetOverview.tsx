@@ -61,6 +61,7 @@ export function BudgetOverview({ selectedMonth: initialMonth, financialMonthStar
     formState: { errors },
     reset,
   } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(budgetInsertSchema) as any,
     defaultValues: editingBudget || {
       category_id: '',
@@ -85,6 +86,7 @@ export function BudgetOverview({ selectedMonth: initialMonth, financialMonthStar
 
       if (editingBudget?.id) {
         console.log('🎯 BudgetOverview - Actualizando presupuesto:', editingBudget.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         updateBudget({ ...submitData, id: editingBudget.id } as any, {
           onSuccess: () => {
             console.log('✅ BudgetOverview - Presupuesto actualizado exitosamente');
@@ -93,13 +95,14 @@ export function BudgetOverview({ selectedMonth: initialMonth, financialMonthStar
             setIsFormOpen(false);
             setEditingBudget(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ BudgetOverview - Error al actualizar:', error);
             alert(`Error al actualizar el presupuesto: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
         console.log('🎯 BudgetOverview - Creando nuevo presupuesto');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         createBudget(submitData as any, {
           onSuccess: () => {
             console.log('✅ BudgetOverview - Presupuesto creado exitosamente');
@@ -108,15 +111,16 @@ export function BudgetOverview({ selectedMonth: initialMonth, financialMonthStar
             setIsFormOpen(false);
             setEditingBudget(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ BudgetOverview - Error al crear:', error);
             alert(`Error al crear el presupuesto: ${error.message || 'Error desconocido'}`);
           }
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ BudgetOverview - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert(`Error: ${errorMessage}`);
     }
   });
 

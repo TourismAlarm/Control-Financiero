@@ -62,6 +62,7 @@ export function useTransactions(month?: string, financialMonthStartDay: number =
       }
 
       const data = await res.json();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return data.map((item: any) => transactionSchema.parse(item));
     },
     enabled: status === 'authenticated' && !!session?.user?.id,

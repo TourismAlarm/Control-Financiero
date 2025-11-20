@@ -52,7 +52,7 @@ export interface FinancialSummary {
 export function useFinancialSummary(month?: string, financialMonthStartDay: number = 1) {
   const { data: session } = useSession();
   const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month, financialMonthStartDay);
-  const { accounts: _accounts, getTotalBalance, isLoading: accountsLoading } = useAccounts();
+  const { getTotalBalance, isLoading: accountsLoading } = useAccounts();
   const { budgets, getTotalBudgeted, isLoading: budgetsLoading } = useBudgets();
 
   // Calculate financial summary
@@ -144,7 +144,9 @@ export function useFinancialSummary(month?: string, financialMonthStartDay: numb
   };
 
   // Get spending trend (comparing to previous periods)
-  const getSpendingTrend = (_periods: number = 6) => {
+  const getSpendingTrend = (periods: number = 6) => {
+    // periods parameter reserved for future implementation
+    void periods;
     // This would require historical data analysis
     // For now, return empty array - to be implemented with historical data
     return [];

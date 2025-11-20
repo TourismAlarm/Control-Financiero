@@ -72,7 +72,16 @@ export function CategoryDistribution({ transactions, type = 'expense', financial
     );
   }
 
-  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) => {
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: {
+    cx?: number;
+    cy?: number;
+    midAngle?: number;
+    innerRadius?: number;
+    outerRadius?: number;
+    percent?: number;
+  }) => {
+    // Guard against undefined values
+    if (!cx || !cy || midAngle === undefined || !innerRadius || !outerRadius || !percent) return null;
     if (percent < 0.05) return null; // No mostrar etiquetas muy pequeñas
 
     const RADIAN = Math.PI / 180;
@@ -131,6 +140,7 @@ export function CategoryDistribution({ transactions, type = 'expense', financial
             layout="vertical"
             align="right"
             verticalAlign="middle"
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             formatter={(value, entry: any) => {
               const percentage = ((entry.payload.value / total) * 100).toFixed(1);
               return `${value} (${percentage}%)`;

@@ -81,6 +81,7 @@ export function useRecurringRules() {
         .insert({
           ...validated,
           amount: amountDecimal.toNumber(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } as any)
         .select()
         .single();
@@ -107,6 +108,7 @@ export function useRecurringRules() {
 
       const validated = recurringRuleUpdateSchema.parse(rule);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const updateData: any = { ...validated };
       if (validated.amount !== undefined) {
         const amountDecimal = toDecimal(validated.amount);

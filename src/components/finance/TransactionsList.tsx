@@ -259,7 +259,7 @@ export function TransactionsList({
             <label className="block text-sm font-medium mb-1">Tipo</label>
             <select
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value as any)}
+              onChange={(e) => setFilterType(e.target.value as 'income' | 'expense' | 'all')}
               className="px-3 py-2 border rounded-lg"
             >
               <option value="all">Todos</option>
@@ -273,7 +273,7 @@ export function TransactionsList({
             <label className="block text-sm font-medium mb-1">Ordenar por</label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'date' | 'amount')}
               className="px-3 py-2 border rounded-lg"
             >
               <option value="date">Fecha</option>
@@ -286,7 +286,7 @@ export function TransactionsList({
             <label className="block text-sm font-medium mb-1">Orden</label>
             <select
               value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as any)}
+              onChange={(e) => setSortOrder(e.target.value as 'asc' | 'desc')}
               className="px-3 py-2 border rounded-lg"
             >
               <option value="desc">Descendente</option>
