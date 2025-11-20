@@ -47,9 +47,10 @@ export async function GET(request: NextRequest) {
     const validated = data.map((item) => transactionSchema.parse(item));
 
     return NextResponse.json(validated);
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ GET /api/transactions unexpected error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -83,9 +84,10 @@ export async function POST(request: NextRequest) {
 
     const result = transactionSchema.parse(data);
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ POST /api/transactions unexpected error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -133,9 +135,10 @@ export async function PUT(request: NextRequest) {
 
     const result = transactionSchema.parse(data);
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ PUT /api/transactions unexpected error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -167,9 +170,10 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     console.error('❌ DELETE /api/transactions unexpected error:', error);
-    return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 

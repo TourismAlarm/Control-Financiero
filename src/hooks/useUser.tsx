@@ -10,15 +10,23 @@ import { useRouter } from 'next/navigation';
  * Provides authentication state and methods throughout the app
  */
 
+interface AuthError {
+  error: Error | null;
+}
+
+interface UserMetadata {
+  [key: string]: unknown;
+}
+
 interface UserContextType {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (email: string, password: string, metadata?: any) => Promise<{ error: any }>;
+  signIn: (email: string, password: string) => Promise<AuthError>;
+  signUp: (email: string, password: string, metadata?: UserMetadata) => Promise<AuthError>;
   signOut: () => Promise<void>;
-  resetPassword: (email: string) => Promise<{ error: any }>;
-  updatePassword: (newPassword: string) => Promise<{ error: any }>;
+  resetPassword: (email: string) => Promise<AuthError>;
+  updatePassword: (newPassword: string) => Promise<AuthError>;
   refreshSession: () => Promise<void>;
 }
 
@@ -74,11 +82,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       });
       return { error };
     } catch (error) {
-      return { error };
+      return { error: error as Error };
     }
   };
 
-  const signUp = async (email: string, password: string, metadata?: any) => {
+  const signUp = async (email: string, password: string, metadata?: UserMetadata) => {
     try {
       const { error } = await supabase.auth.signUp({
         email,
@@ -90,7 +98,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       });
       return { error };
     } catch (error) {
-      return { error };
+      return { error: error as Error };
     }
   };
 
@@ -106,7 +114,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       });
       return { error };
     } catch (error) {
-      return { error };
+      return { error: error as Error };
     }
   };
 
@@ -117,7 +125,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       });
       return { error };
     } catch (error) {
-      return { error };
+      return { error: error as Error };
     }
   };
 

@@ -70,6 +70,7 @@ export function AccountsManager() {
     formState: { errors },
     reset,
   } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(accountClientSchema) as any,
     defaultValues: editingAccount || {
       name: '',
@@ -98,6 +99,7 @@ export function AccountsManager() {
 
       if (editingAccount?.id) {
         console.log('💳 AccountsManager - Actualizando cuenta:', editingAccount.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         updateAccount({ ...submitData, id: editingAccount.id } as any, {
           onSuccess: () => {
             console.log('✅ AccountsManager - Cuenta actualizada exitosamente');
@@ -106,13 +108,14 @@ export function AccountsManager() {
             setIsFormOpen(false);
             setEditingAccount(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ AccountsManager - Error al actualizar:', error);
             alert(`Error al actualizar la cuenta: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
         console.log('💳 AccountsManager - Creando nueva cuenta');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         createAccount(submitData as any, {
           onSuccess: () => {
             console.log('✅ AccountsManager - Cuenta creada exitosamente');
@@ -121,20 +124,21 @@ export function AccountsManager() {
             setIsFormOpen(false);
             setEditingAccount(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ AccountsManager - Error al crear:', error);
             alert(`Error al crear la cuenta: ${error.message || 'Error desconocido'}`);
           }
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ AccountsManager - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert(`Error: ${errorMessage}`);
     }
   },
   (errors) => {
     console.error('❌ FORMULARIO INVÁLIDO - Errores de validación:', errors);
-    alert('Por favor corrige los errores en el formulario:\n' + Object.entries(errors).map(([field, error]: [string, any]) => `- ${field}: ${error.message}`).join('\n'));
+    alert('Por favor corrige los errores en el formulario:\n' + Object.entries(errors).map(([field, error]) => `- ${field}: ${(error as {message?: string}).message || 'Error'}`).join('\n'));
   });
 
   const handleEdit = (account: Account) => {

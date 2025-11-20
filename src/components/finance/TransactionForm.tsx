@@ -57,6 +57,7 @@ export function TransactionForm({
     formState: { errors },
     reset,
   } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(transactionClientSchema) as any,
     defaultValues: transaction ? {
       ...transaction,
@@ -66,7 +67,7 @@ export function TransactionForm({
       tags: transaction.tags ?? undefined,
     } : {
       type,
-      amount: '' as any,
+      amount: '',
       description: '',
       date: new Date().toISOString().split('T')[0],
       account_id: accountId || '',
@@ -92,6 +93,7 @@ export function TransactionForm({
         // Update existing transaction
         console.log('💸 TransactionForm - Actualizando transacción:', transaction.id);
         updateTransaction(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           { ...submitData, id: transaction.id } as any,
           {
             onSuccess: () => {
@@ -100,7 +102,7 @@ export function TransactionForm({
               reset();
               onSuccess?.();
             },
-            onError: (error) => {
+            onError: (error: Error) => {
               console.error('❌ TransactionForm - Error al actualizar:', error);
               toast(`Error al actualizar: ${error.message}`, 'error');
             },
@@ -109,6 +111,7 @@ export function TransactionForm({
       } else {
         // Create new transaction
         console.log('💸 TransactionForm - Creando nueva transacción');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         createTransaction(submitData as any, {
           onSuccess: () => {
             console.log('✅ TransactionForm - Transacción creada exitosamente');
@@ -116,15 +119,16 @@ export function TransactionForm({
             reset();
             onSuccess?.();
           },
-          onError: (error) => {
+          onError: (error: Error) => {
             console.error('❌ TransactionForm - Error al crear:', error);
             toast(`Error al crear: ${error.message}`, 'error');
           },
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ TransactionForm - Error en onSubmit:', error);
-      toast(`Error: ${error.message || 'Error desconocido'}`, 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      toast(`Error: ${errorMessage}`, 'error');
     }
   });
 

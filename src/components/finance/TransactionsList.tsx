@@ -6,7 +6,7 @@ import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
 import { useToast } from '@/hooks/use-toast';
 import { TransactionForm } from './TransactionForm';
 import type { Transaction } from '@/lib/validations/schemas';
-// @ts-ignore - JS module
+// useLoans is a JS module without type definitions
 import useLoans from '@/hooks/useLoans';
 import {
   detectLoanTransaction,
@@ -14,8 +14,27 @@ import {
   findPaymentIndexByAmountAndDate,
   getLoanDeletionWarning,
   canBeSyncedWithLoan,
-  // @ts-ignore - JS module
+// loanSync is a JS module without type definitions
 } from '@/lib/loanSync';
+
+// Types for loan-related data (from JS modules)
+interface LoanPayment {
+  numero_pago: number;
+  monto: number;
+  fecha: string;
+}
+
+interface Loan {
+  id: string;
+  name: string;
+  pagos_realizados?: LoanPayment[];
+}
+
+interface LoanInfo {
+  type: 'cuota' | 'initial';
+  loanName: string;
+  paymentNumber?: number;
+}
 
 /**
  * Transactions List Component
@@ -86,11 +105,11 @@ export function TransactionsList({
       const isLoanRelated = canBeSyncedWithLoan(transaction);
 
       if (isLoanRelated) {
-        const loanInfo = detectLoanTransaction(transaction);
+        const loanInfo = detectLoanTransaction(transaction) as LoanInfo | null;
 
         if (loanInfo) {
           // Encontrar el préstamo correspondiente
-          const relatedLoan = findLoanByName(loans, (loanInfo as any).loanName);
+          const relatedLoan = findLoanByName(loans, loanInfo.loanName) as Loan | null;
 
           if (relatedLoan) {
             // Generar mensaje de advertencia personalizado
@@ -106,10 +125,10 @@ export function TransactionsList({
                     let paymentIndex = -1;
 
                     // Buscar el índice del pago
-                    if ((loanInfo as any).type === 'cuota' && (loanInfo as any).paymentNumber) {
+                    if (loanInfo.type === 'cuota' && loanInfo.paymentNumber) {
                       // Buscar por número de pago primero
-                      paymentIndex = (relatedLoan as any).pagos_realizados?.findIndex(
-                        (p: any) => p.numero_pago === (loanInfo as any).paymentNumber
+                      paymentIndex = relatedLoan.pagos_realizados?.findIndex(
+                        (p: LoanPayment) => p.numero_pago === loanInfo.paymentNumber
                       ) ?? -1;
                     }
 
@@ -124,7 +143,7 @@ export function TransactionsList({
 
                     // Si se encontró el pago, eliminarlo
                     if (paymentIndex >= 0) {
-                      await deletePayment((relatedLoan as any).id, paymentIndex);
+                      await deletePayment(relatedLoan.id, paymentIndex);
                       toast('✅ Transacción y pago del préstamo eliminados correctamente', 'success');
                     } else {
                       toast('⚠️ Transacción eliminada, pero no se encontró el pago correspondiente en el préstamo', 'success');
@@ -134,7 +153,7 @@ export function TransactionsList({
                     toast('⚠️ Transacción eliminada, pero hubo un error al eliminar el pago del préstamo', 'success');
                   }
                 },
-                onError: (error) => {
+                onError: (error: Error) => {
                   toast(`Error al eliminar: ${error.message}`, 'error');
                 },
               });
@@ -150,7 +169,7 @@ export function TransactionsList({
           onSuccess: () => {
             toast('Transacción eliminada correctamente', 'success');
           },
-          onError: (error) => {
+          onError: (error: Error) => {
             toast(`Error al eliminar: ${error.message}`, 'error');
           },
         });
