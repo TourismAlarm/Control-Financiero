@@ -30,6 +30,7 @@ import { ExportManager } from '@/components/finance/ExportManager';
 import LoanManager from '@/components/loans/LoanManager';
 import { ConnectionStatus } from '@/components/offline/ConnectionStatus';
 import { InstallPrompt } from '@/components/offline/InstallPrompt';
+import { useProfile } from '@/hooks/useProfile';
 
 type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'loans' | 'statistics' | 'import' | 'export';
 
@@ -51,11 +52,15 @@ export default function Home() {
 
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { getFinancialMonthStartDay } = useProfile();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+
+  // Get the financial month start day from profile
+  const financialMonthStartDay = getFinancialMonthStartDay();
 
   console.log('🔵 PAGE.TSX - Status:', status)
   console.log('🔵 PAGE.TSX - Session:', session)
@@ -149,8 +154,8 @@ export default function Home() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && <FinancialDashboard month={selectedMonth} />}
-        {activeTab === 'transactions' && <TransactionsList type="all" month={selectedMonth} />}
+        {activeTab === 'dashboard' && <FinancialDashboard month={selectedMonth} financialMonthStartDay={financialMonthStartDay} />}
+        {activeTab === 'transactions' && <TransactionsList type="all" month={selectedMonth} financialMonthStartDay={financialMonthStartDay} />}
         {activeTab === 'accounts' && <AccountsManager />}
         {activeTab === 'budgets' && <BudgetOverview />}
         {activeTab === 'recurring' && <RecurringTransactions />}

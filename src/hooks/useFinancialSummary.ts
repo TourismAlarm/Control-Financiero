@@ -49,15 +49,15 @@ export interface FinancialSummary {
   };
 }
 
-export function useFinancialSummary(month?: string) {
+export function useFinancialSummary(month?: string, financialMonthStartDay: number = 1) {
   const { data: session } = useSession();
-  const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month);
+  const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month, financialMonthStartDay);
   const { accounts: _accounts, getTotalBalance, isLoading: accountsLoading } = useAccounts();
   const { budgets, getTotalBudgeted, isLoading: budgetsLoading } = useBudgets();
 
   // Calculate financial summary
   const summary = useQuery<FinancialSummary>({
-    queryKey: ['financial-summary', session?.user?.id, month, transactions.length],
+    queryKey: ['financial-summary', session?.user?.id, month, financialMonthStartDay, transactions.length],
     queryFn: () => {
       // Calculate transaction totals
       const transactionTotals = calculateTotals();

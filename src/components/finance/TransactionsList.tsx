@@ -28,6 +28,7 @@ interface TransactionsListProps {
   onEdit?: (transaction: Transaction) => void;
   limit?: number;
   showFilters?: boolean;
+  financialMonthStartDay?: number;
 }
 
 export function TransactionsList({
@@ -36,6 +37,7 @@ export function TransactionsList({
   onEdit,
   limit,
   showFilters = true,
+  financialMonthStartDay = 1,
 }: TransactionsListProps) {
   const {
     transactions,
@@ -43,7 +45,7 @@ export function TransactionsList({
     deleteTransaction,
     isDeleting,
     calculateTotals,
-  } = useTransactions(month);
+  } = useTransactions(month, financialMonthStartDay);
   const { toast } = useToast();
   const { loans, deletePayment } = useLoans();
 
