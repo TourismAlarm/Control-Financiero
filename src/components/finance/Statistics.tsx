@@ -29,17 +29,23 @@ import { PatternDetector } from '@/components/charts/PatternDetector';
  * Future enhancement: Add Chart.js or Recharts for visual graphs
  */
 
-export function Statistics() {
+interface StatisticsProps {
+  selectedMonth?: string;
+  financialMonthStartDay?: number;
+}
+
+export function Statistics({ selectedMonth: initialMonth, financialMonthStartDay = 1 }: StatisticsProps = {}) {
   const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (initialMonth) return initialMonth;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const { calculateTotals } = useTransactions(selectedMonth);
-  const { transactions: allTransactions = [] } = useTransactions(); // Para los gráficos de tendencias
+  const { calculateTotals } = useTransactions(selectedMonth, financialMonthStartDay);
+  const { transactions: allTransactions = [] } = useTransactions(undefined, financialMonthStartDay); // Para los gráficos de tendencias
   const { getTotalBalance, getBalanceByType } = useAccounts();
   const { summary, getCategoryBreakdown: getSummaryCategoryBreakdown, getHealthScore } =
-    useFinancialSummary(selectedMonth);
+    useFinancialSummary(selectedMonth, financialMonthStartDay);
   const { getTotalSavings } = useSavingsGoals();
   const { calculateMonthlyImpact } = useRecurringRules();
 

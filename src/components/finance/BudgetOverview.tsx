@@ -23,7 +23,15 @@ import { budgetInsertSchema, type BudgetInsert, type Budget } from '@/lib/valida
 
 type FormData = Omit<BudgetInsert, 'amount'> & { amount: string | number };
 
-export function BudgetOverview() {
+interface BudgetOverviewProps {
+  selectedMonth?: string;
+  financialMonthStartDay?: number;
+}
+
+export function BudgetOverview({ selectedMonth: initialMonth, financialMonthStartDay = 1 }: BudgetOverviewProps = {}) {
+  // financialMonthStartDay is available for future use when budgets need to align with custom financial months
+  console.log('BudgetOverview - Financial month start day:', financialMonthStartDay);
+
   const {
     budgets,
     isLoading,
@@ -41,6 +49,7 @@ export function BudgetOverview() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(() => {
+    if (initialMonth) return initialMonth;
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });

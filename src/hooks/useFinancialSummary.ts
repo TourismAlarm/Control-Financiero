@@ -49,9 +49,9 @@ export interface FinancialSummary {
   };
 }
 
-export function useFinancialSummary(month?: string) {
+export function useFinancialSummary(month?: string, financialMonthStartDay: number = 1) {
   const { data: session } = useSession();
-  const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month);
+  const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month, financialMonthStartDay);
   const { accounts: _accounts, getTotalBalance, isLoading: accountsLoading } = useAccounts();
   const { budgets, getTotalBudgeted, isLoading: budgetsLoading } = useBudgets();
 

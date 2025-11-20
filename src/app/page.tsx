@@ -30,6 +30,8 @@ import { ExportManager } from '@/components/finance/ExportManager';
 import LoanManager from '@/components/loans/LoanManager';
 import { ConnectionStatus } from '@/components/offline/ConnectionStatus';
 import { InstallPrompt } from '@/components/offline/InstallPrompt';
+import { useProfile } from '@/hooks/useProfile';
+import { formatFinancialMonth, getCurrentFinancialMonth } from '@/lib/financialMonth';
 
 type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'loans' | 'statistics' | 'import' | 'export';
 
@@ -51,14 +53,20 @@ export default function Home() {
 
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { profile, isLoading: profileLoading } = useProfile();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
+
+  // Get financial month start day from profile (default to 1)
+  const financialMonthStartDay = profile?.financial_month_start_day ?? 1;
+
+  // Initialize selected month based on financial month
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return getCurrentFinancialMonth(financialMonthStartDay);
   });
 
   console.log('🔵 PAGE.TSX - Status:', status)
   console.log('🔵 PAGE.TSX - Session:', session)
+  console.log('🔵 PAGE.TSX - Financial Month Start Day:', financialMonthStartDay)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -67,7 +75,7 @@ export default function Home() {
     }
   }, [status, router]);
 
-  if (status === 'loading') {
+  if (status === 'loading' || profileLoading) {
     console.log('🟡 PAGE.TSX - Mostrando pantalla de carga')
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -97,12 +105,19 @@ export default function Home() {
               <p className="text-sm text-gray-600">Bienvenido, {session.user?.name || session.user?.email}</p>
             </div>
             <div className="flex items-center gap-4">
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+              <div className="flex flex-col items-end">
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                {financialMonthStartDay !== 1 && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formatFinancialMonth(selectedMonth, financialMonthStartDay)}
+                  </p>
+                )}
+              </div>
               <button
                 onClick={() => router.push('/configuracion')}
                 className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
@@ -149,14 +164,35 @@ export default function Home() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {activeTab === 'dashboard' && <FinancialDashboard month={selectedMonth} />}
-        {activeTab === 'transactions' && <TransactionsList type="all" month={selectedMonth} />}
+        {activeTab === 'dashboard' && (
+          <FinancialDashboard
+            month={selectedMonth}
+            financialMonthStartDay={financialMonthStartDay}
+          />
+        )}
+        {activeTab === 'transactions' && (
+          <TransactionsList
+            type="all"
+            month={selectedMonth}
+            financialMonthStartDay={financialMonthStartDay}
+          />
+        )}
         {activeTab === 'accounts' && <AccountsManager />}
-        {activeTab === 'budgets' && <BudgetOverview />}
+        {activeTab === 'budgets' && (
+          <BudgetOverview
+            selectedMonth={selectedMonth}
+            financialMonthStartDay={financialMonthStartDay}
+          />
+        )}
         {activeTab === 'recurring' && <RecurringTransactions />}
         {activeTab === 'savings' && <SavingsGoals />}
         {activeTab === 'loans' && <LoanManager />}
-        {activeTab === 'statistics' && <Statistics />}
+        {activeTab === 'statistics' && (
+          <Statistics
+            selectedMonth={selectedMonth}
+            financialMonthStartDay={financialMonthStartDay}
+          />
+        )}
         {activeTab === 'import' && <CSVImporter />}
         {activeTab === 'export' && <ExportManager />}
       </main>
