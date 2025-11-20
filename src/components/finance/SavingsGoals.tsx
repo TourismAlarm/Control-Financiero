@@ -62,6 +62,7 @@ export function SavingsGoals() {
     formState: { errors },
     reset,
   } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(savingsGoalInsertSchema) as any,
     defaultValues: editingGoal || {
       name: '',
@@ -98,6 +99,7 @@ export function SavingsGoals() {
 
       if (editingGoal?.id) {
         console.log('💰 SavingsGoals - Actualizando meta:', editingGoal.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         updateSavingsGoal({ ...submitData, id: editingGoal.id } as any, {
           onSuccess: () => {
             console.log('✅ SavingsGoals - Meta actualizada exitosamente');
@@ -106,13 +108,14 @@ export function SavingsGoals() {
             setIsFormOpen(false);
             setEditingGoal(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ SavingsGoals - Error al actualizar:', error);
             alert(`Error al actualizar la meta: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
         console.log('💰 SavingsGoals - Creando nueva meta');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         createSavingsGoal(submitData as any, {
           onSuccess: () => {
             console.log('✅ SavingsGoals - Meta creada exitosamente');
@@ -121,15 +124,16 @@ export function SavingsGoals() {
             setIsFormOpen(false);
             setEditingGoal(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ SavingsGoals - Error al crear:', error);
             alert(`Error al crear la meta: ${error.message || 'Error desconocido'}`);
           }
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ SavingsGoals - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert(`Error: ${errorMessage}`);
     }
   });
 
@@ -146,14 +150,15 @@ export function SavingsGoals() {
           resetAddMoney();
           setAddingToGoalId(null);
         },
-        onError: (error: any) => {
+        onError: (error: Error) => {
           console.error('❌ SavingsGoals - Error al añadir dinero:', error);
           alert(`Error al añadir dinero: ${error.message || 'Error desconocido'}`);
         }
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ SavingsGoals - Error en onAddMoney:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert(`Error: ${errorMessage}`);
     }
   });
 

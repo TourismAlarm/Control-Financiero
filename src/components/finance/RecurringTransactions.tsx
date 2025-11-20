@@ -58,6 +58,7 @@ export function RecurringTransactions() {
     formState: { errors },
     reset,
   } = useForm<FormData>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(recurringRuleInsertSchema) as any,
     defaultValues: editingRule || {
       type: 'expense',
@@ -86,6 +87,7 @@ export function RecurringTransactions() {
 
       if (editingRule?.id) {
         console.log('📝 RecurringTransactions - Actualizando regla:', editingRule.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         updateRecurringRule({ ...submitData, id: editingRule.id } as any, {
           onSuccess: () => {
             console.log('✅ RecurringTransactions - Regla actualizada exitosamente');
@@ -94,13 +96,14 @@ export function RecurringTransactions() {
             setIsFormOpen(false);
             setEditingRule(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ RecurringTransactions - Error al actualizar:', error);
             alert(`Error al actualizar la regla: ${error.message || 'Error desconocido'}`);
           }
         });
       } else {
         console.log('📝 RecurringTransactions - Creando nueva regla');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         createRecurringRule(submitData as any, {
           onSuccess: () => {
             console.log('✅ RecurringTransactions - Regla creada exitosamente');
@@ -109,15 +112,16 @@ export function RecurringTransactions() {
             setIsFormOpen(false);
             setEditingRule(null);
           },
-          onError: (error: any) => {
+          onError: (error: Error) => {
             console.error('❌ RecurringTransactions - Error al crear:', error);
             alert(`Error al crear la regla: ${error.message || 'Error desconocido'}`);
           }
         });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ RecurringTransactions - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      alert(`Error: ${errorMessage}`);
     }
   });
 
