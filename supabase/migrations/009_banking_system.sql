@@ -51,8 +51,8 @@ CREATE TABLE IF NOT EXISTS imported_transactions (
   reviewed BOOLEAN DEFAULT false,
   ignored BOOLEAN DEFAULT false,
 
-  -- Relación con expense
-  expense_id UUID REFERENCES expenses ON DELETE SET NULL,
+  -- Relación con transaction creada
+  transaction_created_id UUID REFERENCES transactions ON DELETE SET NULL,
 
   -- Datos originales por si acaso
   raw_data JSONB,
@@ -101,7 +101,7 @@ CREATE INDEX idx_imported_transactions_bank ON imported_transactions(bank_connec
 CREATE INDEX idx_imported_transactions_fecha ON imported_transactions(fecha DESC);
 CREATE INDEX idx_imported_transactions_reviewed ON imported_transactions(reviewed) WHERE reviewed = false;
 CREATE INDEX idx_imported_transactions_ignored ON imported_transactions(ignored) WHERE ignored = false;
-CREATE INDEX idx_imported_transactions_expense ON imported_transactions(expense_id);
+CREATE INDEX idx_imported_transactions_txn_created ON imported_transactions(transaction_created_id);
 
 CREATE INDEX idx_sync_history_user ON sync_history(user_id);
 CREATE INDEX idx_sync_history_bank ON sync_history(bank_connection_id);

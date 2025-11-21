@@ -30,7 +30,7 @@ export interface ImportedTransaction {
   es_ingreso: boolean;
   reviewed: boolean;
   ignored: boolean;
-  expense_id?: string;
+  transaction_created_id?: string;
   raw_data?: any;
   created_at: string;
 }

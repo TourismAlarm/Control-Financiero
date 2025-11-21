@@ -18,69 +18,80 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing transaction_id' }, { status: 400 });
     }
 
-    // Obtener la transacción
-    const { data: transaction, error: txnError } = await supabase
+    // Obtener la transacción importada
+    const { data: importedTxn, error: txnError } = await supabase
       .from('imported_transactions')
       .select('*')
       .eq('id', transaction_id)
       .eq('user_id', user.id)
       .single();
 
-    if (txnError || !transaction) {
+    if (txnError || !importedTxn) {
       console.error('Transaction not found:', txnError);
       return NextResponse.json({ error: 'Transacción no encontrada' }, { status: 404 });
     }
 
-    // Verificar que no sea ingreso
-    if (transaction.es_ingreso) {
-      return NextResponse.json({ error: 'No se pueden crear gastos de ingresos' }, { status: 400 });
+    // Verificar que no tenga ya una transacción asociada
+    if (importedTxn.transaction_created_id) {
+      return NextResponse.json({ error: 'Esta transacción ya tiene un registro asociado' }, { status: 400 });
     }
 
-    // Verificar que no tenga ya un expense asociado
-    if (transaction.expense_id) {
-      return NextResponse.json({ error: 'Esta transacción ya tiene un gasto asociado' }, { status: 400 });
+    // Buscar la categoría correspondiente o usar una por defecto
+    let categoryId = null;
+    if (importedTxn.categoria) {
+      const { data: category } = await supabase
+        .from('categories')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('name', importedTxn.categoria)
+        .eq('type', importedTxn.es_ingreso ? 'income' : 'expense')
+        .single();
+
+      if (category) {
+        categoryId = category.id;
+      }
     }
 
-    // Crear el gasto en la tabla expenses
-    const { data: expense, error: expenseError } = await supabase
-      .from('expenses')
+    // Crear la transacción en la tabla transactions
+    const { data: newTransaction, error: createError } = await supabase
+      .from('transactions')
       .insert({
         user_id: user.id,
-        fecha: transaction.fecha,
-        concepto: transaction.concepto,
-        monto: transaction.monto,
-        categoria: transaction.categoria || 'Otros',
-        tipo: 'variable',
-        source: 'bank_import'
+        category_id: categoryId,
+        type: importedTxn.es_ingreso ? 'income' : 'expense',
+        amount: importedTxn.monto,
+        description: importedTxn.concepto,
+        date: importedTxn.fecha,
+        notes: `Importado desde ${importedTxn.source_type}`
       })
       .select()
       .single();
 
-    if (expenseError || !expense) {
-      console.error('Error creating expense:', expenseError);
-      return NextResponse.json({ error: 'Error al crear gasto' }, { status: 500 });
+    if (createError || !newTransaction) {
+      console.error('Error creating transaction:', createError);
+      return NextResponse.json({ error: 'Error al crear transacción' }, { status: 500 });
     }
 
-    // Vincular el expense a la transacción
+    // Vincular la transacción creada a la importada
     const { error: linkError } = await supabase
       .from('imported_transactions')
       .update({
-        expense_id: expense.id,
+        transaction_created_id: newTransaction.id,
         reviewed: true
       })
       .eq('id', transaction_id)
       .eq('user_id', user.id);
 
     if (linkError) {
-      console.error('Error linking expense:', linkError);
-      // Intentar eliminar el expense creado
-      await supabase.from('expenses').delete().eq('id', expense.id);
-      return NextResponse.json({ error: 'Error al vincular gasto' }, { status: 500 });
+      console.error('Error linking transaction:', linkError);
+      // Intentar eliminar la transacción creada
+      await supabase.from('transactions').delete().eq('id', newTransaction.id);
+      return NextResponse.json({ error: 'Error al vincular transacción' }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      expense_id: expense.id
+      transaction_id: newTransaction.id
     });
 
   } catch (error) {
