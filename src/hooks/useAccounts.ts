@@ -20,7 +20,8 @@ const toDecimal = (value: number | string): Decimal => new Decimal(value);
 export const formatCurrency = (amount: number, currency = 'EUR'): string => {
   const symbols: Record<string, string> = { EUR: '€', USD: '$', GBP: '£' };
   const symbol = symbols[currency] || currency;
-  return `${symbol}${Math.abs(amount).toFixed(2)}`;
+  const isNegative = amount < 0;
+  return `${isNegative ? '-' : ''}${symbol}${Math.abs(amount).toFixed(2)}`;
 };
 
 export function useAccounts() {
