@@ -11,11 +11,21 @@ import { z } from 'zod';
 
 export const transactionTypeSchema = z.enum(['income', 'expense']);
 
+// Category info embedded in transaction (from JOIN)
+export const transactionCategorySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  type: z.enum(['income', 'expense']).optional(),
+  icon: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+}).nullable().optional();
+
 export const transactionSchema = z.object({
   id: z.string().or(z.number()).optional(),
   user_id: z.string().optional(), // Google ID (not UUID)
   account_id: z.string().uuid().nullable().optional(),
   category_id: z.string().uuid().nullable().optional(),
+  category: transactionCategorySchema, // Embedded category from JOIN
   type: transactionTypeSchema,
   amount: z
     .number()
@@ -35,11 +45,12 @@ export const transactionSchema = z.object({
 
 export const transactionInsertSchema = transactionSchema.omit({
   id: true,
+  category: true, // Category comes from JOIN, not inserted
   created_at: true,
   updated_at: true,
 });
 
-export const transactionUpdateSchema = transactionSchema.partial().required({ id: true });
+export const transactionUpdateSchema = transactionSchema.omit({ category: true }).partial().required({ id: true });
 
 // ==========================================
 // ACCOUNT SCHEMAS

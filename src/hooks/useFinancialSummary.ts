@@ -4,6 +4,7 @@ import Decimal from 'decimal.js';
 import { useTransactions } from './useTransactions';
 import { useAccounts } from './useAccounts';
 import { useBudgets } from './useBudgets';
+import { useCategories } from './useCategories';
 import { formatCurrency } from './useTransactions';
 import type { Transaction } from '@/lib/validations/schemas';
 
@@ -54,6 +55,7 @@ export function useFinancialSummary(month?: string) {
   const { transactions, calculateTotals, isLoading: transactionsLoading } = useTransactions(month);
   const { accounts: _accounts, getTotalBalance, isLoading: accountsLoading } = useAccounts();
   const { budgets, getTotalBudgeted, isLoading: budgetsLoading } = useBudgets();
+  const { categories, isLoading: categoriesLoading } = useCategories();
 
   // Calculate financial summary
   const summary = useQuery<FinancialSummary>({
@@ -116,16 +118,26 @@ export function useFinancialSummary(month?: string) {
       return [];
     }
 
-    const categoryMap = new Map<string, { amount: Decimal; category: string }>();
+    // Create a map of category IDs to names
+    const categoryNameMap = new Map<string, string>();
+    categories.forEach((cat) => {
+      if (cat.id) {
+        categoryNameMap.set(cat.id, cat.name);
+      }
+    });
+
+    const categoryMap = new Map<string, { amount: Decimal; category: string; categoryId: string }>();
 
     transactions
       .filter((t: Transaction) => t.type === 'expense' && t.category_id)
       .forEach((t: Transaction) => {
         const categoryId = t.category_id!;
-        const current = categoryMap.get(categoryId) || { amount: new Decimal(0), category: categoryId };
+        const categoryName = categoryNameMap.get(categoryId) || 'Sin categoría';
+        const current = categoryMap.get(categoryId) || { amount: new Decimal(0), category: categoryName, categoryId };
         categoryMap.set(categoryId, {
           amount: current.amount.plus(toDecimal(t.amount)),
-          category: categoryId,
+          category: categoryName,
+          categoryId,
         });
       });
 
@@ -224,7 +236,7 @@ export function useFinancialSummary(month?: string) {
   return {
     // Main summary data
     summary: summary.data,
-    isLoading: summary.isLoading || transactionsLoading || accountsLoading || budgetsLoading,
+    isLoading: summary.isLoading || transactionsLoading || accountsLoading || budgetsLoading || categoriesLoading,
     error: summary.error,
     refetch: summary.refetch,
 

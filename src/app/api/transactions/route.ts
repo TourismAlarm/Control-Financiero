@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabaseAdmin
       .from('transactions')
-      .select('*')
+      .select('*, category:categories(id, name, type, icon, color)')
       .eq('user_id', session.user.id)
       .order('date', { ascending: false });
 
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabaseAdmin
       .from('transactions')
       .insert(validated)
-      .select()
+      .select('*, category:categories(id, name, type, icon, color)')
       .single();
 
     if (error) {
@@ -123,7 +123,7 @@ export async function PUT(request: NextRequest) {
       .update(updateData)
       .eq('id', id)
       .eq('user_id', session.user.id)
-      .select()
+      .select('*, category:categories(id, name, type, icon, color)')
       .single();
 
     if (error) {
