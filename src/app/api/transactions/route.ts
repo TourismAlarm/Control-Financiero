@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { transactionInsertSchema, transactionSchema } from '@/lib/validations/schemas';
+import { runAgentsAndSave } from '@/lib/agents/runner';
 
 // GET /api/transactions - Get all transactions for current user
 export async function GET(request: NextRequest) {
@@ -82,6 +83,14 @@ export async function POST(request: NextRequest) {
     }
 
     const result = transactionSchema.parse(data);
+
+    // Ejecutar agentes en background (sin bloquear la respuesta)
+    Promise.resolve().then(() => {
+      runAgentsAndSave(session.user.id).catch(err => {
+        console.error('❌ Error running agents in background:', err);
+      });
+    });
+
     return NextResponse.json(result, { status: 201 });
   } catch (error: any) {
     console.error('❌ POST /api/transactions unexpected error:', error);
@@ -132,6 +141,14 @@ export async function PUT(request: NextRequest) {
     }
 
     const result = transactionSchema.parse(data);
+
+    // Ejecutar agentes en background (sin bloquear la respuesta)
+    Promise.resolve().then(() => {
+      runAgentsAndSave(session.user.id).catch(err => {
+        console.error('❌ Error running agents in background:', err);
+      });
+    });
+
     return NextResponse.json(result);
   } catch (error: any) {
     console.error('❌ PUT /api/transactions unexpected error:', error);
@@ -165,6 +182,13 @@ export async function DELETE(request: NextRequest) {
       console.error('❌ DELETE /api/transactions error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Ejecutar agentes en background (sin bloquear la respuesta)
+    Promise.resolve().then(() => {
+      runAgentsAndSave(session.user.id).catch(err => {
+        console.error('❌ Error running agents in background:', err);
+      });
+    });
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

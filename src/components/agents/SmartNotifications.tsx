@@ -1,40 +1,85 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Bell, AlertTriangle, AlertCircle, TrendingUp, TrendingDown, Lightbulb, Calendar, X, ChevronRight, CheckCircle } from 'lucide-react';
+import { Bell, AlertTriangle, AlertCircle, TrendingUp, TrendingDown, Lightbulb, Calendar, X, ChevronRight, CheckCircle, Database } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useBudgets } from '@/hooks/useBudgets';
 import { useCategories } from '@/hooks/useCategories';
+import { useAgentNotifications } from '@/hooks/useAgentNotifications';
 import { generateSmartNotifications, getNotificationSummary, type SmartNotification } from '@/lib/agents/smartNotifications';
 
 interface SmartNotificationsProps {
   onNavigate?: (path: string) => void;
   maxVisible?: number;
+  showPersisted?: boolean; // Mostrar notificaciones de BD o calculadas en tiempo real
 }
 
-export function SmartNotifications({ onNavigate, maxVisible = 5 }: SmartNotificationsProps) {
+export function SmartNotifications({ onNavigate, maxVisible = 5, showPersisted = true }: SmartNotificationsProps) {
   const { transactions } = useTransactions();
   const { budgets } = useBudgets();
   const { categories } = useCategories();
+  const { notifications: persistedNotifications, dismissNotification } = useAgentNotifications();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const notifications = useMemo(() => {
+  // Notificaciones calculadas en tiempo real
+  const realtimeNotifications = useMemo(() => {
     if (transactions.length < 5) return [];
     return generateSmartNotifications(transactions, budgets, categories);
   }, [transactions, budgets, categories]);
 
+  // Convertir notificaciones de BD al formato de SmartNotification
+  const convertedPersistedNotifications = useMemo<SmartNotification[]>(() => {
+    if (!showPersisted) return [];
+    return persistedNotifications.map(n => ({
+      id: n.id,
+      type: n.type as any,
+      priority: n.priority,
+      title: n.title,
+      message: n.message,
+      actionable: n.data.actionable || false,
+      action: n.data.action,
+      createdAt: new Date(n.created_at),
+      category: n.data.category,
+      amount: n.data.amount,
+      isPersisted: true, // Flag para distinguir notificaciones persistidas
+    })) as SmartNotification[];
+  }, [persistedNotifications, showPersisted]);
+
+  // Combinar notificaciones: primero persistidas, luego tiempo real (evitando duplicados)
+  const allNotifications = useMemo(() => {
+    const persisted = convertedPersistedNotifications;
+    const realtime = realtimeNotifications;
+
+    // Crear un Set con los tipos de notificaciones persistidas para evitar duplicados
+    const persistedTypes = new Set(persisted.map(n => `${n.type}-${n.category || n.amount}`));
+
+    // Filtrar notificaciones en tiempo real que ya están persistidas
+    const uniqueRealtime = realtime.filter(n =>
+      !persistedTypes.has(`${n.type}-${n.category || n.amount}`)
+    );
+
+    return [...persisted, ...uniqueRealtime];
+  }, [convertedPersistedNotifications, realtimeNotifications]);
+
   const visibleNotifications = useMemo(() => {
-    return notifications
+    return allNotifications
       .filter(n => !dismissedIds.has(n.id))
       .slice(0, maxVisible);
-  }, [notifications, dismissedIds, maxVisible]);
+  }, [allNotifications, dismissedIds, maxVisible]);
 
   const summary = useMemo(() => getNotificationSummary(visibleNotifications), [visibleNotifications]);
 
-  const handleDismiss = (id: string, e: React.MouseEvent) => {
+  const handleDismiss = (id: string, e: React.MouseEvent, isPersisted?: boolean) => {
     e.stopPropagation();
-    setDismissedIds(prev => new Set([...prev, id]));
+
+    if (isPersisted) {
+      // Dismiss en BD
+      dismissNotification(id);
+    } else {
+      // Dismiss local
+      setDismissedIds(prev => new Set([...prev, id]));
+    }
   };
 
   const handleAction = (notification: SmartNotification) => {
@@ -175,12 +220,18 @@ export function SmartNotifications({ onNavigate, maxVisible = 5 }: SmartNotifica
                           <span className="text-xs px-2 py-0.5 rounded-full bg-white/50 text-gray-600">
                             {getTypeLabel(notification.type)}
                           </span>
+                          {(notification as any).isPersisted && (
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex items-center gap-1" title="Notificación persistente">
+                              <Database className="w-3 h-3" />
+                              Guardada
+                            </span>
+                          )}
                         </div>
                         <p className="text-sm text-gray-600 mt-1 line-clamp-2">{notification.message}</p>
                       </div>
                     </div>
                     <button
-                      onClick={(e) => handleDismiss(notification.id, e)}
+                      onClick={(e) => handleDismiss(notification.id, e, (notification as any).isPersisted)}
                       className="p-1 text-gray-400 hover:text-gray-600 hover:bg-white/50 rounded transition-colors"
                       title="Descartar"
                     >
@@ -229,9 +280,9 @@ export function SmartNotifications({ onNavigate, maxVisible = 5 }: SmartNotifica
       )}
 
       {/* Show more indicator */}
-      {notifications.length > maxVisible && (
+      {allNotifications.length > maxVisible && (
         <p className="text-xs text-gray-500 text-center mt-4">
-          +{notifications.length - maxVisible} notificación(es) más
+          +{allNotifications.length - maxVisible} notificación(es) más
         </p>
       )}
 
