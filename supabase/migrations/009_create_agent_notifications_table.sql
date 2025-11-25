@@ -8,7 +8,7 @@
 -- Create agent_notifications table
 CREATE TABLE IF NOT EXISTS agent_notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
   type TEXT NOT NULL,  -- 'budget_warning', 'budget_exceeded', 'spending_spike', 'anomaly', etc.
   priority TEXT NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
   title TEXT NOT NULL,
