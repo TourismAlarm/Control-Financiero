@@ -9,6 +9,7 @@ import {
   Calendar,
   PieChart,
   Activity,
+  Brain,
 } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -22,6 +23,11 @@ import { CategoryDistribution } from '@/components/charts/CategoryDistribution';
 import { MonthlyTrends } from '@/components/charts/MonthlyTrends';
 import { ExpenseProjection } from '@/components/charts/ExpenseProjection';
 import { PatternDetector } from '@/components/charts/PatternDetector';
+
+// Import intelligent agents
+import { BudgetRecommendations } from '@/components/agents/BudgetRecommendations';
+import { AnomalyDetector } from '@/components/agents/AnomalyDetector';
+import { SmartNotifications } from '@/components/agents/SmartNotifications';
 
 /**
  * Statistics Component
@@ -358,6 +364,29 @@ export function Statistics() {
 
         {/* Pattern Detector */}
         <PatternDetector transactions={allTransactions} />
+      </div>
+
+      {/* Intelligent Agents Section */}
+      <div className="mt-8">
+        <div className="flex items-center gap-2 mb-6">
+          <Brain className="w-6 h-6 text-purple-600" />
+          <h2 className="text-xl font-bold text-gray-900">Agentes Inteligentes</h2>
+        </div>
+        <p className="text-gray-600 mb-6">
+          Análisis automático basado en tus patrones de gasto y comportamiento financiero
+        </p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Smart Notifications */}
+          <SmartNotifications maxVisible={5} />
+
+          {/* Anomaly Detector */}
+          <AnomalyDetector />
+        </div>
+
+        {/* Budget Recommendations - Full Width */}
+        <div className="mt-6">
+          <BudgetRecommendations />
+        </div>
       </div>
     </div>
   );
