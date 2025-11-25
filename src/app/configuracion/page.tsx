@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useProfile } from '@/hooks/useProfile';
 import { useSession } from 'next-auth/react';
-import { Settings, Calendar, Globe, User, Save } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Settings, Calendar, Globe, User, Save, ArrowLeft } from 'lucide-react';
 
 export default function ConfiguracionPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const { profile, isLoading, updateProfile, isUpdating } = useProfile();
 
   const [formData, setFormData] = useState({
@@ -63,6 +65,15 @@ export default function ConfiguracionPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">
+          {/* Back Button */}
+          <button
+            onClick={() => router.push('/')}
+            className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-4 group"
+          >
+            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            <span className="font-medium">Volver al Dashboard</span>
+          </button>
+
           <div className="flex items-center gap-3 mb-2">
             <Settings className="text-blue-600 dark:text-blue-400" size={32} />
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
