@@ -14,7 +14,8 @@ import {
   Upload,
   Download,
   CreditCard,
-  Settings
+  Settings,
+  ArrowRightLeft
 } from 'lucide-react';
 
 // Import modular components
@@ -28,15 +29,17 @@ import { Statistics } from '@/components/finance/Statistics';
 import { CSVImporter } from '@/components/import/CSVImporter';
 import { ExportManager } from '@/components/finance/ExportManager';
 import LoanManager from '@/components/loans/LoanManager';
+import { TransferManager } from '@/components/finance/TransferManager';
 import { ConnectionStatus } from '@/components/offline/ConnectionStatus';
 import { InstallPrompt } from '@/components/offline/InstallPrompt';
 
-type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'loans' | 'statistics' | 'import' | 'export';
+type TabId = 'dashboard' | 'transactions' | 'accounts' | 'transfers' | 'budgets' | 'recurring' | 'savings' | 'loans' | 'statistics' | 'import' | 'export';
 
 const tabs = [
   { id: 'dashboard' as TabId, label: 'Dashboard', icon: LayoutDashboard },
   { id: 'transactions' as TabId, label: 'Transacciones', icon: Receipt },
   { id: 'accounts' as TabId, label: 'Cuentas', icon: Wallet },
+  { id: 'transfers' as TabId, label: 'Transferencias', icon: ArrowRightLeft },
   { id: 'budgets' as TabId, label: 'Presupuestos', icon: Target },
   { id: 'recurring' as TabId, label: 'Recurrentes', icon: Repeat },
   { id: 'savings' as TabId, label: 'Ahorros', icon: PiggyBank },
@@ -152,6 +155,7 @@ export default function Home() {
         {activeTab === 'dashboard' && <FinancialDashboard month={selectedMonth} />}
         {activeTab === 'transactions' && <TransactionsList type="all" month={selectedMonth} />}
         {activeTab === 'accounts' && <AccountsManager />}
+        {activeTab === 'transfers' && <TransferManager />}
         {activeTab === 'budgets' && <BudgetOverview />}
         {activeTab === 'recurring' && <RecurringTransactions />}
         {activeTab === 'savings' && <SavingsGoals />}
