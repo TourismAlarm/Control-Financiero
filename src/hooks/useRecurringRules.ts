@@ -1,11 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
 import Decimal from 'decimal.js';
 import {
   recurringRuleSchema,
-  recurringRuleInsertSchema,
-  recurringRuleUpdateSchema,
   type RecurringRule,
   type RecurringRuleInsert,
   type RecurringRuleUpdate,
@@ -13,8 +10,8 @@ import {
 import { formatCurrency } from './useTransactions';
 
 /**
- * Custom hook for managing recurring transaction rules with TanStack Query
- * Handles recurring rule CRUD operations
+ * Custom hook for managing recurring transaction rules using API routes
+ * All operations go through /api/recurring-rules with NextAuth session validation
  */
 
 const QUERY_KEY = 'recurring-rules';
@@ -31,9 +28,8 @@ const FREQUENCY_LABELS = {
 } as const;
 
 export function useRecurringRules() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const queryClient = useQueryClient();
-  const supabase = createClient();
 
   // Fetch recurring rules query
   const {
@@ -44,48 +40,39 @@ export function useRecurringRules() {
   } = useQuery({
     queryKey: [QUERY_KEY, session?.user?.id],
     queryFn: async () => {
-      if (!session?.user?.id) {
-        throw new Error('No user session');
+      const res = await fetch('/api/recurring-rules');
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to fetch recurring rules');
       }
 
-      const { data, error } = await supabase
-        .from('recurring_rules')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      return data.map((item) => recurringRuleSchema.parse(item));
+      const data = await res.json();
+      return data.map((item: any) => recurringRuleSchema.parse(item));
     },
-    enabled: !!session?.user?.id,
+    enabled: status === 'authenticated' && !!session?.user?.id,
     staleTime: 5 * 60 * 1000,
   });
 
   // Create recurring rule mutation
-  const createRecurringRule = useMutation({
+  const {
+    mutate: createRecurringRule,
+    mutateAsync: createRecurringRuleAsync,
+    isPending: isCreating,
+  } = useMutation({
     mutationFn: async (rule: RecurringRuleInsert) => {
-      if (!session?.user?.id) {
-        throw new Error('No user session');
-      }
-
-      const validated = recurringRuleInsertSchema.parse({
-        ...rule,
-        user_id: session.user.id,
+      const res = await fetch('/api/recurring-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rule),
       });
 
-      const amountDecimal = toDecimal(validated.amount);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to create recurring rule');
+      }
 
-      const { data, error } = await supabase
-        .from('recurring_rules')
-        .insert({
-          ...validated,
-          amount: amountDecimal.toNumber(),
-        } as any)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await res.json();
       return recurringRuleSchema.parse(data);
     },
     onSuccess: () => {
@@ -95,34 +82,24 @@ export function useRecurringRules() {
   });
 
   // Update recurring rule mutation
-  const updateRecurringRule = useMutation({
+  const {
+    mutate: updateRecurringRule,
+    mutateAsync: updateRecurringRuleAsync,
+    isPending: isUpdating,
+  } = useMutation({
     mutationFn: async (rule: RecurringRuleUpdate) => {
-      if (!session?.user?.id) {
-        throw new Error('No user session');
+      const res = await fetch('/api/recurring-rules', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rule),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to update recurring rule');
       }
 
-      if (!rule.id) {
-        throw new Error('Recurring rule ID is required');
-      }
-
-      const validated = recurringRuleUpdateSchema.parse(rule);
-
-      const updateData: any = { ...validated };
-      if (validated.amount !== undefined) {
-        const amountDecimal = toDecimal(validated.amount);
-        updateData.amount = amountDecimal.toNumber();
-      }
-
-      const { data, error } = await supabase
-        .from('recurring_rules')
-        // @ts-expect-error - Supabase type inference issue
-        .update(updateData)
-        .eq('id', validated.id)
-        .eq('user_id', session.user.id)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await res.json();
       return recurringRuleSchema.parse(data);
     },
     onSuccess: () => {
@@ -132,19 +109,21 @@ export function useRecurringRules() {
   });
 
   // Delete recurring rule mutation
-  const deleteRecurringRule = useMutation({
+  const {
+    mutate: deleteRecurringRule,
+    mutateAsync: deleteRecurringRuleAsync,
+    isPending: isDeleting,
+  } = useMutation({
     mutationFn: async (ruleId: string) => {
-      if (!session?.user?.id) {
-        throw new Error('No user session');
+      const res = await fetch(`/api/recurring-rules?id=${ruleId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to delete recurring rule');
       }
 
-      const { error } = await supabase
-        .from('recurring_rules')
-        .delete()
-        .eq('id', ruleId)
-        .eq('user_id', session.user.id);
-
-      if (error) throw error;
       return ruleId;
     },
     onSuccess: () => {
@@ -154,27 +133,22 @@ export function useRecurringRules() {
   });
 
   // Toggle active status
-  const toggleRecurringRule = useMutation({
+  const {
+    mutate: toggleRecurringRule,
+    mutateAsync: toggleRecurringRuleAsync,
+    isPending: isToggling,
+  } = useMutation({
     mutationFn: async (ruleId: string) => {
-      if (!session?.user?.id) {
-        throw new Error('No user session');
+      const res = await fetch(`/api/recurring-rules?id=${ruleId}&action=toggle`, {
+        method: 'PATCH',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to toggle recurring rule');
       }
 
-      const rule = recurringRules.find((r) => r.id === ruleId);
-      if (!rule) {
-        throw new Error('Recurring rule not found');
-      }
-
-      const { data, error } = await supabase
-        .from('recurring_rules')
-        // @ts-expect-error - Supabase type inference issue
-        .update({ is_active: !rule.is_active })
-        .eq('id', ruleId)
-        .eq('user_id', session.user.id)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await res.json();
       return recurringRuleSchema.parse(data);
     },
     onSuccess: () => {
@@ -267,16 +241,20 @@ export function useRecurringRules() {
     error,
 
     // Mutations
-    createRecurringRule: createRecurringRule.mutate,
-    updateRecurringRule: updateRecurringRule.mutate,
-    deleteRecurringRule: deleteRecurringRule.mutate,
-    toggleRecurringRule: toggleRecurringRule.mutate,
+    createRecurringRule,
+    createRecurringRuleAsync,
+    updateRecurringRule,
+    updateRecurringRuleAsync,
+    deleteRecurringRule,
+    deleteRecurringRuleAsync,
+    toggleRecurringRule,
+    toggleRecurringRuleAsync,
 
     // Mutation states
-    isCreating: createRecurringRule.isPending,
-    isUpdating: updateRecurringRule.isPending,
-    isDeleting: deleteRecurringRule.isPending,
-    isToggling: toggleRecurringRule.isPending,
+    isCreating,
+    isUpdating,
+    isDeleting,
+    isToggling,
 
     // Helpers
     refetch,
