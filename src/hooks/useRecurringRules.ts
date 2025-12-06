@@ -158,12 +158,12 @@ export function useRecurringRules() {
 
   // Get active recurring rules
   const getActiveRules = () => {
-    return recurringRules.filter((r) => r.is_active);
+    return recurringRules.filter((r: RecurringRule) => r.is_active);
   };
 
   // Get rules by type
   const getRulesByType = (type: RecurringRule['type']) => {
-    return recurringRules.filter((r) => r.type === type && r.is_active);
+    return recurringRules.filter((r: RecurringRule) => r.type === type && r.is_active);
   };
 
   // Get upcoming rules (next_occurrence within next 7 days)
@@ -172,7 +172,7 @@ export function useRecurringRules() {
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(today.getDate() + 7);
 
-    return recurringRules.filter((r) => {
+    return recurringRules.filter((r: RecurringRule) => {
       if (!r.is_active) return false;
       const nextOccurrence = new Date(r.next_occurrence);
       return nextOccurrence >= today && nextOccurrence <= sevenDaysFromNow;
@@ -184,16 +184,16 @@ export function useRecurringRules() {
     const activeRules = getActiveRules();
 
     const income = activeRules
-      .filter((r) => r.type === 'income')
-      .reduce((sum, rule) => {
+      .filter((r: RecurringRule) => r.type === 'income')
+      .reduce((sum: Decimal, rule: RecurringRule) => {
         const amount = toDecimal(rule.amount);
         const monthlyAmount = getMonthlyEquivalent(rule.frequency, amount);
         return sum.plus(monthlyAmount);
       }, new Decimal(0));
 
     const expenses = activeRules
-      .filter((r) => r.type === 'expense')
-      .reduce((sum, rule) => {
+      .filter((r: RecurringRule) => r.type === 'expense')
+      .reduce((sum: Decimal, rule: RecurringRule) => {
         const amount = toDecimal(rule.amount);
         const monthlyAmount = getMonthlyEquivalent(rule.frequency, amount);
         return sum.plus(monthlyAmount);

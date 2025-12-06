@@ -155,7 +155,7 @@ export function RecurringTransactions() {
   };
 
   const filteredRules =
-    filterType === 'all' ? recurringRules : recurringRules.filter((r) => r.type === filterType);
+    filterType === 'all' ? recurringRules : recurringRules.filter((r: RecurringRule) => r.type === filterType);
 
   if (isLoading) {
     return (
@@ -214,7 +214,7 @@ export function RecurringTransactions() {
             <div>
               <h3 className="font-semibold text-blue-900 mb-1">Próximas Transacciones</h3>
               <div className="space-y-1">
-                {upcomingRules.slice(0, 3).map((rule) => (
+                {upcomingRules.slice(0, 3).map((rule: RecurringRule) => (
                   <p key={rule.id} className="text-sm text-blue-700">
                     <span className="font-medium">{rule.description}</span> -{' '}
                     {new Date(rule.next_occurrence).toLocaleDateString('es-ES', {
@@ -399,7 +399,7 @@ export function RecurringTransactions() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Ingresos ({recurringRules.filter((r) => r.type === 'income').length})
+          Ingresos ({recurringRules.filter((r: RecurringRule) => r.type === 'income').length})
         </button>
         <button
           onClick={() => setFilterType('expense')}
@@ -409,7 +409,7 @@ export function RecurringTransactions() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Gastos ({recurringRules.filter((r) => r.type === 'expense').length})
+          Gastos ({recurringRules.filter((r: RecurringRule) => r.type === 'expense').length})
         </button>
       </div>
 
@@ -434,7 +434,7 @@ export function RecurringTransactions() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredRules.map((rule) => {
+          {filteredRules.map((rule: RecurringRule) => {
             const Icon = rule.type === 'income' ? TrendingUp : TrendingDown;
             const isIncome = rule.type === 'income';
 

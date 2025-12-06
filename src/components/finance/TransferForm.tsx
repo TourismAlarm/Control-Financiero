@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowRightLeft, Save, X } from 'lucide-react';
-import { transferInsertSchema, type TransferInsert } from '@/lib/validations/schemas';
+import { transferInsertSchema, type Account } from '@/lib/validations/schemas';
 import { useTransfers } from '@/hooks/useTransfers';
 import { useAccounts, formatCurrency } from '@/hooks/useAccounts';
 import { useToast } from '@/hooks/use-toast';
@@ -39,7 +39,7 @@ export function TransferForm({
   const { toast } = useToast();
 
   // Filter out inactive accounts
-  const activeAccounts = accounts.filter(acc => acc.is_active);
+  const activeAccounts = accounts.filter((acc: Account) => acc.is_active);
 
   // Form data type with flexible amount field for input handling
   type FormData = Omit<z.infer<typeof transferClientSchema>, 'amount'> & { amount: string | number };
@@ -165,11 +165,11 @@ export function TransferForm({
       {fromAccount && toAccount && fromAccount !== toAccount && (
         <div className="flex items-center justify-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
           <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
-            {activeAccounts.find(a => a.id === fromAccount)?.name}
+            {activeAccounts.find((a: Account) => a.id === fromAccount)?.name}
           </span>
           <ArrowRightLeft className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
-            {activeAccounts.find(a => a.id === toAccount)?.name}
+            {activeAccounts.find((a: Account) => a.id === toAccount)?.name}
           </span>
         </div>
       )}

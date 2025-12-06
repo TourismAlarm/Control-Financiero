@@ -26,8 +26,8 @@ export function TransferManager() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatDate = (dateString: string | Date) => {
+    const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
     return new Intl.DateTimeFormat('es-ES', {
       year: 'numeric',
       month: 'long',

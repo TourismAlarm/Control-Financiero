@@ -9,7 +9,7 @@ import {
 } from '@/lib/validations/schemas';
 
 // GET /api/recurring-rules - Get all recurring rules for current user
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
 

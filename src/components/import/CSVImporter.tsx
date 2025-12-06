@@ -3,7 +3,6 @@
 import { useState, useRef } from 'react';
 import Papa from 'papaparse';
 import { Upload, Download, Check, X, AlertCircle, Save } from 'lucide-react';
-import { useSession } from 'next-auth/react';
 
 interface CSVRow {
   [key: string]: string;
@@ -69,7 +68,6 @@ const COMMON_TEMPLATES: BankTemplate[] = [
 ];
 
 export function CSVImporter() {
-  const { data: session } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [csvData, setCSVData] = useState<CSVRow[]>([]);
@@ -80,7 +78,6 @@ export function CSVImporter() {
   const [customTemplateName, setCustomTemplateName] = useState('');
   const [savedTemplates, setSavedTemplates] = useState<BankTemplate[]>([]);
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload');
-  const [_importStats, setImportStats] = useState({ total: 0, imported: 0, duplicates: 0, errors: 0 });
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -304,13 +301,6 @@ export function CSVImporter() {
         errorDetails.push(`${transaction.description}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       }
     }
-
-    setImportStats({
-      total: parsedTransactions.length,
-      imported,
-      duplicates,
-      errors
-    });
 
     let message = `Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`;
 
