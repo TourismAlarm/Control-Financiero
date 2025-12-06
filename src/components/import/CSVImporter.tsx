@@ -248,6 +248,7 @@ export function CSVImporter() {
     let imported = 0;
     let duplicates = 0;
     let errors = 0;
+    const errorDetails: string[] = [];
 
     for (const transaction of parsedTransactions) {
       if (transaction.isDuplicate) {
@@ -256,29 +257,51 @@ export function CSVImporter() {
       }
 
       try {
+        // Determinar tipo basado en el signo del monto
+        const isIncome = transaction.amount >= 0;
+        const type = isIncome ? 'income' : 'expense';
+
+        // El amount siempre debe ser positivo según el schema
+        const amount = Math.abs(transaction.amount);
+
+        // Validar que category_id y account_id sean UUIDs válidos o null
+        const isValidUUID = (str: string) => {
+          if (!str) return false;
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          return uuidRegex.test(str);
+        };
+
+        const category_id = isValidUUID(transaction.category || '') ? transaction.category : null;
+        const account_id = isValidUUID(transaction.account || '') ? transaction.account : null;
+
         const response = await fetch('/api/transactions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            date: transaction.date,
-            description: transaction.description,
-            amount: transaction.amount,
-            type: transaction.amount >= 0 ? 'income' : 'expense',
-            category_id: transaction.category,
-            account_id: transaction.account,
-            external_id: transaction.external_id,
-            user_id: session?.user?.id
+            type,
+            amount,
+            description: transaction.description || 'Sin descripción',
+            date: transaction.date || new Date().toISOString().split('T')[0],
+            category_id,
+            account_id,
+            external_id: transaction.external_id || undefined,
+            notes: null,
+            tags: null,
           })
         });
 
         if (response.ok) {
           imported++;
         } else {
+          const errorData = await response.json();
           errors++;
+          errorDetails.push(`${transaction.description}: ${errorData.error || 'Error desconocido'}`);
+          console.error('Error importing transaction:', errorData);
         }
       } catch (error) {
         console.error('Error importing transaction:', error);
         errors++;
+        errorDetails.push(`${transaction.description}: ${error instanceof Error ? error.message : 'Error desconocido'}`);
       }
     }
 
@@ -289,7 +312,15 @@ export function CSVImporter() {
       errors
     });
 
-    alert(`Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`);
+    let message = `Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`;
+
+    if (errorDetails.length > 0 && errorDetails.length <= 5) {
+      message += '\n\nDetalles de errores:\n' + errorDetails.join('\n');
+    } else if (errorDetails.length > 5) {
+      message += '\n\nPrimeros 5 errores:\n' + errorDetails.slice(0, 5).join('\n');
+    }
+
+    alert(message);
     resetImport();
   };
 
