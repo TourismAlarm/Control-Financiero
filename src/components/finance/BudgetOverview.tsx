@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,6 +39,7 @@ export function BudgetOverview() {
     isOverBudget,
     getTotalBudget,
   } = useBudgets();
+  const { toast, showConfirm } = useGlobalToast();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -64,49 +67,42 @@ export function BudgetOverview() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('🎯 BudgetOverview - Enviando datos:', data);
 
       const submitData = {
         ...data,
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount,
       };
 
-      console.log('🎯 BudgetOverview - Datos procesados:', submitData);
-
       if (editingBudget?.id) {
-        console.log('🎯 BudgetOverview - Actualizando presupuesto:', editingBudget.id);
         updateBudget({ ...submitData, id: editingBudget.id } as any, {
           onSuccess: () => {
-            console.log('✅ BudgetOverview - Presupuesto actualizado exitosamente');
-            alert('Presupuesto actualizado exitosamente');
+            toast('Presupuesto actualizado correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingBudget(null);
           },
           onError: (error: any) => {
             console.error('❌ BudgetOverview - Error al actualizar:', error);
-            alert(`Error al actualizar el presupuesto: ${error.message || 'Error desconocido'}`);
+            toast(`Error al actualizar: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       } else {
-        console.log('🎯 BudgetOverview - Creando nuevo presupuesto');
         createBudget(submitData as any, {
           onSuccess: () => {
-            console.log('✅ BudgetOverview - Presupuesto creado exitosamente');
-            alert('Presupuesto creado exitosamente');
+            toast('Presupuesto creado correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingBudget(null);
           },
           onError: (error: any) => {
             console.error('❌ BudgetOverview - Error al crear:', error);
-            alert(`Error al crear el presupuesto: ${error.message || 'Error desconocido'}`);
+            toast(`Error al crear: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       }
     } catch (error: any) {
       console.error('❌ BudgetOverview - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      toast(`Error: ${error.message || 'Error desconocido'}`, 'error');
     }
   });
 
@@ -123,9 +119,7 @@ export function BudgetOverview() {
   };
 
   const handleDelete = (budgetId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar este presupuesto?')) {
-      deleteBudget(budgetId);
-    }
+    showConfirm('¿Eliminar este presupuesto?', () => deleteBudget(budgetId));
   };
 
   const handleCancel = () => {

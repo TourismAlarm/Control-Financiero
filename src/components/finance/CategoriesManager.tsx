@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Edit2, Trash2, X, Save, Tag } from 'lucide-react';
 import { useCategories } from '@/hooks/useCategories';
-import { useToast } from '@/hooks/use-toast';
+import { useGlobalToast } from '@/components/Toaster';
 import { categoryInsertSchema, type CategoryInsert } from '@/lib/validations/schemas';
 
 /**
@@ -36,7 +36,7 @@ interface CategoryFormProps {
 
 function CategoryForm({ type, category, onSuccess, onCancel }: CategoryFormProps) {
   const { create, update, isCreating, isUpdating } = useCategories();
-  const { toast } = useToast();
+  const { toast } = useGlobalToast();
 
   const {
     register,
@@ -185,29 +185,27 @@ function CategoryForm({ type, category, onSuccess, onCancel }: CategoryFormProps
 export function CategoriesManager() {
   const { expenseCategories, incomeCategories, isLoading, delete: deleteCategory } =
     useCategories();
-  const { toast } = useToast();
+  const { toast, showConfirm } = useGlobalToast();
 
   const [editingCategory, setEditingCategory] = useState<(CategoryInsert & { id?: string; is_system?: boolean }) | null>(null);
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
 
-  const handleDelete = async (id: string, name: string, isSystem: boolean) => {
+  const handleDelete = (id: string, name: string, isSystem: boolean) => {
     if (isSystem) {
       toast('No se pueden eliminar categorías del sistema', 'error');
       return;
     }
 
-    if (!confirm(`¿Estás seguro de eliminar la categoría "${name}"?`)) {
-      return;
-    }
-
-    try {
-      await deleteCategory(id);
-      toast('Categoría eliminada correctamente', 'success');
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-      toast(`Error al eliminar: ${errorMessage}`, 'error');
-    }
+    showConfirm(`¿Eliminar la categoría "${name}"?`, async () => {
+      try {
+        await deleteCategory(id);
+        toast('Categoría eliminada correctamente', 'success');
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+        toast(`Error al eliminar: ${errorMessage}`, 'error');
+      }
+    });
   };
 
   const handleFormSuccess = () => {

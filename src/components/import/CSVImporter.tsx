@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState, useRef } from 'react';
 import Papa from 'papaparse';
 import { Upload, Download, Check, X, AlertCircle, Save } from 'lucide-react';
@@ -69,6 +71,7 @@ const COMMON_TEMPLATES: BankTemplate[] = [
 ];
 
 export function CSVImporter() {
+  const { toast } = useGlobalToast();
   const { data: session } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -100,7 +103,7 @@ export function CSVImporter() {
       },
       error: (error) => {
         console.error('Error parsing CSV:', error);
-        alert('Error al leer el archivo CSV');
+        toast('Error al leer el archivo CSV', 'error');
       }
     });
   };
@@ -150,7 +153,7 @@ export function CSVImporter() {
 
   const saveCustomTemplate = () => {
     if (!customTemplateName.trim()) {
-      alert('Por favor ingresa un nombre para la plantilla');
+      toast('Por favor ingresa un nombre para la plantilla', 'warning');
       return;
     }
 
@@ -164,7 +167,7 @@ export function CSVImporter() {
     setSavedTemplates(updated);
     localStorage.setItem('csvTemplates', JSON.stringify(updated));
     setCustomTemplateName('');
-    alert('Plantilla guardada exitosamente');
+    toast('Plantilla guardada correctamente', 'success');
   };
 
   const parseAmount = (value: string): number => {
@@ -215,7 +218,7 @@ export function CSVImporter() {
 
   const previewTransactions = async () => {
     if (!mapping.date || !mapping.description || !mapping.amount) {
-      alert('Por favor mapea al menos Fecha, Descripción e Importe');
+      toast('Por favor mapea al menos Fecha, Descripción e Importe', 'warning');
       return;
     }
 
@@ -289,7 +292,7 @@ export function CSVImporter() {
       errors
     });
 
-    alert(`Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`);
+    toast(`Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`, 'error');
     resetImport();
   };
 

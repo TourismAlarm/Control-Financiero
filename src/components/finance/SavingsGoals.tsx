@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -50,6 +52,7 @@ export function SavingsGoals() {
     getTotalSavings,
     getUpcomingDeadlines,
   } = useSavingsGoals();
+  const { toast, showConfirm } = useGlobalToast();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<SavingsGoal | null>(null);
@@ -84,7 +87,6 @@ export function SavingsGoals() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('💰 SavingsGoals - Enviando datos:', data);
 
       const submitData = {
         ...data,
@@ -94,42 +96,36 @@ export function SavingsGoals() {
           typeof data.current_amount === 'string' ? parseFloat(data.current_amount) : data.current_amount,
       };
 
-      console.log('💰 SavingsGoals - Datos procesados:', submitData);
-
       if (editingGoal?.id) {
-        console.log('💰 SavingsGoals - Actualizando meta:', editingGoal.id);
         updateSavingsGoal({ ...submitData, id: editingGoal.id } as any, {
           onSuccess: () => {
-            console.log('✅ SavingsGoals - Meta actualizada exitosamente');
-            alert('Meta actualizada exitosamente');
+            toast('Meta actualizada correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingGoal(null);
           },
           onError: (error: any) => {
             console.error('❌ SavingsGoals - Error al actualizar:', error);
-            alert(`Error al actualizar la meta: ${error.message || 'Error desconocido'}`);
+            toast(`Error al actualizar: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       } else {
-        console.log('💰 SavingsGoals - Creando nueva meta');
         createSavingsGoal(submitData as any, {
           onSuccess: () => {
-            console.log('✅ SavingsGoals - Meta creada exitosamente');
-            alert('Meta creada exitosamente');
+            toast('Meta creada correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingGoal(null);
           },
           onError: (error: any) => {
             console.error('❌ SavingsGoals - Error al crear:', error);
-            alert(`Error al crear la meta: ${error.message || 'Error desconocido'}`);
+            toast(`Error al crear: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       }
     } catch (error: any) {
       console.error('❌ SavingsGoals - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      toast(`Error: ${error.message || 'Error desconocido'}`, 'error');
     }
   });
 
@@ -137,23 +133,21 @@ export function SavingsGoals() {
     if (!addingToGoalId) return;
 
     try {
-      console.log('💰 SavingsGoals - Añadiendo dinero a meta:', addingToGoalId);
       const amount = typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount;
       addToGoal({ goalId: addingToGoalId, amount }, {
         onSuccess: () => {
-          console.log('✅ SavingsGoals - Dinero añadido exitosamente');
-          alert(`Añadidos ${amount}€ a la meta`);
+          toast(`Añadidos ${amount}€ a la meta correctamente`, 'success');
           resetAddMoney();
           setAddingToGoalId(null);
         },
         onError: (error: any) => {
           console.error('❌ SavingsGoals - Error al añadir dinero:', error);
-          alert(`Error al añadir dinero: ${error.message || 'Error desconocido'}`);
+          toast(`Error al añadir dinero: ${error.message || 'Error desconocido'}`, 'error');
         }
       });
     } catch (error: any) {
       console.error('❌ SavingsGoals - Error en onAddMoney:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      toast(`Error: ${error.message || 'Error desconocido'}`, 'error');
     }
   });
 
@@ -173,9 +167,7 @@ export function SavingsGoals() {
   };
 
   const handleDelete = (goalId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar esta meta de ahorro?')) {
-      deleteSavingsGoal(goalId);
-    }
+    showConfirm('¿Eliminar esta meta de ahorro?', () => deleteSavingsGoal(goalId));
   };
 
   const handleCancel = () => {

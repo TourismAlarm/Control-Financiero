@@ -19,10 +19,10 @@ const QUERY_KEY = 'transactions';
 
 const toDecimal = (value: number | string): Decimal => new Decimal(value);
 
-export const formatCurrency = (amount: number | string): string => {
+export const formatCurrency = (amount: number | string, currency: string = 'EUR'): string => {
   return new Intl.NumberFormat('es-ES', {
     style: 'currency',
-    currency: 'EUR',
+    currency: currency || 'EUR',
   }).format(Number(amount));
 };
 

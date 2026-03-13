@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -47,6 +49,7 @@ export function RecurringTransactions() {
     calculateMonthlyImpact,
     FREQUENCY_LABELS,
   } = useRecurringRules();
+  const { toast, showConfirm } = useGlobalToast();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RecurringRule | null>(null);
@@ -75,49 +78,42 @@ export function RecurringTransactions() {
 
   const onSubmit = handleSubmit(async (data) => {
     try {
-      console.log('📝 RecurringTransactions - Enviando datos:', data);
 
       const submitData = {
         ...data,
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount,
       };
 
-      console.log('📝 RecurringTransactions - Datos procesados:', submitData);
-
       if (editingRule?.id) {
-        console.log('📝 RecurringTransactions - Actualizando regla:', editingRule.id);
         updateRecurringRule({ ...submitData, id: editingRule.id } as any, {
           onSuccess: () => {
-            console.log('✅ RecurringTransactions - Regla actualizada exitosamente');
-            alert('Regla actualizada exitosamente');
+            toast('Regla actualizada correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingRule(null);
           },
           onError: (error: any) => {
             console.error('❌ RecurringTransactions - Error al actualizar:', error);
-            alert(`Error al actualizar la regla: ${error.message || 'Error desconocido'}`);
+            toast(`Error al actualizar: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       } else {
-        console.log('📝 RecurringTransactions - Creando nueva regla');
         createRecurringRule(submitData as any, {
           onSuccess: () => {
-            console.log('✅ RecurringTransactions - Regla creada exitosamente');
-            alert('Regla creada exitosamente');
+            toast('Regla creada correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingRule(null);
           },
           onError: (error: any) => {
             console.error('❌ RecurringTransactions - Error al crear:', error);
-            alert(`Error al crear la regla: ${error.message || 'Error desconocido'}`);
+            toast(`Error al crear: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       }
     } catch (error: any) {
       console.error('❌ RecurringTransactions - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+      toast(`Error: ${error.message || 'Error desconocido'}`, 'error');
     }
   });
 
@@ -139,9 +135,7 @@ export function RecurringTransactions() {
   };
 
   const handleDelete = (ruleId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar esta regla recurrente?')) {
-      deleteRecurringRule(ruleId);
-    }
+    showConfirm('¿Eliminar esta regla recurrente?', () => deleteRecurringRule(ruleId));
   };
 
   const handleToggle = (ruleId: string) => {
