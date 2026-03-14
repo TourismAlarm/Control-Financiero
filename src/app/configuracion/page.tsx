@@ -180,11 +180,11 @@ export default function ConfiguracionPage() {
                 <input
                   type="number"
                   min="1"
-                  max="28"
+                  max="31"
                   value={formData.financial_month_start_day}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
-                    if (value >= 1 && value <= 28) {
+                    if (value >= 1 && value <= 31) {
                       setFormData({ ...formData, financial_month_start_day: value });
                     }
                   }}

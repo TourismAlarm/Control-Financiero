@@ -2,20 +2,19 @@
 
 import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { UserProvider } from '@/hooks/useUser';
+import { ToastProvider } from '@/components/Toaster';
 import { useState } from 'react';
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // Create a stable QueryClient instance
   const [queryClient] = useState(
     () =>
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000, // 1 minute
-            refetchOnWindowFocus: false,
-            retry: 1,
+            staleTime: 30 * 1000,
+            refetchOnWindowFocus: true,
+            retry: 2,
           },
         },
       })
@@ -25,8 +24,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <UserProvider>
       <SessionProvider>
         <QueryClientProvider client={queryClient}>
-          {children}
-          <ReactQueryDevtools initialIsOpen={false} />
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </QueryClientProvider>
       </SessionProvider>
     </UserProvider>

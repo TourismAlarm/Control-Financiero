@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Edit2, Trash2, Calendar, FileText, TrendingUp, TrendingDown } from 'lucide-react';
 import { useTransactions, formatCurrency } from '@/hooks/useTransactions';
-import { useToast } from '@/hooks/use-toast';
+import { useGlobalToast } from '@/components/Toaster';
 import { TransactionForm } from './TransactionForm';
 import type { Transaction } from '@/lib/validations/schemas';
 // @ts-ignore - JS module
@@ -44,7 +44,7 @@ export function TransactionsList({
     isDeleting,
     calculateTotals,
   } = useTransactions(month);
-  const { toast } = useToast();
+  const { toast, showConfirm } = useGlobalToast();
   const { loans, deletePayment } = useLoans();
 
   const [filterType, setFilterType] = useState<'income' | 'expense' | 'all'>(type);
@@ -53,11 +53,20 @@ export function TransactionsList({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formType, setFormType] = useState<'income' | 'expense'>('expense');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Filter transactions
   let filteredTransactions = transactions;
   if (filterType !== 'all') {
     filteredTransactions = filteredTransactions.filter((t: Transaction) => t.type === filterType);
+  }
+  if (searchQuery.trim()) {
+    const q = searchQuery.toLowerCase();
+    filteredTransactions = filteredTransactions.filter((t: Transaction) =>
+      t.description?.toLowerCase().includes(q) ||
+      t.notes?.toLowerCase().includes(q) ||
+      String(t.amount).includes(q)
+    );
   }
 
   // Sort transactions
@@ -95,7 +104,7 @@ export function TransactionsList({
             const warningMessage = getLoanDeletionWarning(loanInfo);
 
             // Confirmar con el usuario
-            if (confirm(warningMessage)) {
+            showConfirm(warningMessage, async () => {
               // Eliminar la transacción
               deleteTransaction(id, {
                 onSuccess: async () => {
@@ -136,14 +145,14 @@ export function TransactionsList({
                   toast(`Error al eliminar: ${error.message}`, 'error');
                 },
               });
-            }
+            });
             return; // Salir porque ya manejamos el caso con préstamo
           }
         }
       }
 
       // Caso normal: transacción sin relación con préstamos
-      if (confirm(`¿Estás seguro de eliminar "${description}"?`)) {
+      showConfirm(`¿Eliminar "${description}"?`, () => {
         deleteTransaction(id, {
           onSuccess: () => {
             toast('Transacción eliminada correctamente', 'success');
@@ -152,7 +161,7 @@ export function TransactionsList({
             toast(`Error al eliminar: ${error.message}`, 'error');
           },
         });
-      }
+      });
     } catch (error) {
       console.error('Error in handleDelete:', error);
       toast('Error al procesar la eliminación', 'error');
@@ -233,6 +242,18 @@ export function TransactionsList({
       {/* Filters */}
       {showFilters && (
         <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
+          {/* Search */}
+          <div className="flex-1 min-w-[200px]">
+            <label className="block text-sm font-medium mb-1">Buscar</label>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Descripción, notas o importe..."
+              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
           {/* Type Filter */}
           <div>
             <label className="block text-sm font-medium mb-1">Tipo</label>

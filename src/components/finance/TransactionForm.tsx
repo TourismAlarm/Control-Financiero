@@ -77,25 +77,21 @@ export function TransactionForm({
   });
 
   const onSubmit = handleSubmit(async (data) => {
-    try {
-      console.log('💸 TransactionForm - Enviando datos:', data);
+    try {;
 
       // Convert amount to number
       const submitData = {
         ...data,
         amount: typeof data.amount === 'string' ? parseFloat(data.amount) : data.amount,
       };
-
-      console.log('💸 TransactionForm - Datos procesados:', submitData);
+;
 
       if (transaction?.id) {
-        // Update existing transaction
-        console.log('💸 TransactionForm - Actualizando transacción:', transaction.id);
+        // Update existing transaction;
         updateTransaction(
           { ...submitData, id: transaction.id } as any,
           {
-            onSuccess: () => {
-              console.log('✅ TransactionForm - Transacción actualizada exitosamente');
+            onSuccess: () => {;
               toast(`${type === 'income' ? 'Ingreso' : 'Gasto'} actualizado correctamente`, 'success');
               reset();
               onSuccess?.();
@@ -107,11 +103,9 @@ export function TransactionForm({
           }
         );
       } else {
-        // Create new transaction
-        console.log('💸 TransactionForm - Creando nueva transacción');
+        // Create new transaction;
         createTransaction(submitData as any, {
-          onSuccess: () => {
-            console.log('✅ TransactionForm - Transacción creada exitosamente');
+          onSuccess: () => {;
             toast(`${type === 'income' ? 'Ingreso' : 'Gasto'} añadido correctamente`, 'success');
             reset();
             onSuccess?.();
@@ -169,7 +163,7 @@ export function TransactionForm({
       {/* Amount */}
       <div>
         <label htmlFor="amount" className="block text-sm font-medium mb-1">
-          Monto (€) *
+          Monto *
         </label>
         <input
           {...register('amount', { valueAsNumber: false })}

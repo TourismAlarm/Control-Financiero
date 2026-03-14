@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState, useMemo } from 'react';
 import { Lightbulb, TrendingUp, TrendingDown, Minus, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
@@ -16,6 +18,7 @@ interface BudgetRecommendationsProps {
 }
 
 export function BudgetRecommendations({ onApplyBudget }: BudgetRecommendationsProps) {
+  const { toast } = useGlobalToast();
   const { transactions } = useTransactions();
   const { categories } = useCategories();
   const { budgets, createBudget, updateBudget } = useBudgets();
@@ -65,7 +68,7 @@ export function BudgetRecommendations({ onApplyBudget }: BudgetRecommendationsPr
       onApplyBudget?.(rec.categoryId, rec.recommendedBudget);
     } catch (error) {
       console.error('Error applying budget:', error);
-      alert('Error al aplicar el presupuesto');
+      toast('Error al aplicar el presupuesto', 'error');
     }
   };
 

@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState, useMemo } from 'react';
 import { Shield, AlertTriangle, AlertCircle, Info, CheckCircle, Eye, EyeOff, RefreshCw, Trash2 } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
@@ -11,6 +13,7 @@ interface AnomalyDetectorProps {
 }
 
 export function AnomalyDetector({ onDismissAnomaly, onDeleteTransaction }: AnomalyDetectorProps) {
+  const { showConfirm } = useGlobalToast();
   const { transactions, deleteTransaction } = useTransactions();
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [showDismissed, setShowDismissed] = useState(false);
@@ -34,15 +37,11 @@ export function AnomalyDetector({ onDismissAnomaly, onDeleteTransaction }: Anoma
     onDismissAnomaly?.(anomalyId);
   };
 
-  const handleDeleteTransaction = async (transactionId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
-      try {
-        deleteTransaction(transactionId);
-        onDeleteTransaction?.(transactionId);
-      } catch (error) {
-        console.error('Error deleting transaction:', error);
-      }
-    }
+  const handleDeleteTransaction = (transactionId: string) => {
+    showConfirm('¿Eliminar esta transacción?', () => {
+      deleteTransaction(transactionId);
+      onDeleteTransaction?.(transactionId);
+    });
   };
 
   const runAnalysis = () => {

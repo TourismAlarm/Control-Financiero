@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAccounts } from '@/hooks/useAccounts';
 import { accountInsertSchema, type AccountInsert, type Account } from '@/lib/validations/schemas';
+import { useGlobalToast } from '@/components/Toaster';
 
 // Client-side schema without user_id (added server-side from session)
 const accountClientSchema = accountInsertSchema.omit({ user_id: true });
@@ -59,10 +60,12 @@ export function AccountsManager() {
     getTotalBalance,
     getBalanceByType,
   } = useAccounts();
+  const { toast } = useGlobalToast();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [balancesVisible, setBalancesVisible] = useState(true);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const {
     register,
@@ -85,57 +88,41 @@ export function AccountsManager() {
 
   const onSubmit = handleSubmit(
     async (data) => {
-      console.log('✅ FORMULARIO VÁLIDO - Ejecutando onSubmit');
-      try {
-        console.log('💳 AccountsManager - Enviando datos:', data);
-
       const submitData = {
         ...data,
         balance: typeof data.balance === 'string' ? parseFloat(data.balance) : data.balance,
       };
 
-      console.log('💳 AccountsManager - Datos procesados:', submitData);
-
       if (editingAccount?.id) {
-        console.log('💳 AccountsManager - Actualizando cuenta:', editingAccount.id);
         updateAccount({ ...submitData, id: editingAccount.id } as any, {
           onSuccess: () => {
-            console.log('✅ AccountsManager - Cuenta actualizada exitosamente');
-            alert('Cuenta actualizada exitosamente');
+            toast('Cuenta actualizada correctamente', 'success');
             reset();
             setIsFormOpen(false);
             setEditingAccount(null);
           },
           onError: (error: any) => {
-            console.error('❌ AccountsManager - Error al actualizar:', error);
-            alert(`Error al actualizar la cuenta: ${error.message || 'Error desconocido'}`);
+            toast(`Error al actualizar la cuenta: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       } else {
-        console.log('💳 AccountsManager - Creando nueva cuenta');
         createAccount(submitData as any, {
           onSuccess: () => {
-            console.log('✅ AccountsManager - Cuenta creada exitosamente');
-            alert('Cuenta creada exitosamente');
+            toast('Cuenta creada correctamente', 'success');
             reset();
             setIsFormOpen(false);
-            setEditingAccount(null);
           },
           onError: (error: any) => {
-            console.error('❌ AccountsManager - Error al crear:', error);
-            alert(`Error al crear la cuenta: ${error.message || 'Error desconocido'}`);
+            toast(`Error al crear la cuenta: ${error.message || 'Error desconocido'}`, 'error');
           }
         });
       }
-    } catch (error: any) {
-      console.error('❌ AccountsManager - Error en onSubmit:', error);
-      alert(`Error: ${error.message || 'Error desconocido'}`);
+    },
+    (errors) => {
+      const messages = Object.values(errors).map((e: any) => e.message).join(', ');
+      toast(`Corrige los errores: ${messages}`, 'error');
     }
-  },
-  (errors) => {
-    console.error('❌ FORMULARIO INVÁLIDO - Errores de validación:', errors);
-    alert('Por favor corrige los errores en el formulario:\n' + Object.entries(errors).map(([field, error]: [string, any]) => `- ${field}: ${error.message}`).join('\n'));
-  });
+  );
 
   const handleEdit = (account: Account) => {
     setEditingAccount(account);
@@ -149,10 +136,20 @@ export function AccountsManager() {
     setIsFormOpen(true);
   };
 
-  const handleDelete = (accountId: string) => {
-    if (confirm('¿Estás seguro de que quieres eliminar esta cuenta?')) {
-      deleteAccount(accountId);
-    }
+  const handleDeleteClick = (accountId: string) => {
+    setConfirmDeleteId(accountId);
+  };
+
+  const handleDeleteConfirm = (accountId: string) => {
+    deleteAccount(accountId, {
+      onSuccess: () => {
+        toast('Cuenta eliminada correctamente', 'success');
+      },
+      onError: (error: any) => {
+        toast(`Error al eliminar la cuenta: ${error.message || 'Error desconocido'}`, 'error');
+      }
+    } as any);
+    setConfirmDeleteId(null);
   };
 
   const handleCancel = () => {
@@ -325,7 +322,6 @@ export function AccountsManager() {
             <div className="flex gap-3 pt-2">
               <button
                 type="submit"
-                onClick={() => console.log('🔵 BOTÓN SUBMIT CLICKEADO')}
                 disabled={isCreating || isUpdating}
                 className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
               >
@@ -364,6 +360,7 @@ export function AccountsManager() {
           {accounts.map((account: Account) => {
             const Icon = ACCOUNT_TYPE_ICONS[account.type as keyof typeof ACCOUNT_TYPE_ICONS] || Landmark;
             const isNegative = account.balance < 0;
+            const isPendingDelete = confirmDeleteId === account.id;
 
             return (
               <div
@@ -397,7 +394,7 @@ export function AccountsManager() {
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button
-                      onClick={() => account.id && handleDelete(account.id)}
+                      onClick={() => account.id && handleDeleteClick(account.id)}
                       disabled={isDeleting}
                       className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
                       title="Eliminar cuenta"
@@ -415,6 +412,30 @@ export function AccountsManager() {
                       : '•••••'}
                   </p>
                 </div>
+
+                {/* Inline delete confirmation */}
+                {isPendingDelete && (
+                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700 font-medium mb-2">
+                      ¿Eliminar esta cuenta?
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => account.id && handleDeleteConfirm(account.id)}
+                        disabled={isDeleting}
+                        className="flex-1 text-xs bg-red-600 text-white px-3 py-1.5 rounded font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                      >
+                        {isDeleting ? 'Eliminando...' : 'Sí, eliminar'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="flex-1 text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded font-medium hover:bg-gray-300 transition-colors"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {!account.is_active && (
                   <div className="mt-2 pt-2 border-t border-gray-200">

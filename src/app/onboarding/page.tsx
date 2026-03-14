@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@/hooks/useUser';
 import { useAccounts } from '@/hooks/useAccounts';
+import { useProfile } from '@/hooks/useProfile';
 import {
   Loader2,
   CheckCircle2,
@@ -36,6 +37,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useUser();
   const { createAccount } = useAccounts();
+  const { updateProfile } = useProfile();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,12 +92,7 @@ export default function OnboardingPage() {
 
     try {
       // Update user profile to mark onboarding as complete
-      // Skip onboarding update for now - will be handled server-side
-      // const supabase = createClient();
-      // await supabase
-      //   .from('profiles')
-      //   .update({ onboarding_completed: true })
-      //   .eq('id', user?.id);
+      updateProfile({ onboarding_completed: true });
 
       // Redirect to dashboard
       router.push('/');

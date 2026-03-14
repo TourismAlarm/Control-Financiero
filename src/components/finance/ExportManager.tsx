@@ -1,5 +1,7 @@
 'use client';
 
+import { useGlobalToast } from '@/components/Toaster';
+
 import { useState } from 'react';
 import { FileText, FileSpreadsheet, Database } from 'lucide-react';
 import { exportTransactionsToExcel } from '@/lib/export/exportExcel';
@@ -9,6 +11,7 @@ import { useSession } from 'next-auth/react';
 
 export function ExportManager() {
   const { data: session } = useSession();
+  const { toast } = useGlobalToast();
   const [isExporting, setIsExporting] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
@@ -29,7 +32,7 @@ export function ExportManager() {
       await exportTransactionsToExcel(transactions, accounts, selectedMonth);
     } catch (error) {
       console.error('Error exporting to Excel:', error);
-      alert('Error al exportar a Excel');
+      toast('Error al exportar a Excel', 'error');
     } finally {
       setIsExporting(false);
     }
@@ -48,7 +51,7 @@ export function ExportManager() {
       );
     } catch (error) {
       console.error('Error exporting to PDF:', error);
-      alert('Error al exportar a PDF');
+      toast('Error al exportar a PDF', 'error');
     } finally {
       setIsExporting(false);
     }
@@ -70,7 +73,7 @@ export function ExportManager() {
       exportFullBackup(transactions, accounts, categories);
     } catch (error) {
       console.error('Error exporting backup:', error);
-      alert('Error al exportar backup');
+      toast('Error al exportar backup', 'error');
     } finally {
       setIsExporting(false);
     }
