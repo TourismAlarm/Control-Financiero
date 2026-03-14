@@ -1,7 +1,14 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { TrendingUp, TrendingDown, DollarSign, PiggyBank, AlertCircle, CheckCircle } from 'lucide-react';
 import { useFinancialSummary } from '@/hooks/useFinancialSummary';
+import { useTransactions } from '@/hooks/useTransactions';
+
+const DashboardCharts = dynamic(
+  () => import('@/components/charts/DashboardCharts').then(m => m.DashboardCharts),
+  { ssr: false, loading: () => <div className="h-52 bg-gray-50 rounded-lg animate-pulse" /> }
+);
 
 /**
  * Financial Dashboard Component
@@ -13,7 +20,8 @@ interface FinancialDashboardProps {
 }
 
 export function FinancialDashboard({ month }: FinancialDashboardProps) {
-  const { summary, isLoading, getCategoryBreakdown, getBudgetAlerts, getHealthScore } = useFinancialSummary(month);
+  const { summary, isLoading, getBudgetAlerts, getHealthScore } = useFinancialSummary(month);
+  const { transactions: allTransactions = [] } = useTransactions();
 
   if (isLoading) {
     return (
@@ -37,7 +45,6 @@ export function FinancialDashboard({ month }: FinancialDashboardProps) {
     );
   }
 
-  const categoryBreakdown = getCategoryBreakdown();
   const budgetAlerts = getBudgetAlerts();
   const healthScore = getHealthScore();
 
@@ -213,28 +220,8 @@ export function FinancialDashboard({ month }: FinancialDashboardProps) {
         </div>
       </div>
 
-      {/* Category Breakdown */}
-      {categoryBreakdown.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Gastos por Categoría</h3>
-          <div className="space-y-3">
-            {categoryBreakdown.slice(0, 5).map((cat, i) => (
-              <div key={i}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-700">{cat.category}</span>
-                  <span className="font-medium">{cat.amountFormatted} ({cat.percentageFormatted})</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full"
-                    style={{ width: `${cat.percentage}%` }}
-                  ></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Charts — visible data at a glance */}
+      <DashboardCharts transactions={allTransactions as any} />
     </div>
   );
 }
