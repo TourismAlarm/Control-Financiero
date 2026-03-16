@@ -258,24 +258,31 @@ export function CSVImporter() {
         continue;
       }
 
+      const absAmount = Math.abs(transaction.amount);
+      if (!absAmount || isNaN(absAmount)) {
+        errors++;
+        continue;
+      }
+
       try {
         const response = await fetch('/api/transactions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            date: transaction.date,
-            description: transaction.description,
-            amount: Math.abs(transaction.amount),
+            date: transaction.date || new Date().toISOString().split('T')[0],
+            description: transaction.description || 'Sin descripción',
+            amount: absAmount,
             type: transaction.amount >= 0 ? 'income' : 'expense',
             category_id: transaction.category || null,
             account_id: transaction.account || null,
-            user_id: session?.user?.id
           })
         });
 
         if (response.ok) {
           imported++;
         } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error importing transaction:', errorData);
           errors++;
         }
       } catch (error) {
