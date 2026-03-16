@@ -39,6 +39,7 @@ export const transactionSchema = z.object({
   notes: z.string().max(1000).nullable().optional(),
   tags: z.array(z.string()).nullable().optional(),
   recurring_rule_id: z.string().uuid().nullable().optional(),
+  external_id: z.string().nullable().optional(),
   created_at: z.string().or(z.date()).optional(),
   updated_at: z.string().or(z.date()).optional(),
 });
