@@ -265,11 +265,10 @@ export function CSVImporter() {
           body: JSON.stringify({
             date: transaction.date,
             description: transaction.description,
-            amount: transaction.amount,
+            amount: Math.abs(transaction.amount),
             type: transaction.amount >= 0 ? 'income' : 'expense',
-            category_id: transaction.category,
-            account_id: transaction.account,
-            external_id: transaction.external_id,
+            category_id: transaction.category || null,
+            account_id: transaction.account || null,
             user_id: session?.user?.id
           })
         });
@@ -292,7 +291,7 @@ export function CSVImporter() {
       errors
     });
 
-    toast(`Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`, 'error');
+    toast(`Importación completada: ${imported} transacciones importadas ${duplicates} duplicados omitidos ${errors} errores`, errors > 0 && imported === 0 ? 'error' : 'success');
     resetImport();
   };
 
