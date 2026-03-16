@@ -5,27 +5,24 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { z } from 'zod';
 
 /**
- * Loan API Routes
- * Handles CRUD operations for loans/debts
- * Schema matches the actual database: loans table with loan_payments child table
+ * Budgets API Routes
+ * Handles CRUD operations for monthly budgets per category
  */
 
-const loanInsertSchema = z.object({
-  type: z.enum(['borrowed', 'lent']),
-  contact_name: z.string().min(1, { message: 'El nombre del contacto es requerido' }).max(200),
-  principal_amount: z.number().positive({ message: 'El monto debe ser mayor a 0' }),
-  outstanding_amount: z.number().nonnegative({ message: 'El saldo pendiente no puede ser negativo' }),
-  interest_rate: z.number().nonnegative().default(0),
-  start_date: z.string(),
-  due_date: z.string().nullable().optional(),
-  status: z.enum(['active', 'paid', 'cancelled']).default('active'),
-  notes: z.string().max(1000).nullable().optional(),
+const budgetInsertSchema = z.object({
+  category_id: z.string().uuid(),
+  amount: z.number().positive({ message: 'El monto debe ser mayor a 0' }),
+  month: z.number().int().min(1).max(12),
+  year: z.number().int().min(2000).max(2100),
+  alert_threshold: z.number().min(0).max(100).default(80),
 });
 
-const loanUpdateSchema = loanInsertSchema.partial();
+const budgetUpdateSchema = budgetInsertSchema.partial().extend({
+  id: z.string().uuid(),
+});
 
 // ==========================================
-// GET /api/loans
+// GET /api/budgets
 // ==========================================
 
 export async function GET(request: NextRequest) {
@@ -37,28 +34,35 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status'); // active, paid, cancelled
+    const month = searchParams.get('month');
+    const year = searchParams.get('year');
 
     let query = supabaseAdmin
-      .from('loans')
-      .select('*, loan_payments(*)')
+      .from('budgets')
+      .select('*, categories(*)')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false });
 
-    if (status && ['active', 'paid', 'cancelled'].includes(status)) {
-      query = query.eq('status', status);
+    if (month) {
+      const monthNum = parseInt(month);
+      if (!isNaN(monthNum)) query = query.eq('month', monthNum);
+    }
+
+    if (year) {
+      const yearNum = parseInt(year);
+      if (!isNaN(yearNum)) query = query.eq('year', yearNum);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ GET /api/loans error:', error);
+      console.error('❌ GET /api/budgets error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('❌ GET /api/loans unexpected error:', error);
+    console.error('❌ GET /api/budgets unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -67,7 +71,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ==========================================
-// POST /api/loans
+// POST /api/budgets
 // ==========================================
 
 export async function POST(request: NextRequest) {
@@ -79,10 +83,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = loanInsertSchema.parse(body);
+    const validated = budgetInsertSchema.parse(body);
 
     const { data, error } = await supabaseAdmin
-      .from('loans')
+      .from('budgets')
       .insert({
         ...validated,
         user_id: session.user.id,
@@ -91,13 +95,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ POST /api/loans error:', error);
+      console.error('❌ POST /api/budgets error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST /api/loans unexpected error:', error);
+    console.error('❌ POST /api/budgets unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -114,7 +118,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ==========================================
-// PUT /api/loans
+// PUT /api/budgets
 // ==========================================
 
 export async function PUT(request: NextRequest) {
@@ -126,48 +130,44 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...updateFields } = body;
+    const validated = budgetUpdateSchema.parse(body);
+    const { id, ...updateFields } = validated;
 
     if (!id) {
-      return NextResponse.json({ error: 'Loan ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Budget ID is required' }, { status: 400 });
     }
 
-    const validated = loanUpdateSchema.parse(updateFields);
-
-    // Validate that the loan belongs to the user
-    const { data: existingLoan, error: fetchError } = await supabaseAdmin
-      .from('loans')
+    // Verify ownership
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('budgets')
       .select('id')
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();
 
-    if (fetchError || !existingLoan) {
+    if (fetchError || !existing) {
       return NextResponse.json(
-        { error: 'Loan not found or unauthorized' },
+        { error: 'Budget not found or unauthorized' },
         { status: 404 }
       );
     }
 
     const { data, error } = await supabaseAdmin
-      .from('loans')
-      .update({
-        ...validated,
-        updated_at: new Date().toISOString(),
-      })
+      .from('budgets')
+      .update({ ...updateFields, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', session.user.id)
       .select()
       .single();
 
     if (error) {
-      console.error('❌ PUT /api/loans error:', error);
+      console.error('❌ PUT /api/budgets error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('❌ PUT /api/loans unexpected error:', error);
+    console.error('❌ PUT /api/budgets unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -184,7 +184,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // ==========================================
-// DELETE /api/loans
+// DELETE /api/budgets
 // ==========================================
 
 export async function DELETE(request: NextRequest) {
@@ -199,24 +199,23 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Loan ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Budget ID is required' }, { status: 400 });
     }
 
-    // Delete loan (cascade deletes loan_payments via FK constraint)
     const { error } = await supabaseAdmin
-      .from('loans')
+      .from('budgets')
       .delete()
       .eq('id', id)
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('❌ DELETE /api/loans error:', error);
+      console.error('❌ DELETE /api/budgets error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ message: 'Loan deleted successfully' });
+    return NextResponse.json({ message: 'Budget deleted successfully' });
   } catch (error: any) {
-    console.error('❌ DELETE /api/loans unexpected error:', error);
+    console.error('❌ DELETE /api/budgets unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
