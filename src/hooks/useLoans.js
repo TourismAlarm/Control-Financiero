@@ -3,6 +3,7 @@ import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase';
 import {
   calculateTotalInterestPaid,
+  generateAmortizationTable,
 } from '@/lib/loanCalculations';
 
 /**
@@ -498,7 +499,6 @@ export default function useLoans() {
    * Returns empty array if term cannot be determined.
    */
   const getAmortizationTable = (loan) => {
-    const { generateAmortizationTable } = require('@/lib/loanCalculations');
     try {
       if (!loan.plazo_meses || !loan.start_date) return [];
       return generateAmortizationTable(
