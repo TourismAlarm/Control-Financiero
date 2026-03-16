@@ -69,6 +69,9 @@ const COMMON_TEMPLATES: BankTemplate[] = [
   }
 ];
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const toUuidOrNull = (val: string) => (val && UUID_REGEX.test(val) ? val : null);
+
 export function CSVImporter() {
   const { toast } = useGlobalToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -222,7 +225,8 @@ export function CSVImporter() {
 
     // Obtener transacciones existentes para detectar duplicados
     const response = await fetch('/api/transactions');
-    const existingTransactions = await response.json();
+    const existingData = await response.json();
+    const existingTransactions = Array.isArray(existingData) ? existingData : [];
     const existingIds = new Set(existingTransactions.map((t: any) => t.external_id).filter(Boolean));
 
     const parsed: ParsedTransaction[] = csvData.map(row => {
@@ -271,8 +275,8 @@ export function CSVImporter() {
             description: transaction.description || 'Sin descripción',
             amount: absAmount,
             type: transaction.amount >= 0 ? 'income' : 'expense',
-            category_id: transaction.category || null,
-            account_id: transaction.account || null,
+            category_id: toUuidOrNull(transaction.category),
+            account_id: toUuidOrNull(transaction.account),
           })
         });
 
