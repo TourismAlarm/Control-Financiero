@@ -5,27 +5,29 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { z } from 'zod';
 
 /**
- * Loan API Routes
- * Handles CRUD operations for loans/debts
- * Schema matches the actual database: loans table with loan_payments child table
+ * Recurring Rules API Routes
+ * Handles CRUD operations for recurring transaction rules
  */
 
-const loanInsertSchema = z.object({
-  type: z.enum(['borrowed', 'lent']),
-  contact_name: z.string().min(1, { message: 'El nombre del contacto es requerido' }).max(200),
-  principal_amount: z.number().positive({ message: 'El monto debe ser mayor a 0' }),
-  outstanding_amount: z.number().nonnegative({ message: 'El saldo pendiente no puede ser negativo' }),
-  interest_rate: z.number().nonnegative().default(0),
+const recurringRuleInsertSchema = z.object({
+  account_id: z.string().uuid().nullable().optional(),
+  category_id: z.string().uuid().nullable().optional(),
+  type: z.enum(['income', 'expense']),
+  amount: z.number().positive({ message: 'El monto debe ser mayor a 0' }),
+  description: z.string().min(1, { message: 'La descripción es requerida' }),
+  frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']),
   start_date: z.string(),
-  due_date: z.string().nullable().optional(),
-  status: z.enum(['active', 'paid', 'cancelled']).default('active'),
-  notes: z.string().max(1000).nullable().optional(),
+  end_date: z.string().nullable().optional(),
+  next_occurrence: z.string(),
+  is_active: z.boolean().default(true),
 });
 
-const loanUpdateSchema = loanInsertSchema.partial();
+const recurringRuleUpdateSchema = recurringRuleInsertSchema.partial().extend({
+  id: z.string().uuid(),
+});
 
 // ==========================================
-// GET /api/loans
+// GET /api/recurring-rules
 // ==========================================
 
 export async function GET(request: NextRequest) {
@@ -37,28 +39,33 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status'); // active, paid, cancelled
+    const type = searchParams.get('type'); // income | expense
+    const activeOnly = searchParams.get('active') === 'true';
 
     let query = supabaseAdmin
-      .from('loans')
-      .select('*, loan_payments(*)')
+      .from('recurring_rules')
+      .select('*')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false });
 
-    if (status && ['active', 'paid', 'cancelled'].includes(status)) {
-      query = query.eq('status', status);
+    if (type && ['income', 'expense'].includes(type)) {
+      query = query.eq('type', type);
+    }
+
+    if (activeOnly) {
+      query = query.eq('is_active', true);
     }
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('❌ GET /api/loans error:', error);
+      console.error('❌ GET /api/recurring-rules error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('❌ GET /api/loans unexpected error:', error);
+    console.error('❌ GET /api/recurring-rules unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -67,7 +74,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ==========================================
-// POST /api/loans
+// POST /api/recurring-rules
 // ==========================================
 
 export async function POST(request: NextRequest) {
@@ -79,10 +86,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = loanInsertSchema.parse(body);
+    const validated = recurringRuleInsertSchema.parse(body);
 
     const { data, error } = await supabaseAdmin
-      .from('loans')
+      .from('recurring_rules')
       .insert({
         ...validated,
         user_id: session.user.id,
@@ -91,13 +98,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ POST /api/loans error:', error);
+      console.error('❌ POST /api/recurring-rules error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST /api/loans unexpected error:', error);
+    console.error('❌ POST /api/recurring-rules unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -114,7 +121,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ==========================================
-// PUT /api/loans
+// PUT /api/recurring-rules
 // ==========================================
 
 export async function PUT(request: NextRequest) {
@@ -126,48 +133,44 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...updateFields } = body;
+    const validated = recurringRuleUpdateSchema.parse(body);
+    const { id, ...updateFields } = validated;
 
     if (!id) {
-      return NextResponse.json({ error: 'Loan ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Recurring rule ID is required' }, { status: 400 });
     }
 
-    const validated = loanUpdateSchema.parse(updateFields);
-
-    // Validate that the loan belongs to the user
-    const { data: existingLoan, error: fetchError } = await supabaseAdmin
-      .from('loans')
+    // Verify ownership
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('recurring_rules')
       .select('id')
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();
 
-    if (fetchError || !existingLoan) {
+    if (fetchError || !existing) {
       return NextResponse.json(
-        { error: 'Loan not found or unauthorized' },
+        { error: 'Recurring rule not found or unauthorized' },
         { status: 404 }
       );
     }
 
     const { data, error } = await supabaseAdmin
-      .from('loans')
-      .update({
-        ...validated,
-        updated_at: new Date().toISOString(),
-      })
+      .from('recurring_rules')
+      .update({ ...updateFields, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', session.user.id)
       .select()
       .single();
 
     if (error) {
-      console.error('❌ PUT /api/loans error:', error);
+      console.error('❌ PUT /api/recurring-rules error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('❌ PUT /api/loans unexpected error:', error);
+    console.error('❌ PUT /api/recurring-rules unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -184,7 +187,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // ==========================================
-// DELETE /api/loans
+// DELETE /api/recurring-rules
 // ==========================================
 
 export async function DELETE(request: NextRequest) {
@@ -199,24 +202,23 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Loan ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Recurring rule ID is required' }, { status: 400 });
     }
 
-    // Delete loan (cascade deletes loan_payments via FK constraint)
     const { error } = await supabaseAdmin
-      .from('loans')
+      .from('recurring_rules')
       .delete()
       .eq('id', id)
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('❌ DELETE /api/loans error:', error);
+      console.error('❌ DELETE /api/recurring-rules error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ message: 'Loan deleted successfully' });
+    return NextResponse.json({ message: 'Recurring rule deleted successfully' });
   } catch (error: any) {
-    console.error('❌ DELETE /api/loans unexpected error:', error);
+    console.error('❌ DELETE /api/recurring-rules unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

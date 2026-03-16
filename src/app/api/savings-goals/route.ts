@@ -5,27 +5,27 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { z } from 'zod';
 
 /**
- * Loan API Routes
- * Handles CRUD operations for loans/debts
- * Schema matches the actual database: loans table with loan_payments child table
+ * Savings Goals API Routes
+ * Handles CRUD operations and amount contributions for savings goals
  */
 
-const loanInsertSchema = z.object({
-  type: z.enum(['borrowed', 'lent']),
-  contact_name: z.string().min(1, { message: 'El nombre del contacto es requerido' }).max(200),
-  principal_amount: z.number().positive({ message: 'El monto debe ser mayor a 0' }),
-  outstanding_amount: z.number().nonnegative({ message: 'El saldo pendiente no puede ser negativo' }),
-  interest_rate: z.number().nonnegative().default(0),
-  start_date: z.string(),
-  due_date: z.string().nullable().optional(),
-  status: z.enum(['active', 'paid', 'cancelled']).default('active'),
-  notes: z.string().max(1000).nullable().optional(),
+const savingsGoalInsertSchema = z.object({
+  name: z.string().min(1, { message: 'El nombre es requerido' }).max(200),
+  target_amount: z.number().positive({ message: 'La meta debe ser mayor a 0' }),
+  current_amount: z.number().nonnegative().default(0),
+  target_date: z.string().nullable().optional(),
+  description: z.string().max(1000).nullable().optional(),
+  icon: z.string().nullable().optional(),
+  color: z.string().nullable().optional(),
+  is_completed: z.boolean().default(false),
 });
 
-const loanUpdateSchema = loanInsertSchema.partial();
+const savingsGoalUpdateSchema = savingsGoalInsertSchema.partial().extend({
+  id: z.string().uuid(),
+});
 
 // ==========================================
-// GET /api/loans
+// GET /api/savings-goals
 // ==========================================
 
 export async function GET(request: NextRequest) {
@@ -36,29 +36,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status'); // active, paid, cancelled
-
-    let query = supabaseAdmin
-      .from('loans')
-      .select('*, loan_payments(*)')
+    const { data, error } = await supabaseAdmin
+      .from('savings_goals')
+      .select('*')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false });
 
-    if (status && ['active', 'paid', 'cancelled'].includes(status)) {
-      query = query.eq('status', status);
-    }
-
-    const { data, error } = await query;
-
     if (error) {
-      console.error('❌ GET /api/loans error:', error);
+      console.error('❌ GET /api/savings-goals error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('❌ GET /api/loans unexpected error:', error);
+    console.error('❌ GET /api/savings-goals unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -67,7 +58,7 @@ export async function GET(request: NextRequest) {
 }
 
 // ==========================================
-// POST /api/loans
+// POST /api/savings-goals
 // ==========================================
 
 export async function POST(request: NextRequest) {
@@ -79,10 +70,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const validated = loanInsertSchema.parse(body);
+    const validated = savingsGoalInsertSchema.parse(body);
 
     const { data, error } = await supabaseAdmin
-      .from('loans')
+      .from('savings_goals')
       .insert({
         ...validated,
         user_id: session.user.id,
@@ -91,13 +82,13 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('❌ POST /api/loans error:', error);
+      console.error('❌ POST /api/savings-goals error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data, { status: 201 });
   } catch (error: any) {
-    console.error('❌ POST /api/loans unexpected error:', error);
+    console.error('❌ POST /api/savings-goals unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -114,7 +105,7 @@ export async function POST(request: NextRequest) {
 }
 
 // ==========================================
-// PUT /api/loans
+// PUT /api/savings-goals
 // ==========================================
 
 export async function PUT(request: NextRequest) {
@@ -126,48 +117,52 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, ...updateFields } = body;
+    const validated = savingsGoalUpdateSchema.parse(body);
+    const { id, ...updateFields } = validated;
 
     if (!id) {
-      return NextResponse.json({ error: 'Loan ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Savings goal ID is required' }, { status: 400 });
     }
 
-    const validated = loanUpdateSchema.parse(updateFields);
-
-    // Validate that the loan belongs to the user
-    const { data: existingLoan, error: fetchError } = await supabaseAdmin
-      .from('loans')
-      .select('id')
+    // Verify ownership
+    const { data: existing, error: fetchError } = await supabaseAdmin
+      .from('savings_goals')
+      .select('id, target_amount, current_amount')
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();
 
-    if (fetchError || !existingLoan) {
+    if (fetchError || !existing) {
       return NextResponse.json(
-        { error: 'Loan not found or unauthorized' },
+        { error: 'Savings goal not found or unauthorized' },
         { status: 404 }
       );
     }
 
+    // Auto-complete if current_amount reaches target_amount
+    const finalFields = { ...updateFields };
+    const newCurrentAmount = updateFields.current_amount ?? existing.current_amount;
+    const targetAmount = updateFields.target_amount ?? existing.target_amount;
+    if (newCurrentAmount >= targetAmount) {
+      finalFields.is_completed = true;
+    }
+
     const { data, error } = await supabaseAdmin
-      .from('loans')
-      .update({
-        ...validated,
-        updated_at: new Date().toISOString(),
-      })
+      .from('savings_goals')
+      .update({ ...finalFields, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', session.user.id)
       .select()
       .single();
 
     if (error) {
-      console.error('❌ PUT /api/loans error:', error);
+      console.error('❌ PUT /api/savings-goals error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json(data);
   } catch (error: any) {
-    console.error('❌ PUT /api/loans unexpected error:', error);
+    console.error('❌ PUT /api/savings-goals unexpected error:', error);
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -184,7 +179,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // ==========================================
-// DELETE /api/loans
+// DELETE /api/savings-goals
 // ==========================================
 
 export async function DELETE(request: NextRequest) {
@@ -199,24 +194,23 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) {
-      return NextResponse.json({ error: 'Loan ID is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Savings goal ID is required' }, { status: 400 });
     }
 
-    // Delete loan (cascade deletes loan_payments via FK constraint)
     const { error } = await supabaseAdmin
-      .from('loans')
+      .from('savings_goals')
       .delete()
       .eq('id', id)
       .eq('user_id', session.user.id);
 
     if (error) {
-      console.error('❌ DELETE /api/loans error:', error);
+      console.error('❌ DELETE /api/savings-goals error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ message: 'Loan deleted successfully' });
+    return NextResponse.json({ message: 'Savings goal deleted successfully' });
   } catch (error: any) {
-    console.error('❌ DELETE /api/loans unexpected error:', error);
+    console.error('❌ DELETE /api/savings-goals unexpected error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
