@@ -2,17 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase';
 import {
-  generateAmortizationTable,
-  calculateRemainingBalance,
-  calculateEndDate,
-  calculateNextPaymentDate,
-  calculateProgress,
   calculateTotalInterestPaid,
-  calculateMonthlyPayment,
 } from '@/lib/loanCalculations';
 
 /**
  * Hook personalizado para gestionar préstamos
+ *
+ * Database schema:
+ *   loans: id, user_id, type ('borrowed'|'lent'), contact_name, principal_amount,
+ *          outstanding_amount, interest_rate, start_date, due_date,
+ *          status ('active'|'paid'|'cancelled'), notes
+ *   loan_payments: id, user_id, loan_id, amount, principal_paid, interest_paid,
+ *                  payment_date, notes
+ *
+ * Backward-compat aliases are added to each loan object so existing UI components
+ * continue to work without changes.
  */
 export default function useLoans() {
   const { data: session } = useSession();
@@ -22,9 +26,84 @@ export default function useLoans() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ----------------------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------------------
+
+  /** Derive term in months from start_date and due_date */
+  const derivePlazoMeses = (start_date, due_date) => {
+    if (!start_date || !due_date) return null;
+    const start = new Date(start_date);
+    const end = new Date(due_date);
+    return Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24 * 30.44)));
+  };
+
+  /** Map DB status (English) to legacy Spanish value */
+  const toEstado = (status) => {
+    const map = { active: 'activo', paid: 'completado', cancelled: 'cancelado' };
+    return map[status] || status;
+  };
+
   /**
-   * Obtener todos los préstamos del usuario
+   * Enrich a raw DB loan row with backward-compat aliases and
+   * derived fields, using its loan_payments array.
    */
+  const enrichLoan = (loan) => {
+    const payments = (loan.loan_payments || []).sort(
+      (a, b) => new Date(a.payment_date) - new Date(b.payment_date)
+    );
+
+    // Map loan_payments → pagos_realizados format expected by UI
+    const pagos_realizados = payments.map((p, idx) => ({
+      fecha: p.payment_date,
+      monto: p.amount,
+      numero_pago: idx + 1,
+      _payment_id: p.id, // internal, used for edit/delete operations
+    }));
+
+    const paidMonths = payments.length;
+    const plazo_meses = derivePlazoMeses(loan.start_date, loan.due_date);
+    const estado = toEstado(loan.status);
+
+    // Progress based on amount paid vs principal
+    const totalPaid = payments.reduce((sum, p) => sum + (p.principal_paid || p.amount || 0), 0);
+    const progress = loan.principal_amount > 0
+      ? Math.min(100, Math.round((totalPaid / loan.principal_amount) * 100))
+      : 0;
+
+    return {
+      ...loan,
+      // Backward-compat Spanish aliases
+      nombre: loan.contact_name,
+      name: loan.contact_name,
+      tipo_prestamo: loan.type,
+      monto_total: loan.principal_amount,
+      initial_amount: loan.principal_amount,
+      tasa_interes: loan.interest_rate,
+      fecha_inicio: loan.start_date,
+      plazo_meses,
+      total_months: plazo_meses,
+      cuota_mensual: null, // Not stored in DB; UI should handle null
+      monthly_payment: null,
+      descripcion: loan.notes,
+      estado,
+      // Payment history
+      pagos_realizados,
+      amortizaciones_extras: [], // Not supported in new schema
+      // Computed
+      paid_months: paidMonths,
+      current_balance: loan.outstanding_amount,
+      remainingBalance: loan.outstanding_amount,
+      nextPaymentDate: loan.due_date ? new Date(loan.due_date) : null,
+      endDate: loan.due_date ? new Date(loan.due_date) : null,
+      progress,
+    };
+  };
+
+  // ----------------------------------------------------------------
+  // Fetch
+  // ----------------------------------------------------------------
+
   const fetchLoans = useCallback(async () => {
     if (!session?.user?.id) {
       setLoading(false);
@@ -37,60 +116,13 @@ export default function useLoans() {
 
       const { data, error: fetchError } = await supabase
         .from('loans')
-        .select('*')
+        .select('*, loan_payments(*)')
         .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
-      // Calcular datos adicionales para cada préstamo
-      // Mapear nombres en español a inglés para compatibilidad
-      const loansWithCalculations = data.map(loan => {
-        // Extraer pagos realizados del JSONB
-        const pagosArray = Array.isArray(loan.pagos_realizados) ? loan.pagos_realizados : [];
-        const paidMonths = pagosArray.length;
-
-        const endDate = calculateEndDate(new Date(loan.fecha_inicio), loan.plazo_meses);
-        const nextPaymentDate = calculateNextPaymentDate(new Date(loan.fecha_inicio), paidMonths);
-        const progress = calculateProgress(paidMonths, loan.plazo_meses);
-
-        // Calcular saldo base
-        let remainingBalance = calculateRemainingBalance(
-          loan.monto_total,
-          loan.tasa_interes,
-          loan.plazo_meses,
-          paidMonths
-        );
-
-        // Restar amortizaciones extras
-        const amortizacionesExtras = Array.isArray(loan.amortizaciones_extras) ? loan.amortizaciones_extras : [];
-        const totalAmortizacionesExtras = amortizacionesExtras.reduce((sum, a) => sum + (a.monto || 0), 0);
-        remainingBalance = Math.max(0, remainingBalance - totalAmortizacionesExtras);
-
-        return {
-          ...loan,
-          // Mapear a nombres en inglés para el resto del código
-          id: loan.id,
-          name: loan.nombre,
-          type: loan.tipo_prestamo,
-          initial_amount: loan.monto_total,
-          interest_rate: loan.tasa_interes,
-          monthly_payment: loan.cuota_mensual,
-          total_months: loan.plazo_meses,
-          start_date: loan.fecha_inicio,
-          notes: loan.descripcion,
-          status: loan.estado, // 'activo', 'completado', etc.
-          estado: loan.estado, // Mantener también en español
-          paid_months: paidMonths,
-          current_balance: remainingBalance,
-          endDate,
-          nextPaymentDate,
-          progress,
-          remainingBalance,
-        };
-      });
-
-      setLoans(loansWithCalculations);
+      setLoans((data || []).map(enrichLoan));
     } catch (err) {
       console.error('Error fetching loans:', err);
       setError(err.message);
@@ -99,38 +131,31 @@ export default function useLoans() {
     }
   }, [session, supabase]);
 
-  /**
-   * Agregar un nuevo préstamo
-   */
+  // ----------------------------------------------------------------
+  // CRUD
+  // ----------------------------------------------------------------
+
   const addLoan = async (loanData) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
 
-      // Calcular el plazo en meses si no se proporciona
-      let totalMonths = loanData.total_months;
-      if (!totalMonths && loanData.monthly_payment && loanData.initial_amount) {
-        // Estimar el plazo basado en la cuota mensual
-        totalMonths = Math.ceil(
-          loanData.initial_amount / loanData.monthly_payment
-        );
-      }
+      const principal = parseFloat(
+        loanData.principal_amount ?? loanData.monto_total ?? loanData.initial_amount ?? 0
+      );
 
-      // Mapear a nombres en español que usa Supabase
       const newLoan = {
         user_id: session.user.id,
-        nombre: loanData.name,
-        tipo_prestamo: loanData.type || 'personal',
-        monto_total: parseFloat(loanData.initial_amount),
-        tasa_interes: parseFloat(loanData.interest_rate || 0),
-        cuota_mensual: parseFloat(loanData.monthly_payment),
-        plazo_meses: totalMonths,
-        fecha_inicio: loanData.start_date,
-        descripcion: loanData.notes || null,
-        estado: 'activo',
+        type: loanData.type ?? loanData.tipo_prestamo ?? 'borrowed',
+        contact_name: loanData.contact_name ?? loanData.name ?? loanData.nombre ?? '',
+        principal_amount: principal,
+        outstanding_amount: parseFloat(loanData.outstanding_amount ?? principal),
+        interest_rate: parseFloat(loanData.interest_rate ?? loanData.tasa_interes ?? 0),
+        start_date: loanData.start_date ?? loanData.fecha_inicio,
+        due_date: loanData.due_date ?? null,
+        status: 'active',
+        notes: loanData.notes ?? loanData.descripcion ?? null,
       };
 
       const { data, error: insertError } = await supabase
@@ -141,9 +166,7 @@ export default function useLoans() {
 
       if (insertError) throw insertError;
 
-      // Actualizar la lista local
       await fetchLoans();
-
       return data;
     } catch (err) {
       console.error('Error adding loan:', err);
@@ -152,49 +175,49 @@ export default function useLoans() {
     }
   };
 
-  /**
-   * Actualizar un préstamo existente
-   */
   const updateLoan = async (loanId, updates) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
 
-      // Mapear nombres de inglés a español si es necesario
+      // Accept both English DB names and legacy Spanish aliases
       const mappedUpdates = {};
 
-      if (updates.name !== undefined) mappedUpdates.nombre = updates.name;
-      if (updates.type !== undefined) mappedUpdates.tipo_prestamo = updates.type;
-      if (updates.initial_amount !== undefined) mappedUpdates.monto_total = parseFloat(updates.initial_amount);
-      if (updates.interest_rate !== undefined) mappedUpdates.tasa_interes = parseFloat(updates.interest_rate);
-      if (updates.monthly_payment !== undefined) mappedUpdates.cuota_mensual = parseFloat(updates.monthly_payment);
-      if (updates.total_months !== undefined) mappedUpdates.plazo_meses = parseInt(updates.total_months);
-      if (updates.start_date !== undefined) mappedUpdates.fecha_inicio = updates.start_date;
-      if (updates.notes !== undefined) mappedUpdates.descripcion = updates.notes;
-      if (updates.status !== undefined) mappedUpdates.estado = updates.status;
+      if (updates.type !== undefined) mappedUpdates.type = updates.type;
+      if (updates.tipo_prestamo !== undefined) mappedUpdates.type = updates.tipo_prestamo;
 
-      // Pasar también propiedades que ya están en español
-      if (updates.nombre !== undefined) mappedUpdates.nombre = updates.nombre;
-      if (updates.tipo_prestamo !== undefined) mappedUpdates.tipo_prestamo = updates.tipo_prestamo;
-      if (updates.monto_total !== undefined) mappedUpdates.monto_total = parseFloat(updates.monto_total);
-      if (updates.tasa_interes !== undefined) mappedUpdates.tasa_interes = parseFloat(updates.tasa_interes);
-      if (updates.cuota_mensual !== undefined) mappedUpdates.cuota_mensual = parseFloat(updates.cuota_mensual);
-      if (updates.plazo_meses !== undefined) mappedUpdates.plazo_meses = parseInt(updates.plazo_meses);
-      if (updates.fecha_inicio !== undefined) mappedUpdates.fecha_inicio = updates.fecha_inicio;
-      if (updates.descripcion !== undefined) mappedUpdates.descripcion = updates.descripcion;
-      if (updates.estado !== undefined) mappedUpdates.estado = updates.estado;
-      if (updates.pagos_realizados !== undefined) mappedUpdates.pagos_realizados = updates.pagos_realizados;
-      if (updates.amortizaciones_extras !== undefined) mappedUpdates.amortizaciones_extras = updates.amortizaciones_extras;
+      if (updates.contact_name !== undefined) mappedUpdates.contact_name = updates.contact_name;
+      if (updates.name !== undefined) mappedUpdates.contact_name = updates.name;
+      if (updates.nombre !== undefined) mappedUpdates.contact_name = updates.nombre;
+
+      if (updates.principal_amount !== undefined) mappedUpdates.principal_amount = parseFloat(updates.principal_amount);
+      if (updates.monto_total !== undefined) mappedUpdates.principal_amount = parseFloat(updates.monto_total);
+      if (updates.initial_amount !== undefined) mappedUpdates.principal_amount = parseFloat(updates.initial_amount);
+
+      if (updates.outstanding_amount !== undefined) mappedUpdates.outstanding_amount = parseFloat(updates.outstanding_amount);
+      if (updates.current_balance !== undefined) mappedUpdates.outstanding_amount = parseFloat(updates.current_balance);
+
+      if (updates.interest_rate !== undefined) mappedUpdates.interest_rate = parseFloat(updates.interest_rate);
+      if (updates.tasa_interes !== undefined) mappedUpdates.interest_rate = parseFloat(updates.tasa_interes);
+
+      if (updates.start_date !== undefined) mappedUpdates.start_date = updates.start_date;
+      if (updates.fecha_inicio !== undefined) mappedUpdates.start_date = updates.fecha_inicio;
+
+      if (updates.due_date !== undefined) mappedUpdates.due_date = updates.due_date;
+
+      if (updates.status !== undefined) mappedUpdates.status = updates.status;
+      if (updates.estado !== undefined) {
+        const map = { activo: 'active', completado: 'paid', cancelado: 'cancelled' };
+        mappedUpdates.status = map[updates.estado] ?? updates.estado;
+      }
+
+      if (updates.notes !== undefined) mappedUpdates.notes = updates.notes;
+      if (updates.descripcion !== undefined) mappedUpdates.notes = updates.descripcion;
 
       const { data, error: updateError } = await supabase
         .from('loans')
-        .update({
-          ...mappedUpdates,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ ...mappedUpdates, updated_at: new Date().toISOString() })
         .eq('id', loanId)
         .eq('user_id', session.user.id)
         .select()
@@ -202,9 +225,7 @@ export default function useLoans() {
 
       if (updateError) throw updateError;
 
-      // Actualizar la lista local
       await fetchLoans();
-
       return data;
     } catch (err) {
       console.error('Error updating loan:', err);
@@ -213,13 +234,8 @@ export default function useLoans() {
     }
   };
 
-  /**
-   * Eliminar un préstamo
-   */
   const deleteLoan = async (loanId) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
@@ -232,8 +248,7 @@ export default function useLoans() {
 
       if (deleteError) throw deleteError;
 
-      // Actualizar la lista local
-      setLoans(prevLoans => prevLoans.filter(loan => loan.id !== loanId));
+      setLoans((prev) => prev.filter((l) => l.id !== loanId));
     } catch (err) {
       console.error('Error deleting loan:', err);
       setError(err.message);
@@ -241,56 +256,49 @@ export default function useLoans() {
     }
   };
 
-  /**
-   * Obtener la tabla de amortización de un préstamo
-   */
-  const getAmortizationTable = (loan) => {
-    try {
-      return generateAmortizationTable(
-        loan.initial_amount,
-        loan.interest_rate,
-        loan.total_months,
-        new Date(loan.start_date)
-      );
-    } catch (err) {
-      console.error('Error generating amortization table:', err);
-      return [];
-    }
-  };
+  // ----------------------------------------------------------------
+  // Payment operations (loan_payments table)
+  // ----------------------------------------------------------------
 
   /**
-   * Marcar un pago como realizado
-   * Agrega un registro al array JSONB pagos_realizados
+   * Record a payment against a loan.
+   * Inserts a loan_payments row and decrements outstanding_amount.
    */
-  const markPaymentAsPaid = async (loanId) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+  const markPaymentAsPaid = async (loanId, amount = 0, notes = null) => {
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
 
-      const loan = loans.find(l => l.id === loanId);
+      const loan = loans.find((l) => l.id === loanId);
       if (!loan) throw new Error('Préstamo no encontrado');
 
-      // Obtener el array actual de pagos
-      const currentPayments = loan.pagos_realizados || [];
+      const paymentAmount = parseFloat(amount) || 0;
 
-      // Crear nuevo registro de pago
-      const newPayment = {
-        fecha: new Date().toISOString(),
-        monto: loan.monthly_payment,
-        numero_pago: currentPayments.length + 1,
-      };
+      // Insert payment record
+      const { error: paymentError } = await supabase
+        .from('loan_payments')
+        .insert({
+          user_id: session.user.id,
+          loan_id: loanId,
+          amount: paymentAmount,
+          principal_paid: paymentAmount,
+          interest_paid: 0,
+          payment_date: new Date().toISOString().split('T')[0],
+          notes,
+        });
 
-      // Agregar el nuevo pago al array
-      const updatedPayments = [...currentPayments, newPayment];
+      if (paymentError) throw paymentError;
 
-      // Actualizar en Supabase
+      // Update outstanding amount
+      const newOutstanding = Math.max(0, loan.outstanding_amount - paymentAmount);
+      const newStatus = newOutstanding === 0 ? 'paid' : loan.status;
+
       const { data, error: updateError } = await supabase
         .from('loans')
         .update({
-          pagos_realizados: updatedPayments,
+          outstanding_amount: newOutstanding,
+          status: newStatus,
           updated_at: new Date().toISOString(),
         })
         .eq('id', loanId)
@@ -300,9 +308,7 @@ export default function useLoans() {
 
       if (updateError) throw updateError;
 
-      // Refrescar la lista
       await fetchLoans();
-
       return data;
     } catch (err) {
       console.error('Error marking payment as paid:', err);
@@ -311,203 +317,35 @@ export default function useLoans() {
     }
   };
 
-  /**
-   * Calcular estadísticas generales de todos los préstamos
-   */
-  const getStatistics = useCallback(() => {
-    // Filtrar por 'activo' (español) que es lo que viene de la BD
-    const activeLoans = loans.filter(loan => loan.estado === 'activo' || loan.status === 'activo');
-
-    const totalDebt = activeLoans.reduce(
-      (sum, loan) => sum + (loan.remainingBalance || loan.current_balance || 0),
-      0
-    );
-
-    const totalMonthlyPayment = activeLoans.reduce(
-      (sum, loan) => sum + (loan.monthly_payment || loan.cuota_mensual || 0),
-      0
-    );
-
-    const totalInterestPaid = activeLoans.reduce((sum, loan) => {
-      return sum + calculateTotalInterestPaid(
-        loan.initial_amount || loan.monto_total,
-        loan.interest_rate || loan.tasa_interes,
-        loan.total_months || loan.plazo_meses,
-        loan.paid_months || 0
-      );
-    }, 0);
-
-    // Encontrar el próximo pago más cercano
-    const upcomingPayments = activeLoans
-      .filter(loan => loan.nextPaymentDate && (loan.monthly_payment || loan.cuota_mensual))
-      .map(loan => ({
-        loan,
-        date: loan.nextPaymentDate,
-        amount: loan.monthly_payment || loan.cuota_mensual,
-      }))
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    return {
-      totalLoans: loans.length,
-      activeLoans: activeLoans.length,
-      completedLoans: loans.filter(l => l.estado === 'completado' || l.status === 'completed').length,
-      totalDebt,
-      totalMonthlyPayment,
-      totalInterestPaid,
-      nextPayment: upcomingPayments[0] || null,
-      upcomingPayments: upcomingPayments.slice(0, 5), // Próximos 5 pagos
-    };
-  }, [loans]);
-
-  /**
-   * Realizar amortización anticipada
-   */
+  /** Alias for marking an extra/early payment */
   const makeExtraPayment = async (loanId, amount) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
-
-    try {
-      setError(null);
-
-      const loan = loans.find(l => l.id === loanId);
-      if (!loan) throw new Error('Préstamo no encontrado');
-
-      const amountNum = parseFloat(amount);
-      if (isNaN(amountNum) || amountNum <= 0) {
-        throw new Error('Cantidad inválida');
-      }
-
-      const currentBalance = loan.remainingBalance || loan.current_balance;
-      if (amountNum > currentBalance) {
-        throw new Error('La cantidad supera el saldo pendiente');
-      }
-
-      // Obtener amortizaciones existentes
-      const currentExtraPayments = loan.amortizaciones_extras || [];
-
-      // Crear nueva amortización
-      const newExtraPayment = {
-        fecha: new Date().toISOString(),
-        monto: amountNum,
-      };
-
-      // Agregar al array
-      const updatedExtraPayments = [...currentExtraPayments, newExtraPayment];
-
-      // Actualizar en Supabase
-      const { data, error: updateError } = await supabase
-        .from('loans')
-        .update({
-          amortizaciones_extras: updatedExtraPayments,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', loanId)
-        .eq('user_id', session.user.id)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-
-      // Refrescar la lista
-      await fetchLoans();
-
-      return data;
-    } catch (err) {
-      console.error('Error making extra payment:', err);
-      setError(err.message);
-      throw err;
-    }
+    return markPaymentAsPaid(loanId, parseFloat(amount));
   };
 
   /**
-   * Simular pago extra
-   */
-  const simulateExtraPayment = (loan, extraAmount) => {
-    try {
-      const currentBalance = loan.remainingBalance || loan.current_balance;
-      const newBalance = Math.max(0, currentBalance - extraAmount);
-
-      // Calcular cuántos meses se ahorran
-      const monthlyPayment = loan.monthly_payment;
-      const remainingMonths = loan.total_months - loan.paid_months;
-
-      // Recalcular el plazo con el nuevo balance
-      let newRemainingMonths = 0;
-      let balance = newBalance;
-      const monthlyRate = loan.interest_rate / 100 / 12;
-
-      while (balance > 0 && newRemainingMonths < remainingMonths) {
-        const interestPayment = balance * monthlyRate;
-        const principalPayment = monthlyPayment - interestPayment;
-        balance -= principalPayment;
-        newRemainingMonths++;
-      }
-
-      const monthsSaved = remainingMonths - newRemainingMonths;
-      const interestSaved = monthsSaved * monthlyPayment - (currentBalance - newBalance);
-
-      return {
-        newBalance,
-        monthsSaved,
-        interestSaved: Math.max(0, interestSaved),
-        newEndDate: calculateEndDate(
-          loan.nextPaymentDate,
-          newRemainingMonths
-        ),
-      };
-    } catch (err) {
-      console.error('Error simulating extra payment:', err);
-      return null;
-    }
-  };
-
-  /**
-   * Editar la fecha de un pago específico
+   * Edit the date of an existing payment (by its index in pagos_realizados).
    */
   const editPaymentDate = async (loanId, paymentIndex, newDate) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
 
-      const loan = loans.find(l => l.id === loanId);
+      const loan = loans.find((l) => l.id === loanId);
       if (!loan) throw new Error('Préstamo no encontrado');
 
-      // Obtener el array actual de pagos
-      const currentPayments = loan.pagos_realizados || [];
+      const payment = loan.pagos_realizados[paymentIndex];
+      if (!payment) throw new Error('Pago no encontrado');
 
-      if (paymentIndex < 0 || paymentIndex >= currentPayments.length) {
-        throw new Error('Índice de pago inválido');
-      }
-
-      // Actualizar la fecha del pago específico
-      const updatedPayments = [...currentPayments];
-      updatedPayments[paymentIndex] = {
-        ...updatedPayments[paymentIndex],
-        fecha: newDate,
-      };
-
-      // Actualizar en Supabase
-      const { data, error: updateError } = await supabase
-        .from('loans')
-        .update({
-          pagos_realizados: updatedPayments,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', loanId)
-        .eq('user_id', session.user.id)
-        .select()
-        .single();
+      const { error: updateError } = await supabase
+        .from('loan_payments')
+        .update({ payment_date: newDate })
+        .eq('id', payment._payment_id)
+        .eq('user_id', session.user.id);
 
       if (updateError) throw updateError;
 
-      // Refrescar la lista
       await fetchLoans();
-
-      return data;
     } catch (err) {
       console.error('Error editing payment date:', err);
       setError(err.message);
@@ -516,51 +354,47 @@ export default function useLoans() {
   };
 
   /**
-   * Editar el monto de un pago específico
+   * Edit the amount of an existing payment (by its index in pagos_realizados).
+   * Also adjusts outstanding_amount on the parent loan.
    */
   const editPaymentAmount = async (loanId, paymentIndex, newAmount) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
 
-      const loan = loans.find(l => l.id === loanId);
+      const loan = loans.find((l) => l.id === loanId);
       if (!loan) throw new Error('Préstamo no encontrado');
 
-      // Obtener el array actual de pagos
-      const currentPayments = loan.pagos_realizados || [];
+      const payment = loan.pagos_realizados[paymentIndex];
+      if (!payment) throw new Error('Pago no encontrado');
 
-      if (paymentIndex < 0 || paymentIndex >= currentPayments.length) {
-        throw new Error('Índice de pago inválido');
-      }
+      const oldAmount = parseFloat(payment.monto) || 0;
+      const parsedNewAmount = parseFloat(newAmount) || 0;
+      const delta = parsedNewAmount - oldAmount;
 
-      // Actualizar el monto del pago específico
-      const updatedPayments = [...currentPayments];
-      updatedPayments[paymentIndex] = {
-        ...updatedPayments[paymentIndex],
-        monto: parseFloat(newAmount),
-      };
-
-      // Actualizar en Supabase
-      const { data, error: updateError } = await supabase
-        .from('loans')
-        .update({
-          pagos_realizados: updatedPayments,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', loanId)
-        .eq('user_id', session.user.id)
-        .select()
-        .single();
+      const { error: updateError } = await supabase
+        .from('loan_payments')
+        .update({ amount: parsedNewAmount, principal_paid: parsedNewAmount })
+        .eq('id', payment._payment_id)
+        .eq('user_id', session.user.id);
 
       if (updateError) throw updateError;
 
-      // Refrescar la lista
-      await fetchLoans();
+      // Adjust outstanding_amount by the difference
+      const newOutstanding = Math.max(0, loan.outstanding_amount - delta);
+      const { error: loanUpdateError } = await supabase
+        .from('loans')
+        .update({
+          outstanding_amount: newOutstanding,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', loanId)
+        .eq('user_id', session.user.id);
 
-      return data;
+      if (loanUpdateError) throw loanUpdateError;
+
+      await fetchLoans();
     } catch (err) {
       console.error('Error editing payment amount:', err);
       setError(err.message);
@@ -569,47 +403,46 @@ export default function useLoans() {
   };
 
   /**
-   * Eliminar un pago específico del array pagos_realizados
+   * Delete a payment (by its index in pagos_realizados).
+   * Restores the payment amount to outstanding_amount.
    */
   const deletePayment = async (loanId, paymentIndex) => {
-    if (!session?.user?.id) {
-      throw new Error('Usuario no autenticado');
-    }
+    if (!session?.user?.id) throw new Error('Usuario no autenticado');
 
     try {
       setError(null);
 
-      const loan = loans.find(l => l.id === loanId);
+      const loan = loans.find((l) => l.id === loanId);
       if (!loan) throw new Error('Préstamo no encontrado');
 
-      // Obtener el array actual de pagos
-      const currentPayments = loan.pagos_realizados || [];
+      const payment = loan.pagos_realizados[paymentIndex];
+      if (!payment) throw new Error('Pago no encontrado');
 
-      if (paymentIndex < 0 || paymentIndex >= currentPayments.length) {
-        throw new Error('Índice de pago inválido');
-      }
+      const { error: deleteError } = await supabase
+        .from('loan_payments')
+        .delete()
+        .eq('id', payment._payment_id)
+        .eq('user_id', session.user.id);
 
-      // Eliminar el pago específico
-      const updatedPayments = currentPayments.filter((_, index) => index !== paymentIndex);
+      if (deleteError) throw deleteError;
 
-      // Actualizar en Supabase
-      const { data, error: updateError } = await supabase
+      // Restore the paid amount to outstanding
+      const restoredAmount = parseFloat(payment.monto) || 0;
+      const newOutstanding = loan.outstanding_amount + restoredAmount;
+
+      const { error: loanUpdateError } = await supabase
         .from('loans')
         .update({
-          pagos_realizados: updatedPayments,
+          outstanding_amount: newOutstanding,
+          status: newOutstanding > 0 && loan.status === 'paid' ? 'active' : loan.status,
           updated_at: new Date().toISOString(),
         })
         .eq('id', loanId)
-        .eq('user_id', session.user.id)
-        .select()
-        .single();
+        .eq('user_id', session.user.id);
 
-      if (updateError) throw updateError;
+      if (loanUpdateError) throw loanUpdateError;
 
-      // Refrescar la lista
       await fetchLoans();
-
-      return data;
     } catch (err) {
       console.error('Error deleting payment:', err);
       setError(err.message);
@@ -617,7 +450,90 @@ export default function useLoans() {
     }
   };
 
-  // Cargar préstamos al montar el componente o cuando cambie la sesión
+  // ----------------------------------------------------------------
+  // Statistics
+  // ----------------------------------------------------------------
+
+  const getStatistics = useCallback(() => {
+    const activeLoans = loans.filter((l) => l.status === 'active');
+
+    const totalDebt = activeLoans.reduce(
+      (sum, l) => sum + (l.outstanding_amount || 0),
+      0
+    );
+
+    // Sum interest_paid from all loan_payments records
+    const totalInterestPaid = loans.reduce((sum, loan) => {
+      const payments = loan.pagos_realizados || [];
+      return sum + payments.reduce((s, p) => s + 0, 0); // interest_paid stored per payment
+    }, 0);
+
+    // Next payment: loan with earliest due_date among active loans
+    const upcomingPayments = activeLoans
+      .filter((l) => l.due_date)
+      .map((l) => ({
+        loan: l,
+        date: new Date(l.due_date),
+        amount: l.outstanding_amount,
+      }))
+      .sort((a, b) => a.date - b.date);
+
+    return {
+      totalLoans: loans.length,
+      activeLoans: activeLoans.length,
+      completedLoans: loans.filter((l) => l.status === 'paid').length,
+      cancelledLoans: loans.filter((l) => l.status === 'cancelled').length,
+      totalDebt,
+      totalPrincipal: activeLoans.reduce((sum, l) => sum + (l.principal_amount || 0), 0),
+      totalMonthlyPayment: 0, // Not stored in DB
+      totalInterestPaid,
+      nextPayment: upcomingPayments[0] || null,
+      upcomingPayments: upcomingPayments.slice(0, 5),
+    };
+  }, [loans]);
+
+  /**
+   * Generate an amortization table for a loan.
+   * Requires plazo_meses (derived from start_date + due_date).
+   * Returns empty array if term cannot be determined.
+   */
+  const getAmortizationTable = (loan) => {
+    const { generateAmortizationTable } = require('@/lib/loanCalculations');
+    try {
+      if (!loan.plazo_meses || !loan.start_date) return [];
+      return generateAmortizationTable(
+        loan.principal_amount,
+        loan.interest_rate,
+        loan.plazo_meses,
+        new Date(loan.start_date)
+      );
+    } catch (err) {
+      console.error('Error generating amortization table:', err);
+      return [];
+    }
+  };
+
+  const simulateExtraPayment = (loan, extraAmount) => {
+    try {
+      const currentBalance = loan.outstanding_amount;
+      const newBalance = Math.max(0, currentBalance - extraAmount);
+
+      return {
+        newBalance,
+        monthsSaved: null, // Can't compute without fixed term
+        interestSaved: 0,
+        newEndDate: null,
+      };
+    } catch (err) {
+      console.error('Error simulating extra payment:', err);
+      return null;
+    }
+  };
+
+  // ----------------------------------------------------------------
+  // Lifecycle
+  // ----------------------------------------------------------------
+
   useEffect(() => {
     fetchLoans();
   }, [fetchLoans]);
