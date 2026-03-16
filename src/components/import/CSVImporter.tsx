@@ -5,7 +5,6 @@ import { useGlobalToast } from '@/components/Toaster';
 import { useState, useRef } from 'react';
 import Papa from 'papaparse';
 import { Upload, Download, Check, X, AlertCircle, Save } from 'lucide-react';
-import { useSession } from 'next-auth/react';
 
 interface CSVRow {
   [key: string]: string;
@@ -72,7 +71,6 @@ const COMMON_TEMPLATES: BankTemplate[] = [
 
 export function CSVImporter() {
   const { toast } = useGlobalToast();
-  const { data: session } = useSession();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [csvData, setCSVData] = useState<CSVRow[]>([]);
