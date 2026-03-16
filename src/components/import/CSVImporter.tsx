@@ -300,7 +300,7 @@ export function CSVImporter() {
             amount: absAmount,
             type: transaction.amount >= 0 ? 'income' : 'expense',
             category_id: transaction.category_id,
-            account_id: toUuidOrNull(transaction.account),
+            account_id: toUuidOrNull(transaction.account ?? ''),
           })
         });
 
