@@ -186,7 +186,7 @@ export function CSVImporter() {
   };
 
   const parseDate = (value: string): string => {
-    if (!value) return new Date().toISOString().split('T')[0];
+    if (!value) return new Date().toISOString().substring(0, 10);
 
     // dd/mm/yyyy or d/m/yyyy
     const dmy = value.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
@@ -207,10 +207,10 @@ export function CSVImporter() {
     // Try native Date parsing as last resort
     const parsed = new Date(value);
     if (!isNaN(parsed.getTime())) {
-      return parsed.toISOString().split('T')[0];
+      return parsed.toISOString().substring(0, 10);
     }
 
-    return new Date().toISOString().split('T')[0];
+    return new Date().toISOString().substring(0, 10);
   };
 
   // Encuentra el UUID de la categoría del usuario por nombre (case-insensitive)
@@ -302,7 +302,7 @@ export function CSVImporter() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            date: transaction.date || new Date().toISOString().split('T')[0],
+            date: transaction.date || new Date().toISOString().substring(0, 10),
             description: transaction.description || 'Sin descripción',
             amount: absAmount,
             type: transaction.amount >= 0 ? 'income' : 'expense',
