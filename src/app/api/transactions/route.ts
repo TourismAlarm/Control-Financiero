@@ -72,13 +72,13 @@ export async function POST(request: NextRequest) {
     });
 
     // Normalize date to YYYY-MM-DD to avoid PostgreSQL 22007 error
-    let safeDate: string = new Date().toISOString().split('T')[0];
-    if (validated.date) {
-      const d = new Date(validated.date as string);
-      safeDate = isNaN(d.getTime())
-        ? new Date().toISOString().split('T')[0]
-        : d.toISOString().split('T')[0];
-    }
+    const toSafeDate = (v?: string | Date): string => {
+      const today = new Date().toISOString().substring(0, 10);
+      if (!v) return today;
+      const d = new Date(v);
+      return isNaN(d.getTime()) ? today : d.toISOString().substring(0, 10);
+    };
+    const safeDate = toSafeDate(validated.date as string | Date | undefined);
 
     const { data, error } = await supabaseAdmin
       .from('transactions')
