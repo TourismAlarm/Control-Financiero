@@ -2,6 +2,7 @@
 
 import { useGlobalToast } from '@/components/Toaster';
 import { useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { Upload, Download, Check, X, AlertCircle, Save, Tag } from 'lucide-react';
 import { autoCategorize, getAllRules } from '@/lib/categorization/autoCategorize';
@@ -84,6 +85,7 @@ const toUuidOrNull = (val: string) => (val && UUID_REGEX.test(val) ? val : null)
 
 export function CSVImporter() {
   const { toast } = useGlobalToast();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [csvData, setCSVData] = useState<CSVRow[]>([]);
@@ -186,18 +188,28 @@ export function CSVImporter() {
   };
 
   const parseDate = (value: string): string => {
-    if (!value) return new Date().toISOString().substring(0, 10);
+    const v = value?.trim();
+    if (!v) return new Date().toISOString().substring(0, 10);
 
     // dd/mm/yyyy or d/m/yyyy
-    const dmy = value.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    const dmy = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
     if (dmy) {
       const day = dmy[1]!.padStart(2, '0');
       const month = dmy[2]!.padStart(2, '0');
       return `${dmy[3]!}-${month}-${day}`;
     }
 
+    // dd/mm/yy (2-digit year)
+    const dmy2 = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+    if (dmy2) {
+      const day = dmy2[1]!.padStart(2, '0');
+      const month = dmy2[2]!.padStart(2, '0');
+      const year = parseInt(dmy2[3]!) < 50 ? `20${dmy2[3]!}` : `19${dmy2[3]!}`;
+      return `${year}-${month}-${day}`;
+    }
+
     // yyyy-mm-dd or yyyy/mm/dd
-    const ymd = value.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    const ymd = v.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
     if (ymd) {
       const month = ymd[2]!.padStart(2, '0');
       const day = ymd[3]!.padStart(2, '0');
@@ -205,7 +217,7 @@ export function CSVImporter() {
     }
 
     // Try native Date parsing as last resort
-    const parsed = new Date(value);
+    const parsed = new Date(v);
     if (!isNaN(parsed.getTime())) {
       return parsed.toISOString().substring(0, 10);
     }
@@ -331,6 +343,12 @@ export function CSVImporter() {
       duplicates,
       errors
     });
+
+    if (imported > 0) {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    }
 
     toast(`Importación completada: ${imported} transacciones importadas ${duplicates} duplicados omitidos ${errors} errores`, errors > 0 && imported === 0 ? 'error' : 'success');
     resetImport();
