@@ -186,24 +186,31 @@ export function CSVImporter() {
   };
 
   const parseDate = (value: string): string => {
-    const formats = [
-      /(\d{2})\/(\d{2})\/(\d{4})/,
-      /(\d{4})-(\d{2})-(\d{2})/,
-      /(\d{2})-(\d{2})-(\d{4})/,
-    ];
+    if (!value) return new Date().toISOString().split('T')[0];
 
-    for (const format of formats) {
-      const match = value.match(format);
-      if (match) {
-        if (format === formats[0] || format === formats[2]) {
-          return `${match[3]}-${match[2]}-${match[1]}`;
-        } else {
-          return value;
-        }
-      }
+    // dd/mm/yyyy or d/m/yyyy
+    const dmy = value.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (dmy) {
+      const day = dmy[1].padStart(2, '0');
+      const month = dmy[2].padStart(2, '0');
+      return `${dmy[3]}-${month}-${day}`;
     }
 
-    return value;
+    // yyyy-mm-dd or yyyy/mm/dd
+    const ymd = value.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if (ymd) {
+      const month = ymd[2].padStart(2, '0');
+      const day = ymd[3].padStart(2, '0');
+      return `${ymd[1]}-${month}-${day}`;
+    }
+
+    // Try native Date parsing as last resort
+    const parsed = new Date(value);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0];
+    }
+
+    return new Date().toISOString().split('T')[0];
   };
 
   // Encuentra el UUID de la categoría del usuario por nombre (case-insensitive)

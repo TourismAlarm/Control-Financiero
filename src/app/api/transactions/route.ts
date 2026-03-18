@@ -71,9 +71,18 @@ export async function POST(request: NextRequest) {
       user_id: session.user.id,
     });
 
+    // Normalize date to YYYY-MM-DD to avoid PostgreSQL 22007 error
+    let safeDate: string = new Date().toISOString().split('T')[0];
+    if (validated.date) {
+      const d = new Date(validated.date as string);
+      safeDate = isNaN(d.getTime())
+        ? new Date().toISOString().split('T')[0]
+        : d.toISOString().split('T')[0];
+    }
+
     const { data, error } = await supabaseAdmin
       .from('transactions')
-      .insert(validated)
+      .insert({ ...validated, date: safeDate })
       .select('*, category:categories(id, name, type, icon, color)')
       .single();
 
