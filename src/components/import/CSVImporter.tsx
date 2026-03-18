@@ -191,17 +191,17 @@ export function CSVImporter() {
     // dd/mm/yyyy or d/m/yyyy
     const dmy = value.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
     if (dmy) {
-      const day = dmy[1].padStart(2, '0');
-      const month = dmy[2].padStart(2, '0');
-      return `${dmy[3]}-${month}-${day}`;
+      const day = dmy[1]!.padStart(2, '0');
+      const month = dmy[2]!.padStart(2, '0');
+      return `${dmy[3]!}-${month}-${day}`;
     }
 
     // yyyy-mm-dd or yyyy/mm/dd
     const ymd = value.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
     if (ymd) {
-      const month = ymd[2].padStart(2, '0');
-      const day = ymd[3].padStart(2, '0');
-      return `${ymd[1]}-${month}-${day}`;
+      const month = ymd[2]!.padStart(2, '0');
+      const day = ymd[3]!.padStart(2, '0');
+      return `${ymd[1]!}-${month}-${day}`;
     }
 
     // Try native Date parsing as last resort
