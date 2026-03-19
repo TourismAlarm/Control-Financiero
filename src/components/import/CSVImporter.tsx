@@ -4,7 +4,7 @@ import { useGlobalToast } from '@/components/Toaster';
 import { useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
-import { Upload, Download, Check, X, AlertCircle, Save, Tag } from 'lucide-react';
+import { Upload, Check, X, Save, ChevronRight, Landmark, Tag, Hash, Calendar, DollarSign, Store, CreditCard } from 'lucide-react';
 import { autoCategorize, getAllRules } from '@/lib/categorization/autoCategorize';
 
 interface CSVRow {
@@ -412,293 +412,280 @@ export function CSVImporter() {
     }
   };
 
-  const categorizedCount = parsedTransactions.filter(t => !t.isDuplicate && t.category_id).length;
+  const newCount = parsedTransactions.filter(t => !t.isDuplicate).length;
+  const dupCount  = parsedTransactions.filter(t => t.isDuplicate).length;
+  const categorizedCount   = parsedTransactions.filter(t => !t.isDuplicate && t.category_id).length;
   const uncategorizedCount = parsedTransactions.filter(t => !t.isDuplicate && !t.category_id).length;
 
+  const STEPS = ['Archivo', 'Columnas', 'Revisar'];
+  const stepIndex = { upload: 0, mapping: 1, preview: 2, importing: 2 }[step];
+
+  const FIELD_META: { key: keyof ColumnMapping; label: string; icon: React.ReactNode; required?: boolean }[] = [
+    { key: 'date',        label: 'Fecha',     icon: <Calendar size={14} />,   required: true },
+    { key: 'description', label: 'Concepto',  icon: <Tag size={14} />,        required: true },
+    { key: 'merchant',    label: 'Comercio',  icon: <Store size={14} /> },
+    { key: 'amount',      label: 'Importe',   icon: <DollarSign size={14} />, required: true },
+    { key: 'external_id', label: 'Referencia',icon: <Hash size={14} /> },
+    { key: 'account',     label: 'Cuenta CSV',icon: <CreditCard size={14} /> },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Importar CSV</h2>
-          <button
-            onClick={resetImport}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900"
-          >
-            Reiniciar
-          </button>
+    <div className="max-w-2xl mx-auto space-y-4">
+
+      {/* ── Header + stepper ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-gray-900">Importar CSV</h2>
+          {step !== 'upload' && (
+            <button onClick={resetImport} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+              Cancelar
+            </button>
+          )}
         </div>
 
-        {/* Step 1: Upload */}
-        {step === 'upload' && (
-          <div className="text-center py-12">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".csv"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="csv-upload"
-            />
-            <label
-              htmlFor="csv-upload"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
-            >
-              <Upload size={20} />
-              Seleccionar archivo CSV
-            </label>
-            <p className="mt-4 text-sm text-gray-600">
-              Soporta formatos de CaixaBank, Santander, BBVA y otros bancos
-            </p>
-          </div>
-        )}
-
-        {/* Step 2: Mapping */}
-        {step === 'mapping' && (
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Plantilla de banco (opcional)
-              </label>
-              <select
-                value={selectedTemplate}
-                onChange={(e) => applyTemplate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Mapeo manual</option>
-                <optgroup label="Plantillas comunes">
-                  {COMMON_TEMPLATES.map(template => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </optgroup>
-                {savedTemplates.length > 0 && (
-                  <optgroup label="Mis plantillas">
-                    {savedTemplates.map(template => (
-                      <option key={template.id} value={template.id}>
-                        {template.name}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-              </select>
+        {/* Stepper */}
+        <div className="flex items-center gap-1">
+          {STEPS.map((s, i) => (
+            <div key={s} className="flex items-center gap-1 flex-1 last:flex-none">
+              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
+                i < stepIndex  ? 'bg-green-100 text-green-700' :
+                i === stepIndex ? 'bg-blue-600 text-white' :
+                                  'bg-gray-100 text-gray-400'
+              }`}>
+                {i < stepIndex ? <Check size={11} /> : <span>{i + 1}</span>}
+                {s}
+              </div>
+              {i < STEPS.length - 1 && <ChevronRight size={14} className="text-gray-300 shrink-0" />}
             </div>
+          ))}
+        </div>
+      </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              {(['date', 'description', 'merchant', 'amount', 'external_id', 'category', 'account'] as const).map(field => (
-                <div key={field}>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {field === 'date' && 'Fecha *'}
-                    {field === 'description' && 'Concepto / Tipo operación * (para categorizar)'}
-                    {field === 'merchant' && 'Comercio / Detalle (descripción visible)'}
-                    {field === 'amount' && 'Importe *'}
-                    {field === 'external_id' && 'ID Externo (para deduplicación)'}
-                    {field === 'category' && 'Categoría'}
-                    {field === 'account' && 'Cuenta'}
+      {/* ── Step 1: Upload ── */}
+      {step === 'upload' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+          <input ref={fileInputRef} type="file" accept=".csv" onChange={handleFileUpload} className="hidden" id="csv-upload" />
+          <label htmlFor="csv-upload" className="flex flex-col items-center gap-4 cursor-pointer group">
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+              <Upload size={28} className="text-blue-600" />
+            </div>
+            <div className="text-center">
+              <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">Selecciona un archivo CSV</p>
+              <p className="text-sm text-gray-400 mt-1">CaixaBank · Santander · BBVA · otros bancos</p>
+            </div>
+            <span className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors">
+              Abrir archivo
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* ── Step 2: Mapping ── */}
+      {step === 'mapping' && (
+        <div className="space-y-3">
+
+          {/* Plantilla */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Plantilla de banco</p>
+            <div className="flex flex-wrap gap-2">
+              {[...COMMON_TEMPLATES, ...savedTemplates].map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => applyTemplate(t.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-medium border transition-colors ${
+                    selectedTemplate === t.id
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-blue-300'
+                  }`}
+                >
+                  <Landmark size={13} />
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Columnas */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Mapeo de columnas</p>
+            <div className="grid grid-cols-2 gap-2">
+              {FIELD_META.map(({ key, label, icon, required }) => (
+                <div key={key} className="space-y-1">
+                  <label className="flex items-center gap-1 text-xs font-medium text-gray-600">
+                    {icon} {label}{required && <span className="text-red-400">*</span>}
                   </label>
                   <select
-                    value={mapping[field as keyof ColumnMapping] || ''}
-                    onChange={(e) => setMapping({ ...mapping, [field]: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={mapping[key] || ''}
+                    onChange={(e) => setMapping({ ...mapping, [key]: e.target.value })}
+                    className={`w-full px-2.5 py-1.5 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      mapping[key] ? 'border-blue-300 bg-blue-50' : 'border-gray-200 bg-gray-50'
+                    }`}
                   >
-                    <option value="">No mapear</option>
-                    {headers.map(header => (
-                      <option key={header} value={header}>
-                        {header}
-                      </option>
-                    ))}
+                    <option value="">—</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
                   </select>
                 </div>
               ))}
             </div>
+          </div>
 
-            {/* Selector de cuenta destino — obligatorio antes de continuar */}
-            <div className="p-4 bg-gray-50 border-2 border-gray-300 rounded-xl space-y-2">
-              <label className="block text-sm font-bold text-gray-800">
-                Cuenta destino <span className="text-red-500">*</span>
-              </label>
-              {userAccounts.length === 0 ? (
-                <p className="text-sm text-red-600 font-medium">
-                  No tienes cuentas creadas. Ve a Cuentas y crea una antes de importar.
-                </p>
-              ) : (
-                <select
-                  value={selectedAccountId ?? ''}
-                  onChange={(e) => setSelectedAccountId(e.target.value || null)}
-                  className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium ${
-                    selectedAccountId
-                      ? 'border-green-400 bg-green-50 text-green-900'
-                      : 'border-red-400 bg-red-50 text-red-900'
-                  }`}
-                >
-                  <option value="">— Selecciona una cuenta —</option>
-                  {userAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.type})
-                    </option>
-                  ))}
-                </select>
-              )}
-              <p className="text-xs text-gray-500">
-                Todas las transacciones importadas se vincularán a esta cuenta.
-              </p>
-            </div>
+          {/* Cuenta destino */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Cuenta destino <span className="text-red-400 normal-case font-normal">obligatoria</span></p>
+            {userAccounts.length === 0 ? (
+              <p className="text-sm text-red-500">Sin cuentas. Créa una en la sección Cuentas.</p>
+            ) : (
+              <select
+                value={selectedAccountId ?? ''}
+                onChange={(e) => setSelectedAccountId(e.target.value || null)}
+                className={`w-full px-3 py-2 text-sm font-medium border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                  selectedAccountId ? 'border-green-400 bg-green-50 text-green-900' : 'border-red-300 bg-red-50 text-red-700'
+                }`}
+              >
+                <option value="">Selecciona una cuenta…</option>
+                {userAccounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{acc.name} · {acc.type}</option>
+                ))}
+              </select>
+            )}
+          </div>
 
-            <div className="flex items-center gap-2">
+          {/* Guardar plantilla */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={customTemplateName}
                 onChange={(e) => setCustomTemplateName(e.target.value)}
-                placeholder="Nombre de plantilla personalizada"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Guardar como plantilla…"
+                className="flex-1 px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <button
-                onClick={saveCustomTemplate}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-              >
-                <Save size={18} />
-                Guardar plantilla
-              </button>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={resetImport}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={previewTransactions}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Vista previa
+              <button onClick={saveCustomTemplate} className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors">
+                <Save size={14} /> Guardar
               </button>
             </div>
           </div>
-        )}
 
-        {/* Step 3: Preview */}
-        {step === 'preview' && (
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="text-blue-600" size={20} />
-                <p className="text-sm text-blue-900">
-                  Se importarán <strong>{parsedTransactions.filter(t => !t.isDuplicate).length}</strong> transacciones.
-                  {parsedTransactions.filter(t => t.isDuplicate).length > 0 && (
-                    <span className="font-semibold ml-1">
-                      ({parsedTransactions.filter(t => t.isDuplicate).length} duplicados serán omitidos)
-                    </span>
-                  )}
-                </p>
+          <button
+            onClick={previewTransactions}
+            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2"
+          >
+            Continuar <ChevronRight size={18} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Step 3: Preview ── */}
+      {step === 'preview' && (
+        <div className="space-y-3">
+
+          {/* Resumen stats */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <div className="flex gap-3 flex-wrap">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-xl">
+                <span className="text-lg font-bold text-blue-700">{newCount}</span>
+                <span className="text-xs text-blue-600 font-medium">nuevas</span>
               </div>
+              {dupCount > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-50 rounded-xl">
+                  <span className="text-lg font-bold text-yellow-700">{dupCount}</span>
+                  <span className="text-xs text-yellow-600 font-medium">duplicadas</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 rounded-xl">
+                <span className="text-lg font-bold text-green-700">{categorizedCount}</span>
+                <span className="text-xs text-green-600 font-medium">categorizadas</span>
+              </div>
+              {uncategorizedCount > 0 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 rounded-xl">
+                  <span className="text-lg font-bold text-orange-700">{uncategorizedCount}</span>
+                  <span className="text-xs text-orange-600 font-medium">sin categoría</span>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Resumen de categorización */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg text-sm">
-              <Tag size={16} className="text-gray-500" />
-              <span className="text-gray-700">
-                <strong className="text-green-700">{categorizedCount}</strong> categorizadas automáticamente
-                {uncategorizedCount > 0 && (
-                  <span className="ml-2 text-orange-600">· <strong>{uncategorizedCount}</strong> sin categoría (puedes asignarla abajo)</span>
-                )}
-              </span>
-            </div>
-
-            <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
-              <table className="w-full">
-                <thead className="bg-gray-50 sticky top-0">
+          {/* Tabla */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="max-h-[420px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0 z-10">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Estado</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Fecha</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Descripción</th>
-                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Categoría</th>
-                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-700">Importe</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 w-6"></th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">Fecha</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">Descripción</th>
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500">Categoría</th>
+                    <th className="px-3 py-2.5 text-right text-xs font-semibold text-gray-500">Importe</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {parsedTransactions.slice(0, 50).map((transaction, index) => (
-                    <tr
-                      key={index}
-                      className={transaction.isDuplicate ? 'bg-yellow-50' : ''}
-                    >
+                <tbody className="divide-y divide-gray-50">
+                  {parsedTransactions.slice(0, 50).map((tx, index) => (
+                    <tr key={index} className={`transition-colors ${tx.isDuplicate ? 'opacity-40' : 'hover:bg-gray-50'}`}>
                       <td className="px-3 py-2">
-                        {transaction.isDuplicate ? (
-                          <X className="text-yellow-600" size={16} />
-                        ) : (
-                          <Check className="text-green-600" size={16} />
-                        )}
+                        {tx.isDuplicate
+                          ? <X size={14} className="text-gray-400" />
+                          : <Check size={14} className="text-green-500" />}
                       </td>
-                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">{transaction.date}</td>
-                      <td className="px-3 py-2 text-sm text-gray-900 max-w-[200px] truncate" title={transaction.description}>
-                        {transaction.description}
+                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-xs">{tx.date}</td>
+                      <td className="px-3 py-2 text-gray-900 max-w-[160px] truncate font-medium" title={tx.description}>
+                        {tx.description}
                       </td>
                       <td className="px-3 py-2">
-                        {transaction.isDuplicate ? (
-                          <span className="text-xs text-gray-400">—</span>
-                        ) : (
+                        {tx.isDuplicate ? null : (
                           <select
-                            value={transaction.category_id ?? ''}
+                            value={tx.category_id ?? ''}
                             onChange={(e) => updateTransactionCategory(index, e.target.value || null)}
-                            className={`text-xs px-2 py-1 border rounded w-full max-w-[160px] focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                              transaction.category_id
-                                ? transaction.suggestedCategory
-                                  ? 'border-green-300 bg-green-50'
-                                  : 'border-gray-300'
-                                : 'border-orange-300 bg-orange-50'
+                            className={`text-xs px-2 py-1 border rounded-lg w-full max-w-[140px] focus:outline-none focus:ring-1 focus:ring-blue-400 ${
+                              tx.category_id
+                                ? 'border-green-300 bg-green-50 text-green-800'
+                                : 'border-orange-200 bg-orange-50 text-orange-700'
                             }`}
                           >
                             <option value="">Sin categoría</option>
                             {userCategories.map(cat => (
-                              <option key={cat.id} value={cat.id}>
-                                {cat.name}
-                              </option>
+                              <option key={cat.id} value={cat.id}>{cat.name}</option>
                             ))}
                           </select>
                         )}
                       </td>
-                      <td className={`px-3 py-2 text-sm text-right font-medium whitespace-nowrap ${transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {transaction.amount.toFixed(2)} €
+                      <td className={`px-3 py-2 text-right font-semibold whitespace-nowrap ${tx.amount >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {tx.amount >= 0 ? '+' : ''}{tx.amount.toFixed(2)} €
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-
             {parsedTransactions.length > 50 && (
-              <p className="text-sm text-gray-600 text-center">
-                Mostrando primeras 50 de {parsedTransactions.length} transacciones
+              <p className="text-xs text-gray-400 text-center py-2 border-t border-gray-50">
+                Mostrando 50 de {parsedTransactions.length}
               </p>
             )}
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setStep('mapping')}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
-              >
-                Volver
-              </button>
-              <button
-                onClick={importTransactions}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-              >
-                <Download size={18} />
-                Importar {parsedTransactions.filter(t => !t.isDuplicate).length} transacciones
-              </button>
-            </div>
           </div>
-        )}
 
-        {/* Step 4: Importing */}
-        {step === 'importing' && (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Importando transacciones...</p>
+          {/* Acciones */}
+          <div className="flex gap-2">
+            <button onClick={() => setStep('mapping')} className="px-4 py-3 text-sm text-gray-600 hover:bg-white hover:shadow-sm rounded-xl border border-gray-200 transition-all">
+              ← Volver
+            </button>
+            <button
+              onClick={importTransactions}
+              className="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-2xl transition-colors flex items-center justify-center gap-2"
+            >
+              <Check size={18} />
+              Importar {newCount} transacciones
+            </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* ── Step 4: Importing ── */}
+      {step === 'importing' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 flex flex-col items-center gap-4">
+          <div className="w-14 h-14 rounded-full border-4 border-blue-600 border-t-transparent animate-spin" />
+          <p className="text-gray-500 font-medium">Importando transacciones…</p>
+        </div>
+      )}
     </div>
   );
 }
