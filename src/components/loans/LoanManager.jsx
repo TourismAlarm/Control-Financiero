@@ -83,7 +83,7 @@ export default function LoanManager({
   };
 
   // Handler para marcar pago que también crea un gasto
-  const handleMarkPayment = async (loanId, paymentDate = null) => {
+  const handleMarkPayment = async (loanId, paymentDate = null, amount = null) => {
     try {
       // Encontrar el préstamo
       const loan = loans.find(l => l.id === loanId);
@@ -91,8 +91,10 @@ export default function LoanManager({
         throw new Error('Préstamo no encontrado');
       }
 
+      const paymentAmount = parseFloat(amount) || loan.monthly_payment || loan.outstanding_amount || 0;
+
       // Marcar el pago en la base de datos
-      await markPaymentAsPaid(loanId);
+      await markPaymentAsPaid(loanId, paymentAmount);
 
       // Obtener cuenta y categoría
       const { account, debtCategory } = await ensureAccountAndCategory();
@@ -103,7 +105,7 @@ export default function LoanManager({
       // Crear transacción automática
       await createTransactionAsync({
         type: 'expense',
-        amount: loan.monthly_payment || loan.cuota_mensual,
+        amount: paymentAmount,
         description: `Cuota préstamo ${loan.name} #${(loan.paid_months || 0) + 1}`,
         date: transactionDate,
         account_id: account.id,

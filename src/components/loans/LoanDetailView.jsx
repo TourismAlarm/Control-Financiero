@@ -41,6 +41,7 @@ export default function LoanDetailView({
   const [showExtraPaymentModal, setShowExtraPaymentModal] = useState(false);
   const [showMarkPaymentModal, setShowMarkPaymentModal] = useState(false);
   const [markPaymentDate, setMarkPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [markPaymentAmount, setMarkPaymentAmount] = useState('');
   const [extraPaymentAmount, setExtraPaymentAmount] = useState('');
   const [editingPaymentIndex, setEditingPaymentIndex] = useState(null);
   const [editingPaymentDate, setEditingPaymentDate] = useState('');
@@ -138,10 +139,10 @@ export default function LoanDetailView({
         <div className="flex gap-3">
           <button
             onClick={() => setShowExtraPaymentModal(true)}
-            disabled={loan.paid_months >= loan.total_months}
+            disabled={loan.status === 'paid'}
             className={`
               flex items-center gap-2 px-4 py-2 rounded-xl font-semibold transition-all duration-300
-              ${loan.paid_months >= loan.total_months
+              ${loan.status === 'paid'
                 ? 'bg-gray-400 cursor-not-allowed text-white'
                 : darkMode
                   ? 'bg-green-600 hover:bg-green-700 text-white'
@@ -279,19 +280,20 @@ export default function LoanDetailView({
           <button
             onClick={() => {
               setMarkPaymentDate(new Date().toISOString().split('T')[0]);
+              setMarkPaymentAmount(loan.monthly_payment ? loan.monthly_payment.toFixed(2) : '');
               setShowMarkPaymentModal(true);
             }}
-            disabled={loan.paid_months >= loan.total_months}
+            disabled={loan.status === 'paid'}
             className={`
               flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-300
-              ${loan.paid_months >= loan.total_months
+              ${loan.status === 'paid'
                 ? 'bg-white/20 text-white/50 cursor-not-allowed'
                 : 'bg-white hover:bg-white/90 text-orange-600 shadow-lg hover:shadow-xl transform hover:scale-105'
               }
             `}
           >
             <CheckCircle size={20} />
-            {loan.paid_months >= loan.total_months ? 'Completado' : 'Marcar como pagado'}
+            {loan.status === 'paid' ? 'Completado' : 'Marcar como pagado'}
           </button>
         </div>
       </div>
@@ -687,8 +689,28 @@ export default function LoanDetailView({
             <div className="mb-4 space-y-4">
               <div>
                 <p className={`text-sm mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                  Cuota #{loan.paid_months + 1} - <strong className={darkMode ? 'text-white' : 'text-gray-900'}>{formatCurrency(loan.monthly_payment)}</strong>
+                  Cuota #{loan.paid_months + 1}
                 </p>
+              </div>
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Importe pagado (€)
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={markPaymentAmount}
+                  onChange={(e) => setMarkPaymentAmount(e.target.value)}
+                  placeholder={loan.monthly_payment ? loan.monthly_payment.toFixed(2) : '0.00'}
+                  className={`
+                    w-full px-4 py-3 rounded-xl border-2 transition-all duration-300 focus:ring-4
+                    ${darkMode
+                      ? 'bg-gray-700 border-gray-600 text-white focus:border-blue-500 focus:ring-blue-500/20'
+                      : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-blue-500/20'
+                    }
+                  `}
+                  autoFocus
+                />
               </div>
               <div>
                 <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -705,7 +727,6 @@ export default function LoanDetailView({
                       : 'bg-white border-gray-200 text-gray-900 focus:border-blue-500 focus:ring-blue-500/20'
                     }
                   `}
-                  autoFocus
                 />
               </div>
             </div>
@@ -715,17 +736,19 @@ export default function LoanDetailView({
                 onClick={async () => {
                   try {
                     if (onMarkPayment) {
-                      await onMarkPayment(loan.id, markPaymentDate);
+                      const amount = parseFloat(markPaymentAmount) || loan.monthly_payment || 0;
+                      await onMarkPayment(loan.id, markPaymentDate, amount);
                       setShowMarkPaymentModal(false);
+                      setMarkPaymentAmount('');
                     }
                   } catch (err) {
                     // El error ya se maneja en el handler
                   }
                 }}
-                disabled={!markPaymentDate}
+                disabled={!markPaymentDate || !markPaymentAmount || parseFloat(markPaymentAmount) <= 0}
                 className={`
                   flex-1 py-3 rounded-xl font-semibold transition-all duration-300
-                  ${!markPaymentDate
+                  ${!markPaymentDate || !markPaymentAmount || parseFloat(markPaymentAmount) <= 0
                     ? 'bg-gray-400 cursor-not-allowed text-white'
                     : darkMode
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
@@ -738,6 +761,7 @@ export default function LoanDetailView({
               <button
                 onClick={() => {
                   setShowMarkPaymentModal(false);
+                  setMarkPaymentAmount('');
                 }}
                 className={`
                   flex-1 py-3 rounded-xl font-semibold transition-all duration-300

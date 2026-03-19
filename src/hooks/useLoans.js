@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { createClient } from '@/lib/supabase';
 import {
-  calculateTotalInterestPaid,
+  calculateMonthlyPayment,
+  calculateNextPaymentDate,
   generateAmortizationTable,
 } from '@/lib/loanCalculations';
 
@@ -84,8 +85,8 @@ export default function useLoans() {
       fecha_inicio: loan.start_date,
       plazo_meses,
       total_months: plazo_meses,
-      cuota_mensual: null, // Not stored in DB; UI should handle null
-      monthly_payment: null,
+      cuota_mensual: plazo_meses ? calculateMonthlyPayment(loan.principal_amount, loan.interest_rate, plazo_meses) : null,
+      monthly_payment: plazo_meses ? calculateMonthlyPayment(loan.principal_amount, loan.interest_rate, plazo_meses) : null,
       descripcion: loan.notes,
       estado,
       // Payment history
@@ -95,7 +96,7 @@ export default function useLoans() {
       paid_months: paidMonths,
       current_balance: loan.outstanding_amount,
       remainingBalance: loan.outstanding_amount,
-      nextPaymentDate: loan.due_date ? new Date(loan.due_date) : null,
+      nextPaymentDate: loan.start_date ? calculateNextPaymentDate(new Date(loan.start_date), paidMonths) : null,
       endDate: loan.due_date ? new Date(loan.due_date) : null,
       progress,
     };
@@ -465,8 +466,8 @@ export default function useLoans() {
 
     // Sum interest_paid from all loan_payments records
     const totalInterestPaid = loans.reduce((sum, loan) => {
-      const payments = loan.pagos_realizados || [];
-      return sum + payments.reduce((s, p) => s + 0, 0); // interest_paid stored per payment
+      const payments = loan.loan_payments || [];
+      return sum + payments.reduce((s, p) => s + (p.interest_paid || 0), 0);
     }, 0);
 
     // Next payment: loan with earliest due_date among active loans
