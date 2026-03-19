@@ -48,11 +48,10 @@ const tabs = [
   { id: 'export' as TabId, label: 'Exportar', icon: Download },
 ];
 
-// Bottom nav: 4 main tabs + FAB center + more
+// Bottom nav: 3 main tabs + FAB center + more
 const bottomNavTabs = [
   { id: 'dashboard' as TabId, label: 'Inicio', icon: LayoutDashboard },
   { id: 'transactions' as TabId, label: 'Movimientos', icon: Receipt },
-  { id: 'budgets' as TabId, label: 'Presupuesto', icon: Target },
   { id: 'accounts' as TabId, label: 'Cuentas', icon: Wallet },
 ];
 
