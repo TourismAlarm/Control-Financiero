@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   LayoutDashboard,
   Receipt,
@@ -32,6 +32,8 @@ import LoanManager from '@/components/loans/LoanManager';
 import { ConnectionStatus } from '@/components/offline/ConnectionStatus';
 import { InstallPrompt } from '@/components/offline/InstallPrompt';
 import { QuickAdd } from '@/components/QuickAdd';
+import { useProfile } from '@/hooks/useProfile';
+import { getCurrentFinancialMonth } from '@/lib/financialMonth';
 
 type TabId = 'dashboard' | 'transactions' | 'accounts' | 'budgets' | 'recurring' | 'savings' | 'loans' | 'statistics' | 'import' | 'export';
 
@@ -58,6 +60,7 @@ const bottomNavTabs = [
 export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { getFinancialMonthStartDay, profile } = useProfile();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
@@ -65,12 +68,24 @@ export default function Home() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const monthInitialized = useRef(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
       router.push('/auth/signin');
     }
   }, [status, router]);
+
+  // Once profile loads, update selectedMonth to use the user's financial month
+  useEffect(() => {
+    if (profile && !monthInitialized.current) {
+      monthInitialized.current = true;
+      const startDay = getFinancialMonthStartDay();
+      if (startDay !== 1) {
+        setSelectedMonth(getCurrentFinancialMonth(startDay));
+      }
+    }
+  }, [profile, getFinancialMonthStartDay]);
 
   if (status === 'loading') {
     return (
@@ -152,8 +167,8 @@ export default function Home() {
 
       {/* Content — extra bottom padding on mobile for nav bar */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 pb-24 md:pb-8">
-        {activeTab === 'dashboard' && <FinancialDashboard month={selectedMonth} />}
-        {activeTab === 'transactions' && <TransactionsList type="all" month={selectedMonth} />}
+        {activeTab === 'dashboard' && <FinancialDashboard month={selectedMonth} financialMonthStartDay={getFinancialMonthStartDay()} />}
+        {activeTab === 'transactions' && <TransactionsList type="all" month={selectedMonth} financialMonthStartDay={getFinancialMonthStartDay()} />}
         {activeTab === 'accounts' && <AccountsManager />}
         {activeTab === 'budgets' && <BudgetOverview />}
         {activeTab === 'recurring' && <RecurringTransactions />}

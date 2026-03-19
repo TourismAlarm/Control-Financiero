@@ -206,7 +206,7 @@ export default function ConfiguracionPage() {
                 <input
                   type="number"
                   min="1"
-                  max="31"
+                  max="28"
                   value={formData.financial_month_start_day}
                   onChange={(e) => {
                     const value = parseInt(e.target.value);
