@@ -113,6 +113,15 @@ export function CSVImporter() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Cargar cuentas al subir el archivo para tenerlas disponibles en el mapeo
+    fetch('/api/accounts').then(r => r.json()).then((data) => {
+      const accounts: UserAccount[] = Array.isArray(data) ? data : [];
+      setUserAccounts(accounts);
+      if (accounts.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(accounts[0]!.id);
+      }
+    });
+
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -262,25 +271,20 @@ export function CSVImporter() {
       toast('Por favor mapea al menos Fecha, Descripción e Importe', 'warning');
       return;
     }
+    if (!selectedAccountId) {
+      toast('Por favor selecciona una cuenta destino antes de continuar', 'warning');
+      return;
+    }
 
-    // Cargar categorías, cuentas y transacciones existentes en paralelo
-    const [catResponse, accResponse, txResponse] = await Promise.all([
+    // Cargar categorías y transacciones existentes en paralelo
+    const [catResponse, txResponse] = await Promise.all([
       fetch('/api/categories'),
-      fetch('/api/accounts'),
       fetch('/api/transactions'),
     ]);
 
     const catData = await catResponse.json();
     const categories: UserCategory[] = Array.isArray(catData) ? catData : [];
     setUserCategories(categories);
-
-    const accData = await accResponse.json();
-    const accounts: UserAccount[] = Array.isArray(accData) ? accData : [];
-    setUserAccounts(accounts);
-    // Pre-seleccionar la primera cuenta si no hay ninguna seleccionada
-    if (!selectedAccountId && accounts.length > 0) {
-      setSelectedAccountId(accounts[0]!.id);
-    }
 
     const existingData = await txResponse.json();
     const existingTransactions = Array.isArray(existingData) ? existingData : [];
@@ -508,6 +512,38 @@ export function CSVImporter() {
               ))}
             </div>
 
+            {/* Selector de cuenta destino — obligatorio antes de continuar */}
+            <div className="p-4 bg-gray-50 border-2 border-gray-300 rounded-xl space-y-2">
+              <label className="block text-sm font-bold text-gray-800">
+                Cuenta destino <span className="text-red-500">*</span>
+              </label>
+              {userAccounts.length === 0 ? (
+                <p className="text-sm text-red-600 font-medium">
+                  No tienes cuentas creadas. Ve a Cuentas y crea una antes de importar.
+                </p>
+              ) : (
+                <select
+                  value={selectedAccountId ?? ''}
+                  onChange={(e) => setSelectedAccountId(e.target.value || null)}
+                  className={`w-full px-3 py-2 border-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium ${
+                    selectedAccountId
+                      ? 'border-green-400 bg-green-50 text-green-900'
+                      : 'border-red-400 bg-red-50 text-red-900'
+                  }`}
+                >
+                  <option value="">— Selecciona una cuenta —</option>
+                  {userAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({acc.type})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-gray-500">
+                Todas las transacciones importadas se vincularán a esta cuenta.
+              </p>
+            </div>
+
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -557,32 +593,6 @@ export function CSVImporter() {
                   )}
                 </p>
               </div>
-            </div>
-
-            {/* Selector de cuenta destino */}
-            <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <label className="text-sm font-semibold text-blue-900 whitespace-nowrap">
-                Cuenta destino *
-              </label>
-              {userAccounts.length === 0 ? (
-                <p className="text-sm text-red-600">No hay cuentas creadas. Crea una cuenta primero.</p>
-              ) : (
-                <select
-                  value={selectedAccountId ?? ''}
-                  onChange={(e) => setSelectedAccountId(e.target.value || null)}
-                  className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
-                >
-                  <option value="">Sin cuenta</option>
-                  {userAccounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name} ({acc.type})
-                    </option>
-                  ))}
-                </select>
-              )}
-              <p className="text-xs text-blue-700 whitespace-nowrap">
-                Todas las transacciones se asignarán a esta cuenta
-              </p>
             </div>
 
             {/* Resumen de categorización */}
