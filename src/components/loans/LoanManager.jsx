@@ -400,7 +400,7 @@ export default function LoanManager({
           </button>
 
           <button
-            onClick={() => setShowForm(true)}
+            onClick={() => { setSelectedLoan(null); setShowForm(true); }}
             className={`
               flex items-center gap-2 px-6 py-3 rounded-xl font-semibold
               transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105
@@ -503,7 +503,7 @@ export default function LoanManager({
                   Comienza agregando tu primer préstamo para llevar un control de tus amortizaciones
                 </p>
                 <button
-                  onClick={() => setShowForm(true)}
+                  onClick={() => { setSelectedLoan(null); setShowForm(true); }}
                   className={`
                     inline-flex items-center gap-2 px-6 py-3 rounded-xl font-semibold
                     transition-all duration-300 shadow-md hover:shadow-lg
