@@ -34,6 +34,13 @@ interface UserCategory {
   color?: string | null;
 }
 
+interface UserAccount {
+  id: string;
+  name: string;
+  type: string;
+  balance?: number;
+}
+
 interface ParsedTransaction {
   date: string;
   description: string;
@@ -98,6 +105,8 @@ export function CSVImporter() {
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload');
   const [_importStats, setImportStats] = useState({ total: 0, imported: 0, duplicates: 0, errors: 0 });
   const [userCategories, setUserCategories] = useState<UserCategory[]>([]);
+  const [userAccounts, setUserAccounts] = useState<UserAccount[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -247,15 +256,24 @@ export function CSVImporter() {
       return;
     }
 
-    // Cargar categorías del usuario y transacciones existentes en paralelo
-    const [catResponse, txResponse] = await Promise.all([
+    // Cargar categorías, cuentas y transacciones existentes en paralelo
+    const [catResponse, accResponse, txResponse] = await Promise.all([
       fetch('/api/categories'),
+      fetch('/api/accounts'),
       fetch('/api/transactions'),
     ]);
 
     const catData = await catResponse.json();
     const categories: UserCategory[] = Array.isArray(catData) ? catData : [];
     setUserCategories(categories);
+
+    const accData = await accResponse.json();
+    const accounts: UserAccount[] = Array.isArray(accData) ? accData : [];
+    setUserAccounts(accounts);
+    // Pre-seleccionar la primera cuenta si no hay ninguna seleccionada
+    if (!selectedAccountId && accounts.length > 0) {
+      setSelectedAccountId(accounts[0]!.id);
+    }
 
     const existingData = await txResponse.json();
     const existingTransactions = Array.isArray(existingData) ? existingData : [];
@@ -328,7 +346,7 @@ export function CSVImporter() {
             amount: absAmount,
             type: transaction.amount >= 0 ? 'income' : 'expense',
             category_id: transaction.category_id,
-            account_id: toUuidOrNull(transaction.account ?? ''),
+            account_id: selectedAccountId ?? toUuidOrNull(transaction.account ?? ''),
             external_id: transaction.external_id || null,
           })
         });
@@ -370,6 +388,8 @@ export function CSVImporter() {
     setParsedTransactions([]);
     setSelectedTemplate('');
     setUserCategories([]);
+    setUserAccounts([]);
+    setSelectedAccountId(null);
     setStep('upload');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -524,6 +544,32 @@ export function CSVImporter() {
                   )}
                 </p>
               </div>
+            </div>
+
+            {/* Selector de cuenta destino */}
+            <div className="flex items-center gap-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <label className="text-sm font-semibold text-blue-900 whitespace-nowrap">
+                Cuenta destino *
+              </label>
+              {userAccounts.length === 0 ? (
+                <p className="text-sm text-red-600">No hay cuentas creadas. Crea una cuenta primero.</p>
+              ) : (
+                <select
+                  value={selectedAccountId ?? ''}
+                  onChange={(e) => setSelectedAccountId(e.target.value || null)}
+                  className="flex-1 px-3 py-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                >
+                  <option value="">Sin cuenta</option>
+                  {userAccounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name} ({acc.type})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-blue-700 whitespace-nowrap">
+                Todas las transacciones se asignarán a esta cuenta
+              </p>
             </div>
 
             {/* Resumen de categorización */}
