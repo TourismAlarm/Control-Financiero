@@ -208,6 +208,15 @@ export function CSVImporter() {
       return `${year}-${month}-${day}`;
     }
 
+    // dd/mm (no year → current year)
+    const dm = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})$/);
+    if (dm) {
+      const day = dm[1]!.padStart(2, '0');
+      const month = dm[2]!.padStart(2, '0');
+      const year = new Date().getFullYear();
+      return `${year}-${month}-${day}`;
+    }
+
     // yyyy-mm-dd or yyyy/mm/dd
     const ymd = v.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
     if (ymd) {
