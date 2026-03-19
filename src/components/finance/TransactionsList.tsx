@@ -25,6 +25,7 @@ import {
 interface TransactionsListProps {
   type?: 'income' | 'expense' | 'all';
   month?: string;
+  financialMonthStartDay?: number;
   onEdit?: (transaction: Transaction) => void;
   limit?: number;
   showFilters?: boolean;
@@ -33,6 +34,7 @@ interface TransactionsListProps {
 export function TransactionsList({
   type = 'all',
   month,
+  financialMonthStartDay = 1,
   onEdit,
   limit,
   showFilters = true,
@@ -43,7 +45,7 @@ export function TransactionsList({
     deleteTransaction,
     isDeleting,
     calculateTotals,
-  } = useTransactions(month);
+  } = useTransactions(month, financialMonthStartDay);
   const { toast, showConfirm } = useGlobalToast();
   const { loans, deletePayment } = useLoans();
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   BarChart3,
   TrendingUp,
@@ -14,6 +14,8 @@ import {
 import { useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useFinancialSummary } from '@/hooks/useFinancialSummary';
+import { useProfile } from '@/hooks/useProfile';
+import { getCurrentFinancialMonth } from '@/lib/financialMonth';
 import { useSavingsGoals } from '@/hooks/useSavingsGoals';
 import { useRecurringRules } from '@/hooks/useRecurringRules';
 
@@ -36,16 +38,30 @@ import { SmartNotifications } from '@/components/agents/SmartNotifications';
  */
 
 export function Statistics() {
+  const { getFinancialMonthStartDay, profile } = useProfile();
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const monthInitialized = useRef(false);
 
-  const { calculateTotals } = useTransactions(selectedMonth);
+  useEffect(() => {
+    if (profile && !monthInitialized.current) {
+      monthInitialized.current = true;
+      const startDay = getFinancialMonthStartDay();
+      if (startDay !== 1) {
+        setSelectedMonth(getCurrentFinancialMonth(startDay));
+      }
+    }
+  }, [profile, getFinancialMonthStartDay]);
+
+  const financialMonthStartDay = getFinancialMonthStartDay();
+
+  const { calculateTotals } = useTransactions(selectedMonth, financialMonthStartDay);
   const { transactions: allTransactions = [] } = useTransactions(); // Para los gráficos de tendencias
   const { getTotalBalance, getBalanceByType } = useAccounts();
   const { summary, getCategoryBreakdown: getSummaryCategoryBreakdown, getHealthScore } =
-    useFinancialSummary(selectedMonth);
+    useFinancialSummary(selectedMonth, financialMonthStartDay);
   const { getTotalSavings } = useSavingsGoals();
   const { calculateMonthlyImpact } = useRecurringRules();
 

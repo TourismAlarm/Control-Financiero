@@ -10,10 +10,11 @@ import { useFinancialSummary } from '@/hooks/useFinancialSummary';
 
 interface FinancialDashboardProps {
   month?: string;
+  financialMonthStartDay?: number;
 }
 
-export function FinancialDashboard({ month }: FinancialDashboardProps) {
-  const { summary, isLoading, getCategoryBreakdown, getBudgetAlerts, getHealthScore } = useFinancialSummary(month);
+export function FinancialDashboard({ month, financialMonthStartDay = 1 }: FinancialDashboardProps) {
+  const { summary, isLoading, getCategoryBreakdown, getBudgetAlerts, getHealthScore } = useFinancialSummary(month, financialMonthStartDay);
 
   if (isLoading) {
     return (
