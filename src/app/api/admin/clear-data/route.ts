@@ -14,13 +14,10 @@ export async function DELETE() {
 
     const userId = session.user.id;
 
-    // Orden de borrado respetando las FK
-    const deletions = [
+    // Tablas con user_id TEXT (NextAuth/Google ID)
+    const textIdTables = [
       { table: 'loan_payments', label: 'Pagos de préstamos' },
-      { table: 'imported_transactions', label: 'Transacciones importadas' },
-      { table: 'sync_history', label: 'Historial de sincronización' },
       { table: 'loans', label: 'Préstamos' },
-      { table: 'bank_connections', label: 'Conexiones bancarias' },
       { table: 'agent_notifications', label: 'Notificaciones del agente' },
       { table: 'transactions', label: 'Transacciones' },
       { table: 'transfers', label: 'Transferencias' },
@@ -30,9 +27,18 @@ export async function DELETE() {
       { table: 'accounts', label: 'Cuentas' },
     ];
 
+    // Tablas con user_id UUID (tablas de banking, creadas antes de la migración a NextAuth).
+    // Si el usuario usa Google OAuth, su ID no es un UUID, por lo que estas tablas
+    // no pueden tener datos del usuario. Se intentan borrar ignorando errores de tipo.
+    const uuidIdTables = [
+      { table: 'imported_transactions', label: 'Transacciones importadas' },
+      { table: 'sync_history', label: 'Historial de sincronización' },
+      { table: 'bank_connections', label: 'Conexiones bancarias' },
+    ];
+
     const results: { table: string; label: string; count: number }[] = [];
 
-    for (const { table, label } of deletions) {
+    for (const { table, label } of textIdTables) {
       const { error, count } = await supabaseAdmin
         .from(table)
         .delete({ count: 'exact' })
@@ -47,6 +53,28 @@ export async function DELETE() {
       }
 
       results.push({ table, label, count: count ?? 0 });
+    }
+
+    for (const { table, label } of uuidIdTables) {
+      const { error, count } = await supabaseAdmin
+        .from(table)
+        .delete({ count: 'exact' })
+        .eq('user_id', userId);
+
+      if (error) {
+        // Si el error es de tipo UUID, el usuario no tiene datos ahí (ID no es UUID)
+        if (error.message?.includes('invalid input syntax for type uuid')) {
+          results.push({ table, label, count: 0 });
+        } else {
+          console.error(`Error borrando ${table}:`, error);
+          return NextResponse.json(
+            { error: `Error al borrar ${label}: ${error.message}` },
+            { status: 500 }
+          );
+        }
+      } else {
+        results.push({ table, label, count: count ?? 0 });
+      }
     }
 
     // Borrar categorías personalizadas (mantener las del sistema)
