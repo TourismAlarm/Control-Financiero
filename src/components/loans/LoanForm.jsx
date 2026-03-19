@@ -16,6 +16,7 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
     interest_rate: '',
     monthly_payment: '',
     start_date: new Date().toISOString().split('T')[0],
+    paid_months_on_create: '0',
     notes: '',
   });
 
@@ -32,6 +33,7 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
         interest_rate: loan.interest_rate?.toString() || '',
         monthly_payment: loan.monthly_payment?.toString() || '',
         start_date: loan.start_date?.split('T')[0] || new Date().toISOString().split('T')[0],
+        paid_months_on_create: '0',
         notes: loan.notes || '',
       });
     }
@@ -280,6 +282,25 @@ export default function LoanForm({ loan = null, onSubmit, onCancel, darkMode = f
               Fecha de vencimiento de la primera cuota (a mes vencido)
             </p>
           </div>
+
+          {/* Cuotas ya pagadas - solo al crear */}
+          {!isEdit && (
+            <div>
+              <label className={labelClass}>Cuotas ya pagadas (opcional)</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={formData.paid_months_on_create}
+                onChange={(e) => handleChange('paid_months_on_create', e.target.value)}
+                placeholder="0"
+                className={inputClass}
+              />
+              <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Si llevas meses pagando, indícalo aquí. Se marcarán como pagadas sin crear transacciones.
+              </p>
+            </div>
+          )}
 
           {/* Notas (opcional) */}
           <div>

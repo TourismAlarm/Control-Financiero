@@ -146,16 +146,31 @@ export default function useLoans() {
       const principal = parseFloat(
         loanData.principal_amount ?? loanData.monto_total ?? loanData.initial_amount ?? 0
       );
+      const startDate = loanData.start_date ?? loanData.fecha_inicio;
+      const totalMonths = parseInt(loanData.total_months ?? loanData.plazo_meses ?? 0);
+
+      // Compute due_date from start_date + total_months if not explicitly provided
+      let dueDate = loanData.due_date ?? null;
+      if (!dueDate && startDate && totalMonths > 0) {
+        const end = new Date(startDate);
+        end.setMonth(end.getMonth() + totalMonths);
+        dueDate = end.toISOString().split('T')[0];
+      }
+
+      const paidMonthsOnCreate = parseInt(loanData.paid_months_on_create ?? 0);
+      const monthlyPayment = parseFloat(loanData.monthly_payment ?? loanData.cuota_mensual ?? 0);
+      const totalHistoricalPaid = monthlyPayment * paidMonthsOnCreate;
+      const initialOutstanding = Math.max(0, principal - totalHistoricalPaid);
 
       const newLoan = {
         user_id: session.user.id,
         type: loanData.type ?? loanData.tipo_prestamo ?? 'borrowed',
         contact_name: loanData.contact_name ?? loanData.name ?? loanData.nombre ?? '',
         principal_amount: principal,
-        outstanding_amount: parseFloat(loanData.outstanding_amount ?? principal),
+        outstanding_amount: parseFloat(loanData.outstanding_amount ?? initialOutstanding),
         interest_rate: parseFloat(loanData.interest_rate ?? loanData.tasa_interes ?? 0),
-        start_date: loanData.start_date ?? loanData.fecha_inicio,
-        due_date: loanData.due_date ?? null,
+        start_date: startDate,
+        due_date: dueDate,
         status: 'active',
         notes: loanData.notes ?? loanData.descripcion ?? null,
       };
@@ -167,6 +182,26 @@ export default function useLoans() {
         .single();
 
       if (insertError) throw insertError;
+
+      // Insert historical payments if the loan was already being paid
+      if (paidMonthsOnCreate > 0 && data?.id && monthlyPayment > 0) {
+        const historicalPayments = [];
+        const firstDate = new Date(startDate);
+        for (let i = 0; i < paidMonthsOnCreate; i++) {
+          const payDate = new Date(firstDate);
+          payDate.setMonth(payDate.getMonth() + i);
+          historicalPayments.push({
+            user_id: session.user.id,
+            loan_id: data.id,
+            amount: monthlyPayment,
+            principal_paid: monthlyPayment,
+            interest_paid: 0,
+            payment_date: payDate.toISOString().split('T')[0],
+            notes: 'Pago histórico (antes del registro)',
+          });
+        }
+        await supabase.from('loan_payments').insert(historicalPayments);
+      }
 
       await fetchLoans();
       return data;
@@ -207,6 +242,18 @@ export default function useLoans() {
       if (updates.fecha_inicio !== undefined) mappedUpdates.start_date = updates.fecha_inicio;
 
       if (updates.due_date !== undefined) mappedUpdates.due_date = updates.due_date;
+
+      // Recompute due_date when total_months is provided (from LoanForm)
+      if (updates.total_months !== undefined || updates.plazo_meses !== undefined) {
+        const months = parseInt(updates.total_months ?? updates.plazo_meses ?? 0);
+        const existingLoan = loans.find((l) => l.id === loanId);
+        const startDate = mappedUpdates.start_date ?? existingLoan?.start_date;
+        if (months > 0 && startDate) {
+          const end = new Date(startDate);
+          end.setMonth(end.getMonth() + months);
+          mappedUpdates.due_date = end.toISOString().split('T')[0];
+        }
+      }
 
       if (updates.status !== undefined) mappedUpdates.status = updates.status;
       if (updates.estado !== undefined) {
