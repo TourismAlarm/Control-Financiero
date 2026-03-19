@@ -13,7 +13,8 @@ interface CSVRow {
 
 interface ColumnMapping {
   date?: string;
-  description?: string;
+  description?: string;   // Concepto del banco → se usa para categorizar
+  merchant?: string;      // Comercio / Detalle → descripción visible final
   amount?: string;
   category?: string;
   account?: string;
@@ -139,6 +140,12 @@ export function CSVImporter() {
         detected.date = col;
       } else if (lower.includes('concepto') || lower.includes('descripcion') || lower.includes('description')) {
         detected.description = col;
+      } else if (
+        lower.includes('comercio') || lower.includes('detalle') ||
+        lower.includes('beneficiario') || lower.includes('establecimiento') ||
+        lower.includes('nombre comercio') || lower.includes('merchant')
+      ) {
+        detected.merchant = col;
       } else if (lower.includes('importe') || lower.includes('amount') || lower.includes('cantidad')) {
         detected.amount = col;
       } else if (lower.includes('referencia') || lower.includes('reference') || lower.includes('num') || lower.includes('id')) {
@@ -283,11 +290,16 @@ export function CSVImporter() {
 
     const parsed: ParsedTransaction[] = csvData.map(row => {
       const externalId = mapping.external_id ? row[mapping.external_id] : undefined;
-      const description = (mapping.description ? row[mapping.description] : '') || '';
+      const concepto = (mapping.description ? row[mapping.description] : '') || '';
+      const merchant = (mapping.merchant ? row[mapping.merchant] : '') || '';
       const amount = mapping.amount ? parseAmount(row[mapping.amount] || '') : 0;
 
-      // Auto-categorización por reglas de keywords
-      const suggestedCategoryName = autoCategorize(description, rules);
+      // Categorizar con concepto + comercio concatenados para máxima cobertura
+      const textForCategorization = [concepto, merchant].filter(Boolean).join(' ');
+      const suggestedCategoryName = autoCategorize(textForCategorization, rules);
+
+      // Descripción visible: usar comercio/detalle si está disponible, si no el concepto
+      const description = merchant || concepto;
 
       // Si el CSV ya trae una categoría mapeada y es UUID, usarla; si no, buscar por nombre sugerido
       const csvCategoryRaw = (mapping.category ? row[mapping.category] : '') || '';
@@ -469,11 +481,12 @@ export function CSVImporter() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              {['date', 'description', 'amount', 'external_id', 'category', 'account'].map(field => (
+              {(['date', 'description', 'merchant', 'amount', 'external_id', 'category', 'account'] as const).map(field => (
                 <div key={field}>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {field === 'date' && 'Fecha *'}
-                    {field === 'description' && 'Descripción *'}
+                    {field === 'description' && 'Concepto / Tipo operación * (para categorizar)'}
+                    {field === 'merchant' && 'Comercio / Detalle (descripción visible)'}
                     {field === 'amount' && 'Importe *'}
                     {field === 'external_id' && 'ID Externo (para deduplicación)'}
                     {field === 'category' && 'Categoría'}
