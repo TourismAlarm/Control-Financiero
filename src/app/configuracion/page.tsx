@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useProfile } from '@/hooks/useProfile';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Settings, Calendar, Globe, User, Save, ArrowLeft } from 'lucide-react';
+import { Settings, Calendar, Globe, User, Save, ArrowLeft, Trash2, AlertTriangle } from 'lucide-react';
 
 export default function ConfiguracionPage() {
   const { data: session } = useSession();
@@ -18,6 +18,9 @@ export default function ConfiguracionPage() {
   });
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [clearConfirm, setClearConfirm] = useState('');
+  const [isClearing, setIsClearing] = useState(false);
+  const [clearMessage, setClearMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Load profile data when available
   useEffect(() => {
@@ -46,6 +49,29 @@ export default function ConfiguracionPage() {
       });
     } catch (error) {
       console.error('Error updating profile:', error);
+    }
+  };
+
+  const handleClearData = async () => {
+    if (clearConfirm !== 'BORRAR') return;
+
+    setIsClearing(true);
+    setClearMessage(null);
+
+    try {
+      const response = await fetch('/api/admin/clear-data', { method: 'DELETE' });
+      const data = await response.json();
+
+      if (!response.ok) {
+        setClearMessage({ type: 'error', text: `❌ Error: ${data.error}` });
+      } else {
+        setClearMessage({ type: 'success', text: `✅ ${data.message}` });
+        setClearConfirm('');
+      }
+    } catch {
+      setClearMessage({ type: 'error', text: '❌ Error de conexión. Inténtalo de nuevo.' });
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -201,6 +227,75 @@ export default function ConfiguracionPage() {
                     <strong>Ejemplo:</strong> Si cobras el 26, las transacciones del 26 Nov - 25 Dic se mostrarán como &quot;Diciembre&quot;.
                   </p>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Zona de Peligro */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border-2 border-red-200 dark:border-red-800">
+            <div className="flex items-center gap-3 mb-2">
+              <AlertTriangle className="text-red-600 dark:text-red-400" size={24} />
+              <h2 className="text-xl font-bold text-red-700 dark:text-red-400">
+                Zona de Peligro
+              </h2>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Acciones irreversibles. Úsalas con precaución.
+            </p>
+
+            {/* Borrar datos de prueba */}
+            <div className="border-2 border-red-200 dark:border-red-800 rounded-xl p-5">
+              <div className="flex items-start gap-3 mb-3">
+                <Trash2 className="text-red-600 dark:text-red-400 mt-0.5 shrink-0" size={20} />
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    Borrar todos los datos financieros
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    Elimina todas las transacciones, cuentas, presupuestos, préstamos, metas de ahorro
+                    y reglas recurrentes. Las categorías del sistema se mantienen. Tu cuenta permanece intacta.
+                  </p>
+                </div>
+              </div>
+
+              {clearMessage && (
+                <div
+                  className={`mb-4 p-3 rounded-lg text-sm ${
+                    clearMessage.type === 'success'
+                      ? 'bg-green-50 border border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400'
+                      : 'bg-red-50 border border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400'
+                  }`}
+                >
+                  {clearMessage.text}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Escribe <span className="font-mono font-bold text-red-600 dark:text-red-400">BORRAR</span> para confirmar:
+                </p>
+                <input
+                  type="text"
+                  value={clearConfirm}
+                  onChange={(e) => setClearConfirm(e.target.value)}
+                  placeholder="Escribe BORRAR para confirmar"
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-red-200 dark:border-red-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:border-red-500 focus:ring-4 focus:ring-red-500/20 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={handleClearData}
+                  disabled={clearConfirm !== 'BORRAR' || isClearing}
+                  className={`
+                    flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold text-sm transition-all
+                    ${clearConfirm === 'BORRAR' && !isClearing
+                      ? 'bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    }
+                  `}
+                >
+                  <Trash2 size={16} />
+                  {isClearing ? 'Borrando datos...' : 'Borrar todos los datos'}
+                </button>
               </div>
             </div>
           </div>
