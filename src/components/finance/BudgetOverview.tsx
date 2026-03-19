@@ -16,6 +16,7 @@ import {
   Target,
 } from 'lucide-react';
 import { useBudgets } from '@/hooks/useBudgets';
+import { useCategories } from '@/hooks/useCategories';
 import { budgetInsertSchema, type BudgetInsert, type Budget } from '@/lib/validations/schemas';
 
 /**
@@ -40,6 +41,12 @@ export function BudgetOverview() {
     getTotalBudget,
   } = useBudgets();
   const { toast, showConfirm } = useGlobalToast();
+  const { categories } = useCategories();
+
+  const getCategoryName = (categoryId: string) => {
+    const cat = categories.find(c => c.id === categoryId);
+    return cat ? `${cat.icon ? cat.icon + ' ' : ''}${cat.name}` : 'Categoría';
+  };
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -315,7 +322,7 @@ export function BudgetOverview() {
                         />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">Categoría {budget.category_id}</h3>
+                        <h3 className="font-semibold text-gray-900">{getCategoryName(budget.category_id)}</h3>
                         <p className="text-xs text-gray-500">Mes {budget.month}/{budget.year}</p>
                       </div>
                     </div>

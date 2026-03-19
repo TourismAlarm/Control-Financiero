@@ -1,11 +1,11 @@
 'use client';
 
 import { useGlobalToast } from '@/components/Toaster';
-
 import { useState, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
-import { Upload, Download, Check, X, AlertCircle, Save } from 'lucide-react';
-import { useSession } from 'next-auth/react';
+import { Upload, Download, Check, X, AlertCircle, Save, Tag } from 'lucide-react';
+import { autoCategorize, getAllRules } from '@/lib/categorization/autoCategorize';
 
 interface CSVRow {
   [key: string]: string;
@@ -26,6 +26,14 @@ interface BankTemplate {
   mapping: ColumnMapping;
 }
 
+interface UserCategory {
+  id: string;
+  name: string;
+  type: string;
+  icon?: string | null;
+  color?: string | null;
+}
+
 interface ParsedTransaction {
   date: string;
   description: string;
@@ -35,6 +43,8 @@ interface ParsedTransaction {
   external_id?: string;
   isDuplicate?: boolean;
   rawRow: CSVRow;
+  category_id: string | null;
+  suggestedCategory: string | null;
 }
 
 const COMMON_TEMPLATES: BankTemplate[] = [
@@ -70,9 +80,12 @@ const COMMON_TEMPLATES: BankTemplate[] = [
   }
 ];
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const toUuidOrNull = (val: string) => (val && UUID_REGEX.test(val) ? val : null);
+
 export function CSVImporter() {
   const { toast } = useGlobalToast();
-  const { data: session } = useSession();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [csvData, setCSVData] = useState<CSVRow[]>([]);
@@ -84,6 +97,7 @@ export function CSVImporter() {
   const [savedTemplates, setSavedTemplates] = useState<BankTemplate[]>([]);
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload');
   const [_importStats, setImportStats] = useState({ total: 0, imported: 0, duplicates: 0, errors: 0 });
+  const [userCategories, setUserCategories] = useState<UserCategory[]>([]);
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -97,8 +111,6 @@ export function CSVImporter() {
         setCSVData(data);
         setHeaders(Object.keys(data[0] || {}));
         setStep('mapping');
-
-        // Intentar auto-detectar columnas
         autoDetectColumns(Object.keys(data[0] || {}));
       },
       error: (error) => {
@@ -114,28 +126,17 @@ export function CSVImporter() {
     cols.forEach(col => {
       const lower = col.toLowerCase();
 
-      // Detectar fecha
       if (lower.includes('fecha') || lower.includes('date') || lower.includes('f.valor')) {
         detected.date = col;
-      }
-      // Detectar descripción
-      else if (lower.includes('concepto') || lower.includes('descripcion') || lower.includes('description')) {
+      } else if (lower.includes('concepto') || lower.includes('descripcion') || lower.includes('description')) {
         detected.description = col;
-      }
-      // Detectar importe
-      else if (lower.includes('importe') || lower.includes('amount') || lower.includes('cantidad')) {
+      } else if (lower.includes('importe') || lower.includes('amount') || lower.includes('cantidad')) {
         detected.amount = col;
-      }
-      // Detectar ID externo
-      else if (lower.includes('referencia') || lower.includes('reference') || lower.includes('num') || lower.includes('id')) {
+      } else if (lower.includes('referencia') || lower.includes('reference') || lower.includes('num') || lower.includes('id')) {
         detected.external_id = col;
-      }
-      // Detectar categoría
-      else if (lower.includes('categoria') || lower.includes('category')) {
+      } else if (lower.includes('categoria') || lower.includes('category')) {
         detected.category = col;
-      }
-      // Detectar cuenta
-      else if (lower.includes('cuenta') || lower.includes('account')) {
+      } else if (lower.includes('cuenta') || lower.includes('account')) {
         detected.account = col;
       }
     });
@@ -171,21 +172,15 @@ export function CSVImporter() {
   };
 
   const parseAmount = (value: string): number => {
-    // Remover símbolos de moneda y espacios
     let cleaned = value.replace(/[€$£\s]/g, '');
 
-    // Manejar formatos europeos (1.234,56) y americanos (1,234.56)
     if (cleaned.includes(',') && cleaned.includes('.')) {
-      // Si tiene ambos, el último es el decimal
       if (cleaned.lastIndexOf(',') > cleaned.lastIndexOf('.')) {
-        // Formato europeo
         cleaned = cleaned.replace(/\./g, '').replace(',', '.');
       } else {
-        // Formato americano
         cleaned = cleaned.replace(/,/g, '');
       }
     } else if (cleaned.includes(',')) {
-      // Solo coma - asumir formato europeo
       cleaned = cleaned.replace(',', '.');
     }
 
@@ -193,27 +188,57 @@ export function CSVImporter() {
   };
 
   const parseDate = (value: string): string => {
-    // Intentar diferentes formatos de fecha
-    const formats = [
-      /(\d{2})\/(\d{2})\/(\d{4})/, // DD/MM/YYYY
-      /(\d{4})-(\d{2})-(\d{2})/, // YYYY-MM-DD
-      /(\d{2})-(\d{2})-(\d{4})/, // DD-MM-YYYY
-    ];
+    const v = value?.trim();
+    if (!v) return new Date().toISOString().substring(0, 10);
 
-    for (const format of formats) {
-      const match = value.match(format);
-      if (match) {
-        if (format === formats[0] || format === formats[2]) {
-          // DD/MM/YYYY o DD-MM-YYYY
-          return `${match[3]}-${match[2]}-${match[1]}`;
-        } else {
-          // YYYY-MM-DD
-          return value;
-        }
-      }
+    // dd/mm/yyyy or d/m/yyyy
+    const dmy = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (dmy) {
+      const day = dmy[1]!.padStart(2, '0');
+      const month = dmy[2]!.padStart(2, '0');
+      return `${dmy[3]!}-${month}-${day}`;
     }
 
-    return value; // Devolver sin cambios si no coincide
+    // dd/mm/yy (2-digit year)
+    const dmy2 = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+    if (dmy2) {
+      const day = dmy2[1]!.padStart(2, '0');
+      const month = dmy2[2]!.padStart(2, '0');
+      const year = parseInt(dmy2[3]!) < 50 ? `20${dmy2[3]!}` : `19${dmy2[3]!}`;
+      return `${year}-${month}-${day}`;
+    }
+
+    // dd/mm (no year → current year)
+    const dm = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})$/);
+    if (dm) {
+      const day = dm[1]!.padStart(2, '0');
+      const month = dm[2]!.padStart(2, '0');
+      const year = new Date().getFullYear();
+      return `${year}-${month}-${day}`;
+    }
+
+    // yyyy-mm-dd or yyyy/mm/dd
+    const ymd = v.match(/^(\d{4})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+    if (ymd) {
+      const month = ymd[2]!.padStart(2, '0');
+      const day = ymd[3]!.padStart(2, '0');
+      return `${ymd[1]!}-${month}-${day}`;
+    }
+
+    // Try native Date parsing as last resort
+    const parsed = new Date(v);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().substring(0, 10);
+    }
+
+    return new Date().toISOString().substring(0, 10);
+  };
+
+  // Encuentra el UUID de la categoría del usuario por nombre (case-insensitive)
+  const findCategoryId = (categories: UserCategory[], name: string | null): string | null => {
+    if (!name) return null;
+    const match = categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+    return match?.id ?? null;
   };
 
   const previewTransactions = async () => {
@@ -222,28 +247,57 @@ export function CSVImporter() {
       return;
     }
 
-    // Obtener transacciones existentes para detectar duplicados
-    const response = await fetch('/api/transactions');
-    const existingTransactions = await response.json();
+    // Cargar categorías del usuario y transacciones existentes en paralelo
+    const [catResponse, txResponse] = await Promise.all([
+      fetch('/api/categories'),
+      fetch('/api/transactions'),
+    ]);
+
+    const catData = await catResponse.json();
+    const categories: UserCategory[] = Array.isArray(catData) ? catData : [];
+    setUserCategories(categories);
+
+    const existingData = await txResponse.json();
+    const existingTransactions = Array.isArray(existingData) ? existingData : [];
     const existingIds = new Set(existingTransactions.map((t: any) => t.external_id).filter(Boolean));
+
+    const rules = getAllRules();
 
     const parsed: ParsedTransaction[] = csvData.map(row => {
       const externalId = mapping.external_id ? row[mapping.external_id] : undefined;
+      const description = (mapping.description ? row[mapping.description] : '') || '';
+      const amount = mapping.amount ? parseAmount(row[mapping.amount] || '') : 0;
+
+      // Auto-categorización por reglas de keywords
+      const suggestedCategoryName = autoCategorize(description, rules);
+
+      // Si el CSV ya trae una categoría mapeada y es UUID, usarla; si no, buscar por nombre sugerido
+      const csvCategoryRaw = (mapping.category ? row[mapping.category] : '') || '';
+      const csvCategoryId = toUuidOrNull(csvCategoryRaw);
+      const category_id = csvCategoryId ?? findCategoryId(categories, suggestedCategoryName);
 
       return {
         date: mapping.date ? parseDate(row[mapping.date] || '') : '',
-        description: (mapping.description ? row[mapping.description] : '') || '',
-        amount: mapping.amount ? parseAmount(row[mapping.amount] || '') : 0,
-        category: (mapping.category ? row[mapping.category] : '') || '',
+        description,
+        amount,
+        category: csvCategoryRaw,
         account: (mapping.account ? row[mapping.account] : '') || '',
         external_id: externalId || '',
         isDuplicate: externalId ? existingIds.has(externalId) : false,
-        rawRow: row
+        rawRow: row,
+        category_id,
+        suggestedCategory: suggestedCategoryName,
       };
     });
 
     setParsedTransactions(parsed);
     setStep('preview');
+  };
+
+  const updateTransactionCategory = (index: number, category_id: string | null) => {
+    setParsedTransactions(prev =>
+      prev.map((t, i) => i === index ? { ...t, category_id } : t)
+    );
   };
 
   const importTransactions = async () => {
@@ -258,25 +312,32 @@ export function CSVImporter() {
         continue;
       }
 
+      const absAmount = Math.abs(transaction.amount);
+      if (!absAmount || isNaN(absAmount)) {
+        errors++;
+        continue;
+      }
+
       try {
         const response = await fetch('/api/transactions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            date: transaction.date,
-            description: transaction.description,
-            amount: transaction.amount,
+            date: transaction.date || new Date().toISOString().substring(0, 10),
+            description: transaction.description || 'Sin descripción',
+            amount: absAmount,
             type: transaction.amount >= 0 ? 'income' : 'expense',
-            category_id: transaction.category,
-            account_id: transaction.account,
-            external_id: transaction.external_id,
-            user_id: session?.user?.id
+            category_id: transaction.category_id,
+            account_id: toUuidOrNull(transaction.account ?? ''),
+            external_id: transaction.external_id || null,
           })
         });
 
         if (response.ok) {
           imported++;
         } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Error importing transaction:', errorData);
           errors++;
         }
       } catch (error) {
@@ -292,7 +353,13 @@ export function CSVImporter() {
       errors
     });
 
-    toast(`Importación completada:\n${imported} transacciones importadas\n${duplicates} duplicados omitidos\n${errors} errores`, 'error');
+    if (imported > 0) {
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['financial-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['accounts'] });
+    }
+
+    toast(`Importación completada: ${imported} transacciones importadas ${duplicates} duplicados omitidos ${errors} errores`, errors > 0 && imported === 0 ? 'error' : 'success');
     resetImport();
   };
 
@@ -302,11 +369,15 @@ export function CSVImporter() {
     setMapping({});
     setParsedTransactions([]);
     setSelectedTemplate('');
+    setUserCategories([]);
     setStep('upload');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  const categorizedCount = parsedTransactions.filter(t => !t.isDuplicate && t.category_id).length;
+  const uncategorizedCount = parsedTransactions.filter(t => !t.isDuplicate && !t.category_id).length;
 
   return (
     <div className="space-y-6">
@@ -445,7 +516,7 @@ export function CSVImporter() {
               <div className="flex items-center gap-2">
                 <AlertCircle className="text-blue-600" size={20} />
                 <p className="text-sm text-blue-900">
-                  Se importarán {parsedTransactions.filter(t => !t.isDuplicate).length} transacciones.
+                  Se importarán <strong>{parsedTransactions.filter(t => !t.isDuplicate).length}</strong> transacciones.
                   {parsedTransactions.filter(t => t.isDuplicate).length > 0 && (
                     <span className="font-semibold ml-1">
                       ({parsedTransactions.filter(t => t.isDuplicate).length} duplicados serán omitidos)
@@ -455,14 +526,26 @@ export function CSVImporter() {
               </div>
             </div>
 
+            {/* Resumen de categorización */}
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg text-sm">
+              <Tag size={16} className="text-gray-500" />
+              <span className="text-gray-700">
+                <strong className="text-green-700">{categorizedCount}</strong> categorizadas automáticamente
+                {uncategorizedCount > 0 && (
+                  <span className="ml-2 text-orange-600">· <strong>{uncategorizedCount}</strong> sin categoría (puedes asignarla abajo)</span>
+                )}
+              </span>
+            </div>
+
             <div className="max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
               <table className="w-full">
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Estado</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Fecha</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-700">Descripción</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-700">Importe</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Estado</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Fecha</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Descripción</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-700">Categoría</th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-700">Importe</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -471,16 +554,42 @@ export function CSVImporter() {
                       key={index}
                       className={transaction.isDuplicate ? 'bg-yellow-50' : ''}
                     >
-                      <td className="px-4 py-2">
+                      <td className="px-3 py-2">
                         {transaction.isDuplicate ? (
                           <X className="text-yellow-600" size={16} />
                         ) : (
                           <Check className="text-green-600" size={16} />
                         )}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{transaction.date}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{transaction.description}</td>
-                      <td className={`px-4 py-2 text-sm text-right font-medium ${transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <td className="px-3 py-2 text-sm text-gray-900 whitespace-nowrap">{transaction.date}</td>
+                      <td className="px-3 py-2 text-sm text-gray-900 max-w-[200px] truncate" title={transaction.description}>
+                        {transaction.description}
+                      </td>
+                      <td className="px-3 py-2">
+                        {transaction.isDuplicate ? (
+                          <span className="text-xs text-gray-400">—</span>
+                        ) : (
+                          <select
+                            value={transaction.category_id ?? ''}
+                            onChange={(e) => updateTransactionCategory(index, e.target.value || null)}
+                            className={`text-xs px-2 py-1 border rounded w-full max-w-[160px] focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+                              transaction.category_id
+                                ? transaction.suggestedCategory
+                                  ? 'border-green-300 bg-green-50'
+                                  : 'border-gray-300'
+                                : 'border-orange-300 bg-orange-50'
+                            }`}
+                          >
+                            <option value="">Sin categoría</option>
+                            {userCategories.map(cat => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className={`px-3 py-2 text-sm text-right font-medium whitespace-nowrap ${transaction.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {transaction.amount.toFixed(2)} €
                       </td>
                     </tr>
