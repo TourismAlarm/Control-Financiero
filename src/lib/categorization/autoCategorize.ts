@@ -8,34 +8,41 @@ export const DEFAULT_RULES: CategorizationRule[] = [
 
   // ─── ALIMENTACIÓ / ALIMENTACIÓN ───────────────────────────────────────────
 
-  // Supermercats
+  // Supermercats / cadenes alimentació
   {
     keywords: [
       // Cadenas España/Catalunya
       'mercadona', 'carrefour', 'lidl', 'aldi', 'dia ', 'dia,', 'supercor',
       'eroski', 'consum', 'simply', 'alcampo', 'hipercor', 'el corte ingles',
-      // Cadenas catalanes
+      // Cadenes catalanes grans
       'bonpreu', 'esclat', 'caprabo', 'condis', 'plusfresc', 'valvi',
-      'sorli', 'spar', 'coviran', 'suma', 'supermercados',
-      // Genérico
+      'sorli', 'spar', 'coviran', 'suma ', 'supermercados',
+      // Cadenes especialitzades catalanes (noms propis)
+      'atmetller', 'casa atmetller', 'veritas', 'la sirena', 'bon preu',
+      'el corte catalan', 'supeco', 'froiz', 'econom', 'udl ',
+      'turbiat', 'can biosca', 'formatgeria jaume',
+      // Genèric
       'supermercat', 'supermercado', 'hiper',
     ],
     category: 'Alimentación',
     priority: 10,
   },
 
-  // Comerços de proximitat (molt comú a Catalunya)
+  // Forns, pastisseries i comerços de proximitat
   {
     keywords: [
-      // Catalan
-      'forn de pa', 'forn de', 'pastisseria', 'fleca', 'carnisseria',
+      // "forn" sol ja cobreix: forn bellver, forn X, forn de pa...
+      'forn ', 'pastisseria', 'fleca', 'carnisseria',
       'cansaladeria', 'fruiteria', 'verdureria', 'peixateria', 'xarcuteria',
       'colmado', 'queviures', 'formatgeria', 'herbolari', 'mercat municipal',
-      'mercat de', 'la boqueria', 'granja', 'confiteria', 'dolceria',
+      'mercat de', 'la boqueria', 'confiteria', 'dolceria',
+      // Noms propis de forns/pastisseries conegudes
+      'baluard', 'turris', 'hofmann', 'escriba', 'escribà',
+      'foix de sarria', 'foix de sarrià', 'mauri', 'oriol balaguer',
       // Castellano
       'panadería', 'pastelería', 'carnicería', 'pescadería', 'frutería',
       'verdulería', 'charcutería', 'ultramarinos', 'herbolario', 'mercado',
-      // Genérico
+      // Genèric
       'alimentacion', 'alimentació', 'frutas', 'verduras',
     ],
     category: 'Alimentación',
