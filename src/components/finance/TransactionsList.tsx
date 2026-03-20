@@ -209,29 +209,31 @@ export function TransactionsList({
   return (
     <div className="space-y-4">
       {/* Header with Action Buttons */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold text-gray-800">Transacciones</h2>
+      <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-100 flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-gray-900">Transacciones</h2>
         <div className="flex gap-2">
           <button
             onClick={() => handleNewTransaction('income')}
-            className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
           >
             <TrendingUp className="w-4 h-4" />
-            Nuevo Ingreso
+            <span className="hidden sm:inline">Nuevo Ingreso</span>
+            <span className="sm:hidden">Ingreso</span>
           </button>
           <button
             onClick={() => handleNewTransaction('expense')}
-            className="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl font-medium transition-colors"
           >
             <TrendingDown className="w-4 h-4" />
-            Nuevo Gasto
+            <span className="hidden sm:inline">Nuevo Gasto</span>
+            <span className="sm:hidden">Gasto</span>
           </button>
         </div>
       </div>
 
       {/* Transaction Form Modal */}
       {isFormOpen && (
-        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-blue-500">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
           <TransactionForm
             type={formType}
             transaction={editingTransaction ? { ...editingTransaction, id: String(editingTransaction.id) } : undefined}
@@ -243,26 +245,26 @@ export function TransactionsList({
 
       {/* Filters */}
       {showFilters && (
-        <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-4 flex flex-wrap gap-4">
           {/* Search */}
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-sm font-medium mb-1">Buscar</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Descripción, notas o importe..."
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none"
             />
           </div>
 
           {/* Type Filter */}
           <div>
-            <label className="block text-sm font-medium mb-1">Tipo</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as any)}
-              className="px-3 py-2 border rounded-lg"
+              className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">Todos</option>
               <option value="income">Ingresos</option>
@@ -272,11 +274,11 @@ export function TransactionsList({
 
           {/* Sort By */}
           <div>
-            <label className="block text-sm font-medium mb-1">Ordenar por</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ordenar por</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
-              className="px-3 py-2 border rounded-lg"
+              className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="date">Fecha</option>
               <option value="amount">Monto</option>
@@ -285,11 +287,11 @@ export function TransactionsList({
 
           {/* Sort Order */}
           <div>
-            <label className="block text-sm font-medium mb-1">Orden</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Orden</label>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as any)}
-              className="px-3 py-2 border rounded-lg"
+              className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="desc">Descendente</option>
               <option value="asc">Ascendente</option>
@@ -300,26 +302,18 @@ export function TransactionsList({
 
       {/* Summary */}
       {filterType === 'all' && (
-        <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-lg">
-          <div>
-            <p className="text-sm text-gray-600">Ingresos</p>
-            <p className="text-lg font-semibold text-green-600">
-              {totals.incomeFormatted}
-            </p>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-100">
+            <p className="text-xs font-medium text-gray-500 mb-1">Ingresos</p>
+            <p className="text-lg font-bold text-green-600">{totals.incomeFormatted}</p>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Gastos</p>
-            <p className="text-lg font-semibold text-red-600">
-              {totals.expensesFormatted}
-            </p>
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-100">
+            <p className="text-xs font-medium text-gray-500 mb-1">Gastos</p>
+            <p className="text-lg font-bold text-red-600">{totals.expensesFormatted}</p>
           </div>
-          <div>
-            <p className="text-sm text-gray-600">Balance</p>
-            <p
-              className={`text-lg font-semibold ${
-                totals.balance >= 0 ? 'text-green-600' : 'text-red-600'
-              }`}
-            >
+          <div className="bg-white rounded-xl shadow-lg p-4 border border-gray-100">
+            <p className="text-xs font-medium text-gray-500 mb-1">Balance</p>
+            <p className={`text-lg font-bold ${totals.balance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
               {totals.balanceFormatted}
             </p>
           </div>
@@ -328,16 +322,16 @@ export function TransactionsList({
 
       {/* Transactions List */}
       {filteredTransactions.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
-          <p>No hay transacciones para mostrar</p>
+        <div className="bg-white rounded-xl shadow-lg p-12 border border-gray-100 text-center">
+          <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+          <p className="text-gray-500 font-medium">No hay transacciones para mostrar</p>
         </div>
       ) : (
         <div className="space-y-2">
           {filteredTransactions.map((transaction: Transaction) => (
             <div
               key={transaction.id}
-              className="flex items-center justify-between p-4 border rounded-lg hover:shadow-md transition-shadow"
+              className="flex items-center justify-between p-4 bg-white border border-gray-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow"
             >
               {/* Left side - Info */}
               <div className="flex-1">

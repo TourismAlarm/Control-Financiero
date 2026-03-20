@@ -153,7 +153,7 @@ export function RecurringTransactions() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-32 bg-gray-200 rounded"></div>
@@ -164,27 +164,29 @@ export function RecurringTransactions() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header with Monthly Impact */}
-      <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 rounded-lg shadow-lg p-6 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Repeat className="w-6 h-6" />
-              <h2 className="text-2xl font-bold">Transacciones Recurrentes</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-indigo-100 rounded-xl">
+                <Repeat className="w-5 h-5 text-indigo-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Transacciones Recurrentes</h2>
             </div>
-            <div className="grid grid-cols-3 gap-4 mt-3">
+            <div className="grid grid-cols-3 gap-4 mt-2">
               <div>
-                <p className="text-indigo-200 text-xs">Ingresos/Mes</p>
-                <p className="text-lg font-semibold">{monthlyImpact.incomeFormatted}</p>
+                <p className="text-xs font-medium text-gray-500">Ingresos/Mes</p>
+                <p className="text-base font-bold text-green-600">{monthlyImpact.incomeFormatted}</p>
               </div>
               <div>
-                <p className="text-indigo-200 text-xs">Gastos/Mes</p>
-                <p className="text-lg font-semibold">{monthlyImpact.expensesFormatted}</p>
+                <p className="text-xs font-medium text-gray-500">Gastos/Mes</p>
+                <p className="text-base font-bold text-red-600">{monthlyImpact.expensesFormatted}</p>
               </div>
               <div>
-                <p className="text-indigo-200 text-xs">Balance/Mes</p>
-                <p className={`text-lg font-semibold ${monthlyImpact.balance >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+                <p className="text-xs font-medium text-gray-500">Balance/Mes</p>
+                <p className={`text-base font-bold ${monthlyImpact.balance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
                   {monthlyImpact.balanceFormatted}
                 </p>
               </div>
@@ -192,7 +194,7 @@ export function RecurringTransactions() {
           </div>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="flex items-center gap-2 bg-white text-indigo-600 px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 transition-colors"
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Nueva Regla
@@ -202,7 +204,7 @@ export function RecurringTransactions() {
 
       {/* Upcoming Rules Alert */}
       {upcomingRules.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <Clock className="w-5 h-5 text-blue-600 mt-0.5" />
             <div>
@@ -225,8 +227,8 @@ export function RecurringTransactions() {
 
       {/* Form */}
       {isFormOpen && (
-        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-indigo-500">
-          <h3 className="text-lg font-semibold mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <h3 className="text-base font-bold text-gray-900 mb-4">
             {editingRule ? 'Editar Regla Recurrente' : 'Nueva Regla Recurrente'}
           </h3>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -409,18 +411,16 @@ export function RecurringTransactions() {
 
       {/* Rules List */}
       {filteredRules.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-          <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-3" />
-          <p className="text-yellow-800 font-medium mb-2">
+        <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-100 text-center">
+          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold mb-1">
             No tienes reglas recurrentes{' '}
             {filterType !== 'all' && `de tipo ${filterType === 'income' ? 'ingreso' : 'gasto'}`}
           </p>
-          <p className="text-yellow-600 text-sm mb-4">
-            Automatiza tus transacciones creando reglas recurrentes
-          </p>
+          <p className="text-gray-500 text-sm mb-4">Automatiza tus transacciones creando reglas recurrentes</p>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="inline-flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-indigo-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Crear Primera Regla
@@ -435,7 +435,7 @@ export function RecurringTransactions() {
             return (
               <div
                 key={rule.id}
-                className={`bg-white rounded-lg shadow p-5 border-l-4 transition-all hover:shadow-lg ${
+                className={`bg-white rounded-xl shadow-lg p-5 border-l-4 transition-all hover:shadow-xl ${
                   rule.is_active
                     ? isIncome
                       ? 'border-green-500'

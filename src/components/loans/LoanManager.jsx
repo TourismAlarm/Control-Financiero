@@ -490,7 +490,7 @@ export default function LoanManager({
 
           {/* Lista de préstamos o estado vacío */}
           {loans.length === 0 ? (
-            <div className={`p-12 rounded-2xl text-center ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-gray-50 border-2 border-gray-200'}`}>
+            <div className={`p-12 rounded-2xl text-center ${darkMode ? 'bg-gray-800 border border-gray-700' : 'bg-white border border-gray-100 shadow-lg'}`}>
               <div className="max-w-md mx-auto">
                 <CreditCard
                   className={`mx-auto mb-4 ${darkMode ? 'text-gray-600' : 'text-gray-400'}`}

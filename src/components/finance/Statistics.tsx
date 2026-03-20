@@ -80,22 +80,24 @@ export function Statistics() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-6 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <BarChart3 className="w-6 h-6" />
-              <h2 className="text-2xl font-bold">Estadísticas Financieras</h2>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-xl">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
             </div>
-            <p className="text-blue-100 text-sm">Análisis detallado de tu situación financiera</p>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Estadísticas Financieras</h2>
+              <p className="text-sm text-gray-500">Análisis detallado de tu situación financiera</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-blue-200" />
+            <Calendar className="w-4 h-4 text-gray-400" />
             <input
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-blue-700/50 text-white px-3 py-1 rounded-lg border border-blue-500 focus:outline-none focus:ring-2 focus:ring-white"
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -104,7 +106,7 @@ export function Statistics() {
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Balance */}
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-2 bg-blue-100 rounded-lg">
               <DollarSign className="w-5 h-5 text-blue-600" />
@@ -116,7 +118,7 @@ export function Statistics() {
         </div>
 
         {/* Health Score */}
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <div
               className={`p-2 rounded-lg ${
@@ -160,7 +162,7 @@ export function Statistics() {
         </div>
 
         {/* Savings Rate */}
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-2 bg-purple-100 rounded-lg">
               <TrendingUp className="w-5 h-5 text-purple-600" />
@@ -172,7 +174,7 @@ export function Statistics() {
         </div>
 
         {/* Budget Usage */}
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-xl shadow-lg p-5 border border-gray-100">
           <div className="flex items-center gap-2 mb-2">
             <div className="p-2 bg-orange-100 rounded-lg">
               <PieChart className="w-5 h-5 text-orange-600" />
@@ -185,10 +187,10 @@ export function Statistics() {
       </div>
 
       {/* Income vs Expenses */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <h3 className="text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-blue-600" />
-          Ingresos vs Gastos - {selectedMonth}
+          Ingresos vs Gastos — {selectedMonth}
         </h3>
         <div className="space-y-4">
           {/* Income */}
@@ -200,7 +202,7 @@ export function Statistics() {
               </div>
               <span className="text-sm font-bold text-green-600">{totals.incomeFormatted}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className="w-full bg-gray-100 rounded-full h-3">
               <div className="bg-green-500 h-3 rounded-full" style={{ width: '100%' }}></div>
             </div>
           </div>
@@ -214,7 +216,7 @@ export function Statistics() {
               </div>
               <span className="text-sm font-bold text-red-600">{totals.expensesFormatted}</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className="w-full bg-gray-100 rounded-full h-3">
               <div
                 className="bg-red-500 h-3 rounded-full"
                 style={{
@@ -245,8 +247,8 @@ export function Statistics() {
       {/* Category Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Top Expense Categories */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Top Categorías de Gastos</h3>
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <h3 className="text-base font-bold text-gray-900 mb-4">Top Categorías de Gastos</h3>
           {summaryCategoryBreakdown.length > 0 ? (
             <div className="space-y-3">
               {summaryCategoryBreakdown.slice(0, 5).map((cat, i) => (
@@ -257,7 +259,7 @@ export function Statistics() {
                       {cat.amountFormatted} ({cat.percentageFormatted})
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div className="w-full bg-gray-100 rounded-full h-2">
                     <div
                       className="bg-blue-600 h-2 rounded-full transition-all"
                       style={{ width: `${cat.percentage}%` }}
@@ -274,8 +276,8 @@ export function Statistics() {
         </div>
 
         {/* Account Distribution */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Distribución de Cuentas</h3>
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <h3 className="text-base font-bold text-gray-900 mb-4">Distribución de Cuentas</h3>
           {balanceByType.length > 0 ? (
             <div className="space-y-3">
               {balanceByType.map((item, i) => {
@@ -289,7 +291,7 @@ export function Statistics() {
                         {item.balanceFormatted} ({percentage.toFixed(1)}%)
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-100 rounded-full h-2">
                       <div
                         className="bg-purple-600 h-2 rounded-full transition-all"
                         style={{ width: `${percentage}%` }}
@@ -306,14 +308,14 @@ export function Statistics() {
       </div>
 
       {/* Recurring Transactions Impact */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold mb-4">Impacto de Transacciones Recurrentes</h3>
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <h3 className="text-base font-bold text-gray-900 mb-4">Impacto de Transacciones Recurrentes</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-green-50 rounded-lg p-4">
+          <div className="bg-green-50 rounded-xl p-4">
             <p className="text-xs text-green-700 font-medium mb-1">Ingresos Recurrentes/Mes</p>
             <p className="text-2xl font-bold text-green-600">{monthlyImpact.incomeFormatted}</p>
           </div>
-          <div className="bg-red-50 rounded-lg p-4">
+          <div className="bg-red-50 rounded-xl p-4">
             <p className="text-xs text-red-700 font-medium mb-1">Gastos Recurrentes/Mes</p>
             <p className="text-2xl font-bold text-red-600">{monthlyImpact.expensesFormatted}</p>
           </div>
@@ -342,18 +344,18 @@ export function Statistics() {
 
       {/* Savings Goals Progress */}
       {totalSavings.activeCount > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">Progreso de Metas de Ahorro</h3>
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <h3 className="text-base font-bold text-gray-900 mb-4">Progreso de Metas de Ahorro</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-green-50 rounded-lg p-4">
+            <div className="bg-green-50 rounded-xl p-4">
               <p className="text-xs text-green-700 font-medium mb-1">Total Ahorrado</p>
               <p className="text-2xl font-bold text-green-600">{totalSavings.totalFormatted}</p>
             </div>
-            <div className="bg-blue-50 rounded-lg p-4">
+            <div className="bg-blue-50 rounded-xl p-4">
               <p className="text-xs text-blue-700 font-medium mb-1">Objetivo Total</p>
               <p className="text-2xl font-bold text-blue-600">{totalSavings.targetFormatted}</p>
             </div>
-            <div className="bg-purple-50 rounded-lg p-4">
+            <div className="bg-purple-50 rounded-xl p-4">
               <p className="text-xs text-purple-700 font-medium mb-1">Metas Activas</p>
               <p className="text-2xl font-bold text-purple-600">{totalSavings.activeCount}</p>
             </div>
@@ -383,14 +385,16 @@ export function Statistics() {
       </div>
 
       {/* Intelligent Agents Section */}
-      <div className="mt-8">
-        <div className="flex items-center gap-2 mb-6">
-          <Brain className="w-6 h-6 text-purple-600" />
-          <h2 className="text-xl font-bold text-gray-900">Agentes Inteligentes</h2>
+      <div className="mt-2">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 mb-5">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="p-2 bg-purple-100 rounded-xl">
+              <Brain className="w-5 h-5 text-purple-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Agentes Inteligentes</h2>
+          </div>
+          <p className="text-sm text-gray-500 ml-11">Análisis automático basado en tus patrones de gasto y comportamiento financiero</p>
         </div>
-        <p className="text-gray-600 mb-6">
-          Análisis automático basado en tus patrones de gasto y comportamiento financiero
-        </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Smart Notifications */}
           <SmartNotifications maxVisible={5} />

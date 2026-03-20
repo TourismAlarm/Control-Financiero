@@ -160,7 +160,7 @@ export function AccountsManager() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-32 bg-gray-200 rounded"></div>
@@ -171,34 +171,34 @@ export function AccountsManager() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header with Total Balance */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-6 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="flex justify-between items-start">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="w-6 h-6" />
-              <h2 className="text-2xl font-bold">Mis Cuentas</h2>
-            </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-blue-100 rounded-xl">
+                <DollarSign className="w-5 h-5 text-blue-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Mis Cuentas</h2>
               <button
                 onClick={() => setBalancesVisible(!balancesVisible)}
-                className="p-1 hover:bg-blue-700 rounded transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                 title={balancesVisible ? 'Ocultar saldos' : 'Mostrar saldos'}
               >
-                {balancesVisible ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+                {balancesVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
               </button>
-              <div>
-                <p className="text-blue-100 text-sm">Balance Total</p>
-                <p className="text-3xl font-bold">
-                  {balancesVisible ? totalBalance.totalFormatted : '•••••'}
-                </p>
-              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-gray-500">Balance Total</p>
+              <p className="text-3xl font-bold text-gray-900">
+                {balancesVisible ? totalBalance.totalFormatted : '•••••'}
+              </p>
             </div>
           </div>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="flex items-center gap-2 bg-white text-blue-600 px-4 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors"
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Nueva Cuenta
@@ -211,14 +211,14 @@ export function AccountsManager() {
             {balanceByType.map((item) => {
               const Icon = ACCOUNT_TYPE_ICONS[item.type as keyof typeof ACCOUNT_TYPE_ICONS] || Landmark;
               return (
-                <div key={item.type} className="bg-blue-700/50 rounded-lg p-3">
+                <div key={item.type} className="bg-gray-50 rounded-xl p-3 border border-gray-100">
                   <div className="flex items-center gap-2 mb-1">
-                    <Icon className="w-4 h-4" />
-                    <p className="text-xs text-blue-100">
+                    <Icon className="w-4 h-4 text-gray-500" />
+                    <p className="text-xs text-gray-500 font-medium">
                       {ACCOUNT_TYPE_LABELS[item.type as keyof typeof ACCOUNT_TYPE_LABELS]}
                     </p>
                   </div>
-                  <p className="text-lg font-semibold">
+                  <p className="text-base font-bold text-gray-900">
                     {balancesVisible ? item.balanceFormatted : '•••••'}
                   </p>
                 </div>
@@ -230,8 +230,8 @@ export function AccountsManager() {
 
       {/* Account Form */}
       {isFormOpen && (
-        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-blue-500">
-          <h3 className="text-lg font-semibold mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <h3 className="text-base font-bold text-gray-900 mb-4">
             {editingAccount ? 'Editar Cuenta' : 'Nueva Cuenta'}
           </h3>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -341,15 +341,13 @@ export function AccountsManager() {
 
       {/* Accounts List */}
       {accounts.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-          <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-3" />
-          <p className="text-yellow-800 font-medium mb-2">No tienes cuentas registradas</p>
-          <p className="text-yellow-600 text-sm mb-4">
-            Comienza añadiendo tu primera cuenta bancaria
-          </p>
+        <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-100 text-center">
+          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold mb-1">No tienes cuentas registradas</p>
+          <p className="text-gray-500 text-sm mb-4">Comienza añadiendo tu primera cuenta bancaria</p>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="inline-flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Añadir Primera Cuenta
@@ -365,7 +363,7 @@ export function AccountsManager() {
             return (
               <div
                 key={account.id}
-                className={`bg-white rounded-lg shadow p-5 border-l-4 transition-all hover:shadow-lg ${
+                className={`bg-white rounded-xl shadow-lg p-5 border-l-4 transition-all hover:shadow-xl ${
                   account.is_active
                     ? isNegative
                       ? 'border-red-500'
@@ -415,7 +413,7 @@ export function AccountsManager() {
 
                 {/* Inline delete confirmation */}
                 {isPendingDelete && (
-                  <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <div className="mt-3 p-3 bg-red-50 border border-red-100 rounded-xl">
                     <p className="text-sm text-red-700 font-medium mb-2">
                       ¿Eliminar esta cuenta?
                     </p>
