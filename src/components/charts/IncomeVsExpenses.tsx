@@ -64,6 +64,7 @@ export function IncomeVsExpenses({ transactions }: IncomeVsExpensesProps) {
     <div className="bg-white rounded-xl shadow-lg p-6">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Ingresos vs Gastos (últimos 6 meses)</h3>
 
+      <div className="w-full overflow-hidden">
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -73,6 +74,7 @@ export function IncomeVsExpenses({ transactions }: IncomeVsExpensesProps) {
             style={{ fontSize: '12px' }}
           />
           <YAxis
+            width={65}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
             tickFormatter={(value) => `${value.toLocaleString()}€`}
@@ -101,6 +103,7 @@ export function IncomeVsExpenses({ transactions }: IncomeVsExpensesProps) {
           />
         </BarChart>
       </ResponsiveContainer>
+      </div>
 
       {/* Resumen */}
       <div className="mt-4 grid grid-cols-3 gap-4">
