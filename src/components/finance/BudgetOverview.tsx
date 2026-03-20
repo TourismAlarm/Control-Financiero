@@ -137,7 +137,7 @@ export function BudgetOverview() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-32 bg-gray-200 rounded"></div>
@@ -148,34 +148,36 @@ export function BudgetOverview() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header with Month Selector */}
-      <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-lg shadow-lg p-6 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="w-6 h-6" />
-              <h2 className="text-2xl font-bold">Presupuestos</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-purple-100 rounded-xl">
+                <Target className="w-5 h-5 text-purple-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Presupuestos</h2>
             </div>
             <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-purple-200" />
+              <Calendar className="w-4 h-4 text-gray-400" />
               <input
                 type="month"
                 value={selectedMonth}
                 onChange={(e) => setSelectedMonth(e.target.value)}
-                className="bg-purple-700/50 text-white px-3 py-1 rounded-lg border border-purple-500 focus:outline-none focus:ring-2 focus:ring-white"
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
             {totalBudget && (
               <div className="mt-3">
-                <p className="text-purple-100 text-sm">Presupuesto Total</p>
-                <p className="text-2xl font-bold">{totalBudget.totalFormatted}</p>
+                <p className="text-xs font-medium text-gray-500">Presupuesto Total</p>
+                <p className="text-2xl font-bold text-gray-900">{totalBudget.totalFormatted}</p>
               </div>
             )}
           </div>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="flex items-center gap-2 bg-white text-purple-600 px-4 py-2 rounded-lg font-medium hover:bg-purple-50 transition-colors"
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-purple-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Nuevo Presupuesto
@@ -185,8 +187,8 @@ export function BudgetOverview() {
 
       {/* Budget Form */}
       {isFormOpen && (
-        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-purple-500">
-          <h3 className="text-lg font-semibold mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <h3 className="text-base font-bold text-gray-900 mb-4">
             {editingBudget ? 'Editar Presupuesto' : 'Nuevo Presupuesto'}
           </h3>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -263,15 +265,13 @@ export function BudgetOverview() {
 
       {/* Budgets List */}
       {budgets.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-          <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-3" />
-          <p className="text-yellow-800 font-medium mb-2">No tienes presupuestos configurados</p>
-          <p className="text-yellow-600 text-sm mb-4">
-            Crea tu primer presupuesto para controlar tus gastos
-          </p>
+        <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-100 text-center">
+          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold mb-1">No tienes presupuestos configurados</p>
+          <p className="text-gray-500 text-sm mb-4">Crea tu primer presupuesto para controlar tus gastos</p>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="inline-flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-purple-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Crear Primer Presupuesto
@@ -292,7 +292,7 @@ export function BudgetOverview() {
               return (
                 <div
                   key={budget.id}
-                  className={`bg-white rounded-lg shadow p-5 border-l-4 transition-all hover:shadow-lg ${
+                  className={`bg-white rounded-xl shadow-lg p-5 border-l-4 transition-all hover:shadow-xl ${
                     isOver
                       ? 'border-red-500'
                       : percentageUsed >= 80
@@ -394,7 +394,7 @@ export function BudgetOverview() {
                           <CheckCircle className="w-4 h-4 text-green-500" />
                         )}
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div className="w-full bg-gray-100 rounded-full h-2.5">
                         <div
                           className={`h-2.5 rounded-full transition-all ${
                             isOver
@@ -419,7 +419,7 @@ export function BudgetOverview() {
         const [year, month] = selectedMonth.split('-').map(Number);
         return b.month === month && b.year === year;
       }).length === 0 && budgets.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+        <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 text-center">
           <Calendar className="w-10 h-10 text-blue-600 mx-auto mb-2" />
           <p className="text-blue-800 font-medium">No hay presupuestos para este mes</p>
           <p className="text-blue-600 text-sm mt-1">

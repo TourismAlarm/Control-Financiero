@@ -185,7 +185,7 @@ export function SavingsGoals() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3"></div>
           <div className="h-32 bg-gray-200 rounded"></div>
@@ -196,29 +196,31 @@ export function SavingsGoals() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header with Total Savings */}
-      <div className="bg-gradient-to-r from-green-600 to-green-800 rounded-lg shadow-lg p-6 text-white">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="w-6 h-6" />
-              <h2 className="text-2xl font-bold">Metas de Ahorro</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-green-100 rounded-xl">
+                <Target className="w-5 h-5 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900">Metas de Ahorro</h2>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-green-100 text-xs">Total Ahorrado</p>
-                <p className="text-2xl font-bold">{totalSavings.totalFormatted}</p>
+                <p className="text-xs font-medium text-gray-500">Total Ahorrado</p>
+                <p className="text-2xl font-bold text-gray-900">{totalSavings.totalFormatted}</p>
               </div>
               <div>
-                <p className="text-green-100 text-xs">Metas Activas</p>
-                <p className="text-2xl font-bold">{totalSavings.activeCount}</p>
+                <p className="text-xs font-medium text-gray-500">Metas Activas</p>
+                <p className="text-2xl font-bold text-gray-900">{totalSavings.activeCount}</p>
               </div>
             </div>
           </div>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="flex items-center gap-2 bg-white text-green-600 px-4 py-2 rounded-lg font-medium hover:bg-green-50 transition-colors"
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-green-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Nueva Meta
@@ -228,7 +230,7 @@ export function SavingsGoals() {
 
       {/* Upcoming Deadlines Alert */}
       {upcomingDeadlines.length > 0 && (
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+        <div className="bg-orange-50 border border-orange-100 rounded-xl p-4">
           <div className="flex items-start gap-3">
             <Calendar className="w-5 h-5 text-orange-600 mt-0.5" />
             <div>
@@ -252,8 +254,8 @@ export function SavingsGoals() {
 
       {/* Form */}
       {isFormOpen && (
-        <div className="bg-white rounded-lg shadow-lg p-6 border-2 border-green-500">
-          <h3 className="text-lg font-semibold mb-4">
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+          <h3 className="text-base font-bold text-gray-900 mb-4">
             {editingGoal ? 'Editar Meta de Ahorro' : 'Nueva Meta de Ahorro'}
           </h3>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -395,18 +397,16 @@ export function SavingsGoals() {
 
       {/* Goals List */}
       {filteredGoals.length === 0 ? (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-8 text-center">
-          <AlertCircle className="w-12 h-12 text-yellow-600 mx-auto mb-3" />
-          <p className="text-yellow-800 font-medium mb-2">
+        <div className="bg-white rounded-xl shadow-lg p-10 border border-gray-100 text-center">
+          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold mb-1">
             No tienes metas de ahorro{' '}
             {filterStatus !== 'all' && `${filterStatus === 'active' ? 'activas' : 'completadas'}`}
           </p>
-          <p className="text-yellow-600 text-sm mb-4">
-            Define tus objetivos y empieza a ahorrar
-          </p>
+          <p className="text-gray-500 text-sm mb-4">Define tus objetivos y empieza a ahorrar</p>
           <button
             onClick={() => setIsFormOpen(true)}
-            className="inline-flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-yellow-700 transition-colors"
+            className="inline-flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl font-medium hover:bg-green-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
             Crear Primera Meta
@@ -421,7 +421,7 @@ export function SavingsGoals() {
             return (
               <div
                 key={goal.id}
-                className={`bg-white rounded-lg shadow p-5 border-l-4 transition-all hover:shadow-lg ${
+                className={`bg-white rounded-xl shadow-lg p-5 border-l-4 transition-all hover:shadow-xl ${
                   goal.is_completed ? 'border-purple-500' : 'border-green-500'
                 }`}
               >
@@ -488,7 +488,7 @@ export function SavingsGoals() {
                       {progress.percentageFormatted}
                     </span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+                  <div className="w-full bg-gray-100 rounded-full h-3 mb-2">
                     <div
                       className={`h-3 rounded-full transition-all ${
                         goal.is_completed
