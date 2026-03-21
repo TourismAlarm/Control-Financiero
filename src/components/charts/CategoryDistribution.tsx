@@ -97,43 +97,46 @@ export function CategoryDistribution({ transactions, type = 'expense' }: Categor
         Distribución por Categorías ({type === 'income' ? 'Ingresos' : 'Gastos'})
       </h3>
 
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={chartData}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            label={renderCustomLabel}
-            outerRadius={100}
-            innerRadius={60}
-            fill="#8884d8"
-            dataKey="value"
-          >
-            {chartData.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip
-            formatter={(value: number) => `${value.toFixed(2)}€`}
-            contentStyle={{
-              backgroundColor: '#fff',
-              border: '1px solid #e5e7eb',
-              borderRadius: '8px',
-              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-            }}
-          />
-          <Legend
-            layout="vertical"
-            align="right"
-            verticalAlign="middle"
-            formatter={(value, entry: any) => {
-              const percentage = ((entry.payload.value / total) * 100).toFixed(1);
-              return `${value} (${percentage}%)`;
-            }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+      <div className="w-full overflow-hidden">
+        <ResponsiveContainer width="100%" height={260}>
+          <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={renderCustomLabel}
+              outerRadius={80}
+              innerRadius={45}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {chartData.map((_, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value: number) => `${value.toFixed(2)}€`}
+              contentStyle={{
+                backgroundColor: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+              }}
+            />
+            <Legend
+              layout="horizontal"
+              align="center"
+              verticalAlign="bottom"
+              formatter={(value, entry: any) => {
+                const percentage = ((entry.payload.value / total) * 100).toFixed(1);
+                return `${value} (${percentage}%)`;
+              }}
+              wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
 
       {/* Lista de categorías */}
       <div className="mt-4 space-y-2 max-h-48 overflow-y-auto">

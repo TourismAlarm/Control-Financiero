@@ -135,6 +135,7 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
         <span className="text-xs text-gray-500">Basado en los últimos {historicalData.length} meses</span>
       </div>
 
+      <div className="w-full overflow-hidden">
       <ResponsiveContainer width="100%" height={300}>
         <LineChart data={projectedData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -144,6 +145,7 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
             style={{ fontSize: '12px' }}
           />
           <YAxis
+            width={65}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
             tickFormatter={(value) => `${value.toLocaleString()}€`}
@@ -196,6 +198,7 @@ export function ExpenseProjection({ transactions, projectionMonths = 3 }: Expens
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
 
       {/* Indicadores de tendencia */}
       <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">

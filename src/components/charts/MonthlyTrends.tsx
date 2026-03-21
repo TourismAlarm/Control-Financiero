@@ -88,6 +88,7 @@ export function MonthlyTrends({ transactions, months = 12 }: MonthlyTrendsProps)
         </div>
       </div>
 
+      <div className="w-full overflow-hidden">
       <ResponsiveContainer width="100%" height={350}>
         <ComposedChart data={chartData}>
           <defs>
@@ -103,6 +104,7 @@ export function MonthlyTrends({ transactions, months = 12 }: MonthlyTrendsProps)
             style={{ fontSize: '12px' }}
           />
           <YAxis
+            width={65}
             stroke="#6b7280"
             style={{ fontSize: '12px' }}
             tickFormatter={(value) => `${value.toLocaleString()}€`}
@@ -160,6 +162,7 @@ export function MonthlyTrends({ transactions, months = 12 }: MonthlyTrendsProps)
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </div>
 
       {/* Resumen estadístico */}
       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
