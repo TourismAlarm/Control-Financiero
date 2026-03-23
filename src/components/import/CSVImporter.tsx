@@ -233,12 +233,18 @@ export function CSVImporter() {
       return `${year}-${month}-${day}`;
     }
 
-    // dd/mm (no year → current year)
+    // dd/mm (no year → infer year)
     const dm = v.match(/^(\d{1,2})[\/\-\.](\d{1,2})$/);
     if (dm) {
       const day = dm[1]!.padStart(2, '0');
       const month = dm[2]!.padStart(2, '0');
-      const year = new Date().getFullYear();
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth() + 1; // 1-12
+      const txMonth = parseInt(month);
+      // Si la transacción es de un mes futuro respecto al mes actual, pertenece al año anterior
+      // Ej: importando en enero/feb/mar 2026 y el mes es diciembre → 2025
+      const year = txMonth > currentMonth ? currentYear - 1 : currentYear;
       return `${year}-${month}-${day}`;
     }
 
@@ -331,6 +337,12 @@ export function CSVImporter() {
   const updateTransactionCategory = (index: number, category_id: string | null) => {
     setParsedTransactions(prev =>
       prev.map((t, i) => i === index ? { ...t, category_id } : t)
+    );
+  };
+
+  const updateTransactionDate = (index: number, date: string) => {
+    setParsedTransactions(prev =>
+      prev.map((t, i) => i === index ? { ...t, date } : t)
     );
   };
 
@@ -626,7 +638,17 @@ export function CSVImporter() {
                           ? <X size={14} className="text-gray-400" />
                           : <Check size={14} className="text-green-500" />}
                       </td>
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-xs">{tx.date}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {tx.isDuplicate
+                          ? <span className="text-gray-400 text-xs">{tx.date}</span>
+                          : <input
+                              type="date"
+                              value={tx.date}
+                              onChange={(e) => updateTransactionDate(index, e.target.value)}
+                              className="text-xs px-1.5 py-1 border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400 text-gray-700"
+                            />
+                        }
+                      </td>
                       <td className="px-3 py-2 text-gray-900 max-w-[160px] truncate font-medium" title={tx.description}>
                         {tx.description}
                       </td>
