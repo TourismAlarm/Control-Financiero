@@ -32,6 +32,14 @@ const KIND_BADGE: Record<string, { label: string; bg: string; fg: string; short:
   internal_transfer: { label: 'Traspaso entre tus cuentas', bg: '#F4F3EF', fg: '#5B6070', short: '⇄' },
 };
 
+/** Nombre legible: ignora el campo que el banco enmascara con *** */
+function displayName(t: Tx): string {
+  const masked = (v?: string | null) => !v || /^[\s*•·xX0-9-]*$/.test(v);
+  if (!masked(t.counterparty)) return t.counterparty!;
+  const d = (t.description || '').replace(/[*•]{2,}[0-9]*/g, ' ').replace(/^[\s·-]+|[\s·-]+$/g, '').trim();
+  return d || 'Movimiento bancario';
+}
+
 function dayHeading(iso: string): string {
   const d = new Date(`${iso}T12:00:00`);
   const today = new Date();
@@ -199,7 +207,7 @@ export function MovementsScreen({
                       {badge ? badge.short : needsCategory ? '?' : (catName || '·').substring(0, 3).toUpperCase()}
                     </span>
                     <span className="flex-1 min-w-0 flex flex-col gap-0.5">
-                      <span className="text-[15px] font-medium truncate">{t.counterparty || t.description}</span>
+                      <span className="text-[15px] font-medium truncate">{displayName(t)}</span>
                       <span className={`text-xs truncate ${needsCategory ? 'text-[#7A3B00] font-semibold' : 'text-[#5B6070]'}`}>
                         {sub}{acc && !needsCategory ? ` · ${acc}` : ''}
                       </span>
@@ -233,7 +241,7 @@ export function MovementsScreen({
         {editing && (
           <div className="flex flex-col gap-3.5">
             <div className="bg-white rounded-xl px-3.5 py-3 flex justify-between gap-3">
-              <span className="text-sm font-medium truncate">{editing.counterparty || editing.description}</span>
+              <span className="text-sm font-medium truncate">{displayName(editing)}</span>
               <span className="text-sm font-semibold tabular-nums shrink-0">{money(editing.amount, true)}</span>
             </div>
             <label className="flex items-center gap-3 bg-white rounded-xl px-3.5 py-3 text-sm">

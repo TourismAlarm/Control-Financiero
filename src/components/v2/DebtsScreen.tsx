@@ -34,6 +34,7 @@ interface Suggestion {
 
 interface DebtsData {
   migrated: boolean;
+  detail?: string;
   loans: Loan[];
   suggestions: Suggestion[];
   accounts: { id: string; name: string }[];
@@ -139,7 +140,11 @@ export function DebtsScreen() {
   if (isLoading) return <Loading />;
   if (error) return <ErrorBox text={(error as Error).message} />;
   if (!data?.migrated) {
-    return <ErrorBox text="Falta un paso: pega supabase/migrations/012_deudas_y_reglas.sql en el SQL Editor de Supabase." />;
+    return (
+      <ErrorBox
+        text={`La base de datos no tiene aún las columnas de deudas (migración 012).${data?.detail ? ` Detalle: ${data.detail}` : ''}`}
+      />
+    );
   }
 
   const active = data.loans.filter((l) => l.status === 'active');
