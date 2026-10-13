@@ -5,6 +5,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Settings, Calendar, Globe, User, Save, ArrowLeft, Trash2, AlertTriangle } from 'lucide-react';
+import { BankConnections } from '@/components/banking/BankConnections';
 
 export default function ConfiguracionPage() {
   const { data: session } = useSession();
@@ -111,6 +112,8 @@ export default function ConfiguracionPage() {
           </p>
         </div>
 
+        <BankConnections />
+
         {/* Success/Error Message */}
         {message && (
           <div
@@ -148,6 +151,9 @@ export default function ConfiguracionPage() {
                   placeholder="Tu nombre"
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 transition-all"
                 />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Ponlo como sale en tus transferencias (nombre y apellidos): sirve para detectar los traspasos entre tus cuentas.
+                </p>
               </div>
 
               {/* Email (Read-only) */}
