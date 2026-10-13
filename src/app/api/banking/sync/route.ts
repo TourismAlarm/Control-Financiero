@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ensureProfile } from '@/lib/ensureProfile';
 import { syncAll } from '@/lib/banking/sync';
 
 export const maxDuration = 60;
@@ -11,6 +12,7 @@ export async function POST() {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   }
+  await ensureProfile(session);
 
   try {
     const results = await syncAll(session.user.id);

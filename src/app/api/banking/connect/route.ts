@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { authOptions } from '@/lib/auth';
+import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { isEnableBankingConfigured, listAspsps, startAuthorization } from '@/lib/banking/enableBanking';
 import { DEFAULT_CONSENT_SECONDS, getRedirectUrl } from '@/lib/banking/config';
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
   if (!isEnableBankingConfigured()) {
     return NextResponse.json({ error: 'Enable Banking no está configurado' }, { status: 503 });
   }
+  await ensureProfile(session);
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
