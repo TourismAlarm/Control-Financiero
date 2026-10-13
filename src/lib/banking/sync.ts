@@ -4,8 +4,8 @@
  */
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { autoCategorize } from '@/lib/categorization/autoCategorize';
-import { EnableBankingError, getAllTransactions } from './enableBanking';
-import { classifyKind, mapTransaction, normalizeIban, normalizeText } from './transform';
+import { EnableBankingError, getAllTransactions, getBalances } from './enableBanking';
+import { classifyKind, mapTransaction, normalizeIban, normalizeText, pickBalance } from './transform';
 
 /** Primera sincronización: cuántos días hacia atrás. Los bancos suelen dar 90 días sin volver a autenticar. */
 const INITIAL_DAYS = 90;
@@ -31,6 +31,7 @@ export interface LinkSyncResult {
   bank: string;
   fetched: number;
   inserted: number;
+  balance: number | null;
   internal: number;
   status: 'ok' | 'expired' | 'error';
   error?: string;
@@ -71,7 +72,7 @@ async function loadContext(userId: string) {
 }
 
 export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof loadContext>>): Promise<LinkSyncResult> {
-  const result: LinkSyncResult = { linkId: link.id, bank: link.aspsp_name, fetched: 0, inserted: 0, internal: 0, status: 'ok' };
+  const result: LinkSyncResult = { linkId: link.id, bank: link.aspsp_name, fetched: 0, inserted: 0, balance: null, internal: 0, status: 'ok' };
 
   if (link.valid_until && new Date(link.valid_until) < new Date()) {
     await supabaseAdmin.from('bank_links').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', link.id);
@@ -143,6 +144,23 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
       if (error) throw new Error(`Error guardando movimientos: ${error.message}`);
     }
     result.inserted = rows.length;
+
+    // Saldo actual de la cuenta. Si el banco no lo da, no rompemos la sincronización.
+    if (link.account_id) {
+      try {
+        const balance = pickBalance(await getBalances(link.account_uid));
+        if (balance !== null) {
+          await supabaseAdmin
+            .from('accounts')
+            .update({ balance, updated_at: new Date().toISOString() })
+            .eq('id', link.account_id)
+            .eq('user_id', link.user_id);
+          result.balance = balance;
+        }
+      } catch (err) {
+        console.warn(`⚠️ Saldo no disponible (${link.aspsp_name}):`, err instanceof Error ? err.message : err);
+      }
+    }
 
     await supabaseAdmin
       .from('bank_links')

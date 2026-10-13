@@ -4,7 +4,7 @@
  * Está aislada para poder probarla sin conectar ningún banco.
  */
 import { createHash } from 'crypto';
-import type { EbTransaction } from './enableBanking';
+import type { EbBalance, EbTransaction } from './enableBanking';
 import type { TransactionKind } from '@/lib/validations/schemas';
 
 export interface MappedTransaction {
@@ -146,4 +146,23 @@ export function classifyKind(tx: MappedTransaction, ctx: ClassifyContext): Trans
   }
 
   return 'regular';
+}
+
+// ─── Saldo ──────────────────────────────────────────────────────────────────
+
+/**
+ * Orden de preferencia del tipo de saldo: primero el contable (lo que ves en
+ * la app del banco como saldo), luego el previsto y por último el disponible.
+ */
+const BALANCE_PRIORITY = ['ITBD', 'CLBD', 'XPCD', 'ITAV', 'CLAV', 'OPBD'];
+
+export function pickBalance(balances: EbBalance[]): number | null {
+  const valid = balances.filter((b) => isFinite(parseFloat(b.balance_amount?.amount ?? '')));
+  if (valid.length === 0) return null;
+  const rank = (b: EbBalance) => {
+    const i = BALANCE_PRIORITY.indexOf((b.balance_type || '').toUpperCase());
+    return i === -1 ? BALANCE_PRIORITY.length : i;
+  };
+  const best = [...valid].sort((a, b) => rank(a) - rank(b))[0]!;
+  return Math.round(parseFloat(best.balance_amount.amount) * 100) / 100;
 }

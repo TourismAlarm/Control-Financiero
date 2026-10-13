@@ -1,7 +1,7 @@
 // Ejecutar: npm run test:banking
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyKind, mapTransaction, type ClassifyContext } from './transform';
+import { classifyKind, mapTransaction, pickBalance, type ClassifyContext } from './transform';
 import type { EbTransaction } from './enableBanking';
 
 const tx = (overrides: Partial<EbTransaction>): EbTransaction => ({
@@ -97,4 +97,19 @@ test('pago a una deuda registrada desde Revolut', () => {
 test('dentro de Revolut, la palabra Revolut no lo convierte en traspaso', () => {
   const t = tx({ creditor: { name: 'Amazon' }, remittance_information: ['Revolut card payment'] });
   assert.equal(classify(t, ctx({ providerName: 'Revolut' })), 'regular');
+});
+
+test('saldo: prefiere el contable sobre el disponible', () => {
+  assert.equal(
+    pickBalance([
+      { balance_type: 'ITAV', balance_amount: { currency: 'EUR', amount: '1500.00' } },
+      { balance_type: 'ITBD', balance_amount: { currency: 'EUR', amount: '1234.56' } },
+    ]),
+    1234.56
+  );
+});
+
+test('saldo: usa lo que haya si el tipo es desconocido y null si no hay nada', () => {
+  assert.equal(pickBalance([{ balance_type: 'XYZ', balance_amount: { currency: 'EUR', amount: '-20.5' } }]), -20.5);
+  assert.equal(pickBalance([]), null);
 });
