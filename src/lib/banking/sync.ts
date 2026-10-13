@@ -88,9 +88,19 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
   }
 
   const context = ctx ?? (await loadContext(link.user_id));
-  const from = link.last_synced_at
-    ? new Date(new Date(link.last_synced_at).getTime() - OVERLAP_DAYS * 86400000)
-    : new Date(Date.now() - INITIAL_DAYS * 86400000);
+  // Movimientos guardados con el nombre enmascarado (***): se vuelven a pedir para repararlos
+  const { data: maskedRows } = await supabaseAdmin
+    .from('transactions')
+    .select('external_id')
+    .eq('bank_link_id', link.id)
+    .or('description.like.%**%,counterparty.like.%**%')
+    .limit(1000);
+  const toRepair = new Set((maskedRows || []).map((r: { external_id: string }) => r.external_id));
+
+  const from =
+    link.last_synced_at && toRepair.size === 0
+      ? new Date(new Date(link.last_synced_at).getTime() - OVERLAP_DAYS * 86400000)
+      : new Date(Date.now() - INITIAL_DAYS * 86400000);
 
   try {
     const raw = await getAllTransactions(link.account_uid, isoDate(from));
@@ -110,6 +120,15 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
         .eq('user_id', link.user_id)
         .in('external_id', ids.slice(i, i + 200));
       for (const row of data || []) existing.add((row as { external_id: string }).external_id);
+    }
+
+    for (const m of mapped) {
+      if (!toRepair.has(m.external_id)) continue;
+      await supabaseAdmin
+        .from('transactions')
+        .update({ description: m.description, counterparty: m.counterparty })
+        .eq('user_id', link.user_id)
+        .eq('external_id', m.external_id);
     }
 
     const seen = new Set<string>();

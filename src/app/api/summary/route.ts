@@ -145,7 +145,11 @@ export async function GET(request: NextRequest) {
       first: uncategorized[0]
         ? {
             id: uncategorized[0].id,
-            description: uncategorized[0].counterparty || uncategorized[0].description,
+            description:
+              (uncategorized[0].counterparty && !/^[\s*•·xX0-9-]*$/.test(uncategorized[0].counterparty)
+                ? uncategorized[0].counterparty
+                : (uncategorized[0].description || '').replace(/[*•]{2,}[0-9]*/g, ' ').replace(/^[\s·-]+|[\s·-]+$/g, '').trim()) ||
+              'Movimiento bancario',
             amount: Number(uncategorized[0].amount),
             date: uncategorized[0].date,
             account: accounts.find((a) => a.id === uncategorized[0]!.account_id)?.name || null,

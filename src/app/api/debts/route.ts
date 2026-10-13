@@ -28,7 +28,8 @@ export async function GET() {
   // ¿Está aplicada la migración 012?
   const probe = await supabaseAdmin.from('loans').select('id, bank_match').limit(1);
   if (probe.error) {
-    return NextResponse.json({ migrated: false, loans: [], suggestions: [], accounts: [] });
+    console.error('❌ /api/debts (¿falta la migración 012?):', probe.error.message);
+    return NextResponse.json({ migrated: false, detail: probe.error.message, loans: [], suggestions: [], accounts: [] });
   }
 
   const [loansRes, txRes, dismissedRes, accountsRes] = await Promise.all([
@@ -50,7 +51,11 @@ export async function GET() {
     supabaseAdmin.from('accounts').select('id, name').eq('user_id', userId),
   ]);
 
-  if (loansRes.error) return NextResponse.json({ error: loansRes.error.message }, { status: 500 });
+  if (loansRes.error) {
+    console.error('❌ /api/debts loans:', loansRes.error.message);
+    return NextResponse.json({ error: loansRes.error.message }, { status: 500 });
+  }
+  if (txRes.error) console.error('❌ /api/debts transactions:', txRes.error.message);
 
   const today = new Date();
   const thisMonth = today.toISOString().substring(0, 7);

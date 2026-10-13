@@ -32,6 +32,20 @@ export function normalizeIban(iban?: string | null): string | null {
   return clean.length >= 10 ? clean : null;
 }
 
+/**
+ * Quita lo que el banco enmascara (***, ****1234, •••) y devuelve null si no
+ * queda nada legible (menos de 2 letras).
+ */
+export function cleanMasked(value?: string | null): string | null {
+  if (!value) return null;
+  const cleaned = value
+    .replace(/[*•]{2,}[0-9]*|\b[xX]{4,}[0-9]*\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s·\-/|:,.]+|[\s·\-/|:,.]+$/g, '')
+    .trim();
+  return (cleaned.match(/[a-zA-ZÀ-ÿ]/g) || []).length >= 2 ? cleaned : null;
+}
+
 /** Devuelve null si el movimiento está pendiente (cambia de id al contabilizarse) o es inválido. */
 export function mapTransaction(tx: EbTransaction, accountUid: string): MappedTransaction | null {
   if (tx.status && tx.status !== 'BOOK') return null;
@@ -46,17 +60,32 @@ export function mapTransaction(tx: EbTransaction, accountUid: string): MappedTra
   const isDebit = tx.credit_debit_indicator ? tx.credit_debit_indicator === 'DBIT' : rawAmount < 0;
   const party = isDebit ? tx.creditor : tx.debtor;
   const partyAccount = isDebit ? tx.creditor_account : tx.debtor_account;
-  const counterparty = party?.name?.trim() || null;
+  const rawCounterparty = party?.name?.trim() || null;
 
-  const remittance = (tx.remittance_information || []).map((s) => s.trim()).filter(Boolean).join(' · ');
+  // Concepto "en bruto": SOLO para el identificador anti-duplicados, que no puede cambiar
+  const rawRemittance = (tx.remittance_information || []).map((s) => s.trim()).filter(Boolean).join(' · ');
+  const rawPieces = [rawCounterparty, rawRemittance].filter(Boolean) as string[];
+  const rawDescription =
+    (rawPieces.length === 2 && normalizeText(rawPieces[1]!).includes(normalizeText(rawPieces[0]!))
+      ? rawPieces[1]!
+      : rawPieces.join(' · ')) ||
+    tx.bank_transaction_code?.description?.trim() ||
+    tx.note?.trim() ||
+    'Movimiento bancario';
+
+  // Concepto para mostrar: sin los trozos que el banco enmascara (*** o ****1234)
+  const counterparty = cleanMasked(rawCounterparty);
+  const remittance = (tx.remittance_information || [])
+    .map((s) => cleanMasked(s))
+    .filter((s): s is string => Boolean(s))
+    .join(' · ');
   const pieces = [counterparty, remittance].filter(Boolean) as string[];
-  // Evita repetir el nombre si ya viene dentro del concepto
   const description =
     (pieces.length === 2 && normalizeText(pieces[1]!).includes(normalizeText(pieces[0]!))
       ? pieces[1]!
       : pieces.join(' · ')) ||
-    tx.bank_transaction_code?.description?.trim() ||
-    tx.note?.trim() ||
+    cleanMasked(tx.bank_transaction_code?.description) ||
+    cleanMasked(tx.note) ||
     'Movimiento bancario';
 
   const amount = Math.round(Math.abs(rawAmount) * 100) / 100;
@@ -64,7 +93,7 @@ export function mapTransaction(tx: EbTransaction, accountUid: string): MappedTra
   const fingerprint =
     ref ||
     createHash('sha1')
-      .update([date, isDebit ? 'D' : 'C', amount.toFixed(2), normalizeText(description)].join('|'))
+      .update([date, isDebit ? 'D' : 'C', amount.toFixed(2), normalizeText(rawDescription)].join('|'))
       .digest('hex')
       .substring(0, 20);
 

@@ -1,7 +1,7 @@
 // Ejecutar: npm run test:banking
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyKind, mapTransaction, pickBalance, type ClassifyContext } from './transform';
+import { classifyKind, cleanMasked, mapTransaction, pickBalance, type ClassifyContext } from './transform';
 import type { EbTransaction } from './enableBanking';
 
 const tx = (overrides: Partial<EbTransaction>): EbTransaction => ({
@@ -112,4 +112,29 @@ test('saldo: prefiere el contable sobre el disponible', () => {
 test('saldo: usa lo que haya si el tipo es desconocido y null si no hay nada', () => {
   assert.equal(pickBalance([{ balance_type: 'XYZ', balance_amount: { currency: 'EUR', amount: '-20.5' } }]), -20.5);
   assert.equal(pickBalance([]), null);
+});
+
+test('quita lo enmascarado y deja lo legible', () => {
+  assert.equal(cleanMasked('***'), null);
+  assert.equal(cleanMasked('*** · COMPRA TARJ 4512****1234 MERCADONA'), 'COMPRA TARJ 4512 MERCADONA');
+  assert.equal(cleanMasked('XXXX1234'), null);
+  assert.equal(cleanMasked('TAXI EXXON XXXL'), 'TAXI EXXON XXXL');
+});
+
+test('movimiento con nombre enmascarado: muestra el concepto, mismo id que antes', () => {
+  const masked = tx({ entry_reference: null, creditor: { name: '***' }, remittance_information: ['COMPRA EN MERCADONA ARENYS'] });
+  const m = mapTransaction(masked, 'a');
+  assert.equal(m?.counterparty, null);
+  assert.equal(m?.description, 'COMPRA EN MERCADONA ARENYS');
+  // El id se calcula con el concepto en bruto (como antes del arreglo) para no duplicar
+  assert.match(m!.external_id, /^eb:a:[0-9a-f]{20}$/);
+  const legacyRaw = '*** · COMPRA EN MERCADONA ARENYS';
+  const { createHash } = require('crypto');
+  const legacy = createHash('sha1').update(['2026-10-10', 'D', '25.40', legacyRaw.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()].join('|')).digest('hex').substring(0, 20);
+  assert.equal(m!.external_id, `eb:a:${legacy}`);
+});
+
+test('todo enmascarado: texto de reserva', () => {
+  const m = mapTransaction(tx({ creditor: { name: '***' }, remittance_information: ['****'] }), 'a');
+  assert.equal(m?.description, 'Movimiento bancario');
 });
