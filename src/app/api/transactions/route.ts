@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { transactionInsertSchema, transactionSchema } from '@/lib/validations/schemas';
 import { runAgentsAndSave } from '@/lib/agents/runner';
@@ -13,6 +14,8 @@ export async function GET(request: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    await ensureProfile(session);
 
     const { searchParams } = new URL(request.url);
     const month = searchParams.get('month');

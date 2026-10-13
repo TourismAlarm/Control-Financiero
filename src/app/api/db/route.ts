@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { z } from 'zod';
 import { authOptions } from '@/lib/auth';
+import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: null, error: { message: 'No autorizado' } }, { status: 401 });
   }
   const userId = session.user.id;
+  await ensureProfile(session);
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
