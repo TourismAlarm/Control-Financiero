@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { createScopedClient } from '@/lib/supabase/scoped';
 import { profileSchema, type ProfileUpdate } from '@/lib/validations/schemas';
 
 /**
@@ -12,7 +12,7 @@ const QUERY_KEY = 'profile';
 export function useProfile() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const supabase = createClient();
+  const supabase = createScopedClient();
 
   // Fetch profile query
   const {
@@ -51,7 +51,6 @@ export function useProfile() {
 
       const { data, error } = await supabase
         .from('profiles')
-        // @ts-expect-error - Supabase type inference issue with profiles table
         .update(updates)
         .eq('id', session.user.id)
         .select()

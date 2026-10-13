@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase';
+import { createScopedClient } from '@/lib/supabase/scoped';
 import {
   calculateMonthlyPayment,
   calculateNextPaymentDate,
@@ -22,7 +22,7 @@ import {
  */
 export default function useLoans() {
   const { data: session } = useSession();
-  const supabase = createClient();
+  const supabase = createScopedClient();
 
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);

@@ -3,5 +3,8 @@
   "outputDirectory": ".next",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    { "path": "/api/cron/sync-banks", "schedule": "17 5 * * *" }
+  ]
 }

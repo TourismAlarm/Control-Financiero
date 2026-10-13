@@ -19,33 +19,48 @@ export async function GET(request: NextRequest) {
     const year = searchParams.get('year');
     const type = searchParams.get('type');
 
-    let query = supabaseAdmin
-      .from('transactions')
-      .select('*, category:categories(id, name, type, icon, color)')
-      .eq('user_id', session.user.id)
-      .order('date', { ascending: false });
+    const includeInternal = searchParams.get('include_internal') === '1';
 
-    // Optional filters
-    if (month && year) {
-      const startDate = `${year}-${month.padStart(2, '0')}-01`;
-      // Calculate last day of month properly
-      const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-      const endDate = `${year}-${month.padStart(2, '0')}-${lastDay}`;
-      query = query.gte('date', startDate).lte('date', endDate);
+    const buildQuery = (filterInternal: boolean) => {
+      let query = supabaseAdmin
+        .from('transactions')
+        .select('*, category:categories(id, name, type, icon, color)')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false });
+
+      if (month && year) {
+        const startDate = `${year}-${month.padStart(2, '0')}-01`;
+        // Calculate last day of month properly
+        const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
+        const endDate = `${year}-${month.padStart(2, '0')}-${lastDay}`;
+        query = query.gte('date', startDate).lte('date', endDate);
+      }
+
+      if (type === 'income' || type === 'expense') {
+        query = query.eq('type', type);
+      }
+
+      // Los traspasos entre cuentas propias no son gasto ni ingreso: se excluyen
+      // por defecto para que dashboard, gráficos y presupuestos no los cuenten.
+      if (filterInternal) {
+        query = query.neq('kind', 'internal_transfer');
+      }
+      return query;
+    };
+
+    let { data, error } = await buildQuery(!includeInternal);
+
+    // Si la migración 011 aún no está aplicada, la columna kind no existe.
+    if (error && /kind/.test(error.message)) {
+      ({ data, error } = await buildQuery(false));
     }
-
-    if (type && (type === 'income' || type === 'expense')) {
-      query = query.eq('type', type);
-    }
-
-    const { data, error } = await query;
 
     if (error) {
       console.error('❌ GET /api/transactions error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const validated = data.map((item) => transactionSchema.parse(item));
+    const validated = (data || []).map((item) => transactionSchema.parse(item));
 
     return NextResponse.json(validated);
   } catch (error: any) {

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { createScopedClient } from '@/lib/supabase/scoped';
 import Decimal from 'decimal.js';
 import {
   budgetSchema,
@@ -24,7 +24,7 @@ const toDecimal = (value: number | string): Decimal => new Decimal(value);
 export function useBudgets(month?: number, year?: number) {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const supabase = createClient();
+  const supabase = createScopedClient();
 
   // Fetch budgets query
   const {
@@ -117,7 +117,6 @@ export function useBudgets(month?: number, year?: number) {
 
       const { data, error } = await supabase
         .from('budgets')
-        // @ts-expect-error - Supabase type inference issue
         .update(updateData)
         .eq('id', validated.id)
         .eq('user_id', session.user.id)

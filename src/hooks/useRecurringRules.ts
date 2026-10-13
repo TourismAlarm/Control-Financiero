@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { createScopedClient } from '@/lib/supabase/scoped';
 import Decimal from 'decimal.js';
 import {
   recurringRuleSchema,
@@ -33,7 +33,7 @@ const FREQUENCY_LABELS = {
 export function useRecurringRules() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const supabase = createClient();
+  const supabase = createScopedClient();
 
   // Fetch recurring rules query
   const {
@@ -115,7 +115,6 @@ export function useRecurringRules() {
 
       const { data, error } = await supabase
         .from('recurring_rules')
-        // @ts-expect-error - Supabase type inference issue
         .update(updateData)
         .eq('id', validated.id)
         .eq('user_id', session.user.id)
@@ -167,7 +166,6 @@ export function useRecurringRules() {
 
       const { data, error } = await supabase
         .from('recurring_rules')
-        // @ts-expect-error - Supabase type inference issue
         .update({ is_active: !rule.is_active })
         .eq('id', ruleId)
         .eq('user_id', session.user.id)

@@ -11,6 +11,14 @@ import { z } from 'zod';
 
 export const transactionTypeSchema = z.enum(['income', 'expense']);
 
+export const transactionKindSchema = z.enum([
+  'regular',            // gasto o ingreso real
+  'internal_transfer',  // entre tus propias cuentas (BBVA ↔ Trade Republic ↔ Revolut)
+  'investment',         // aportación a inversión (exchange, broker, plan de ahorro)
+  'debt_payment',       // pago de una deuda registrada
+]);
+export type TransactionKind = z.infer<typeof transactionKindSchema>;
+
 // Category info embedded in transaction (from JOIN)
 export const transactionCategorySchema = z.object({
   id: z.string().uuid(),
@@ -40,6 +48,11 @@ export const transactionSchema = z.object({
   tags: z.array(z.string()).nullable().optional(),
   recurring_rule_id: z.string().uuid().nullable().optional(),
   external_id: z.string().nullable().optional(),
+  // regular = gasto/ingreso real; el resto no cuenta como consumo
+  kind: transactionKindSchema.optional(),
+  source: z.enum(['manual', 'csv', 'bank_sync', 'recurring']).optional(),
+  counterparty: z.string().nullable().optional(),
+  bank_link_id: z.string().uuid().nullable().optional(),
   created_at: z.string().or(z.date()).optional(),
   updated_at: z.string().or(z.date()).optional(),
 });

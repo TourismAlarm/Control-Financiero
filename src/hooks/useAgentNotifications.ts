@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { createScopedClient } from '@/lib/supabase/scoped';
 
 /**
  * Hook para gestionar notificaciones de agentes inteligentes
@@ -26,7 +26,7 @@ const QUERY_KEY = 'agent_notifications';
 export function useAgentNotifications() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const supabase = createClient();
+  const supabase = createScopedClient();
 
   // Fetch notifications
   const {

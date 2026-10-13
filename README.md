@@ -27,6 +27,33 @@ Sistema de gestión financiera personal con inteligencia artificial integrada. D
 - Soporte offline básico
 - Service Worker integrado
 
+## Sincronización bancaria (Enable Banking)
+
+Los movimientos de BBVA, Revolut y Trade Republic entran solos cada mañana (cron de Vercel a las 05:17 UTC) a través de [Enable Banking](https://enablebanking.com), en modo de uso personal.
+
+**Puesta en marcha (una vez):**
+
+1. Base de datos **nueva**: pega `supabase/schema_completo.sql` entero en el SQL Editor de Supabase. (Si vienes de la base antigua, basta con `supabase/migrations/011_bank_sync.sql`.)
+2. En el panel de Enable Banking: crea una aplicación de **producción**, descarga la clave privada `.pem`, añade como redirect URL `https://control-financiero-one.vercel.app/api/banking/callback` y actívala vinculando tus cuentas ("Activate by linking accounts").
+3. En Vercel → Settings → Environment Variables:
+   - `ENABLE_BANKING_APP_ID` — id de la aplicación
+   - `ENABLE_BANKING_PRIVATE_KEY` — contenido del `.pem` (se aceptan saltos de línea como `\n`)
+   - `CRON_SECRET` — cualquier cadena larga aleatoria
+   - `ENABLE_BANKING_REDIRECT_URL` *(opcional)* — si no, se usa `NEXTAUTH_URL` + `/api/banking/callback`
+   - `BANK_OWN_NAMES` *(opcional)* — variantes de tu nombre separadas por `|` (p. ej. `Jordi Elias|Elias Serra Jordi`)
+4. En la app: **Configuración → Bancos conectados → Conectar un banco**.
+
+**Cómo clasifica cada movimiento** (`src/lib/banking/transform.ts`):
+
+| Tipo | Cuándo | ¿Cuenta como gasto? |
+|------|--------|---------------------|
+| `internal_transfer` | IBAN propio, va/viene de otro de tus bancos o a tu propio nombre | No (oculto por defecto) |
+| `investment` | Hacia un exchange o broker, o plan de ahorro dentro de Trade Republic | Sí, aparte |
+| `debt_payment` | El concepto coincide con el acreedor de una deuda registrada | Sí, aparte |
+| `regular` | Todo lo demás; se categoriza automáticamente | Sí |
+
+`GET /api/transactions?include_internal=1` devuelve también los traspasos. Tests: `npm run test:banking`.
+
 ## Stack Tecnológico
 
 | Categoría | Tecnología |
