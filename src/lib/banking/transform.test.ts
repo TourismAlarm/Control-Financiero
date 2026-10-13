@@ -1,6 +1,7 @@
 // Ejecutar: npm run test:banking
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { classifyKind, cleanMasked, mapTransaction, pickBalance, type ClassifyContext } from './transform';
 import type { EbTransaction } from './enableBanking';
 
@@ -129,7 +130,6 @@ test('movimiento con nombre enmascarado: muestra el concepto, mismo id que antes
   // El id se calcula con el concepto en bruto (como antes del arreglo) para no duplicar
   assert.match(m!.external_id, /^eb:a:[0-9a-f]{20}$/);
   const legacyRaw = '*** · COMPRA EN MERCADONA ARENYS';
-  const { createHash } = require('crypto');
   const legacy = createHash('sha1').update(['2026-10-10', 'D', '25.40', legacyRaw.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()].join('|')).digest('hex').substring(0, 20);
   assert.equal(m!.external_id, `eb:a:${legacy}`);
 });
