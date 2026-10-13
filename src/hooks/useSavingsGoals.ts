@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSession } from 'next-auth/react';
-import { createClient } from '@/lib/supabase/client';
+import { createScopedClient } from '@/lib/supabase/scoped';
 import Decimal from 'decimal.js';
 import {
   savingsGoalSchema,
@@ -23,7 +23,7 @@ const toDecimal = (value: number | string): Decimal => new Decimal(value);
 export function useSavingsGoals() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const supabase = createClient();
+  const supabase = createScopedClient();
 
   // Fetch savings goals query
   const {
@@ -111,7 +111,6 @@ export function useSavingsGoals() {
 
       const { data, error } = await supabase
         .from('savings_goals')
-        // @ts-expect-error - Supabase type inference issue
         .update(updateData)
         .eq('id', validated.id)
         .eq('user_id', session.user.id)
@@ -171,7 +170,6 @@ export function useSavingsGoals() {
 
       const { data, error } = await supabase
         .from('savings_goals')
-        // @ts-expect-error - Supabase type inference issue
         .update({
           current_amount: newAmount.toNumber(),
           is_completed: isCompleted,
