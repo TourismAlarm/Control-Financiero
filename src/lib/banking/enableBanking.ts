@@ -121,6 +121,14 @@ export interface EbTransaction {
   merchant_category_code?: string | null;
 }
 
+export interface EbBalance {
+  name?: string | null;
+  balance_amount: { currency: string; amount: string };
+  balance_type?: string | null; // CLBD, ITBD, XPCD, CLAV, ITAV...
+  reference_date?: string | null;
+  last_change_date_time?: string | null;
+}
+
 interface TransactionsPage {
   transactions: EbTransaction[];
   continuation_key?: string | null;
@@ -179,4 +187,10 @@ export async function getAllTransactions(accountUid: string, dateFrom: string): 
   } while (continuationKey && pages < 50);
 
   return all;
+}
+
+/** Saldos que da el banco para una cuenta (normalmente contable y disponible). */
+export async function getBalances(accountUid: string): Promise<EbBalance[]> {
+  const data = await ebFetch<{ balances: EbBalance[] }>(`/accounts/${encodeURIComponent(accountUid)}/balances`);
+  return data.balances || [];
 }
