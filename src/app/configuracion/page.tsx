@@ -6,6 +6,10 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Settings, Calendar, Globe, User, Save, ArrowLeft, Trash2, AlertTriangle } from 'lucide-react';
 import { BankConnections } from '@/components/banking/BankConnections';
+import { AccountsManager } from '@/components/finance/AccountsManager';
+import { CategoriesManager } from '@/components/finance/CategoriesManager';
+import { CSVImporter } from '@/components/import/CSVImporter';
+import { ExportManager } from '@/components/finance/ExportManager';
 
 export default function ConfiguracionPage() {
   const { data: session } = useSession();
@@ -98,7 +102,7 @@ export default function ConfiguracionPage() {
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors mb-4 group"
           >
             <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="font-medium">Volver al Dashboard</span>
+            <span className="font-medium">Volver</span>
           </button>
 
           <div className="flex items-center gap-3 mb-2">
@@ -325,6 +329,27 @@ export default function ConfiguracionPage() {
             </button>
           </div>
         </form>
+
+        {/* Herramientas que antes eran pestañas */}
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border-2 border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+          {[
+            { title: 'Cuentas', hint: 'Saldos y cuentas manuales (efectivo…)', node: <AccountsManager /> },
+            { title: 'Categorías', hint: 'Crear, renombrar o borrar categorías', node: <CategoriesManager /> },
+            { title: 'Importar CSV', hint: 'Para bancos que no se pueden conectar', node: <CSVImporter /> },
+            { title: 'Exportar', hint: 'Excel, PDF o copia completa', node: <ExportManager /> },
+          ].map((section) => (
+            <details key={section.title} className="group">
+              <summary className="flex items-center justify-between gap-3 p-5 cursor-pointer list-none">
+                <span className="flex flex-col">
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">{section.title}</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400">{section.hint}</span>
+                </span>
+                <span aria-hidden="true" className="text-gray-400 transition-transform group-open:rotate-90">›</span>
+              </summary>
+              <div className="px-3 pb-5">{section.node}</div>
+            </details>
+          ))}
+        </div>
       </div>
     </div>
   );

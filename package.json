@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test:banking": "npx --yes tsx --test src/lib/banking/transform.test.ts"
+    "test:banking": "npx --yes tsx --test src/lib/banking/transform.test.ts src/lib/debts/detect.test.ts"
   },
   "dependencies": {
     "@auth/supabase-adapter": "^1.11.1",
+    "@fontsource/instrument-sans": "^5.3.0",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-tabs": "^1.1.13",

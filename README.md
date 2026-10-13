@@ -33,7 +33,7 @@ Los movimientos de BBVA, Revolut y Trade Republic entran solos cada mañana (cro
 
 **Puesta en marcha (una vez):**
 
-1. Base de datos **nueva**: pega `supabase/schema_completo.sql` entero en el SQL Editor de Supabase. (Si vienes de la base antigua, basta con `supabase/migrations/011_bank_sync.sql`.)
+1. Base de datos **nueva**: pega `supabase/schema_completo.sql` entero en el SQL Editor de Supabase. Si ya la tenías, aplica las migraciones que falten de `supabase/migrations/` (011 bancos, 012 deudas automáticas y reglas de categoría).
 2. En el panel de Enable Banking: crea una aplicación de **producción**, descarga la clave privada `.pem`, añade como redirect URL `https://control-financiero-one.vercel.app/api/banking/callback` y actívala vinculando tus cuentas ("Activate by linking accounts").
 3. En Vercel → Settings → Environment Variables:
    - `ENABLE_BANKING_APP_ID` — id de la aplicación
