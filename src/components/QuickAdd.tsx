@@ -13,10 +13,12 @@ const LS_INCOME_CAT = 'quickadd_last_income_cat';
 
 interface QuickAddProps {
   externalOpen?: boolean;
+  /** Oculta el botón flotante propio (la navegación nueva tiene su propio "+"). */
+  hideFab?: boolean;
   onExternalClose?: () => void;
 }
 
-export function QuickAdd({ externalOpen, onExternalClose }: QuickAddProps = {}) {
+export function QuickAdd({ externalOpen, onExternalClose, hideFab }: QuickAddProps = {}) {
   const [open, setOpen] = useState(false);
 
   const isOpen = open || !!externalOpen;
@@ -100,13 +102,13 @@ export function QuickAdd({ externalOpen, onExternalClose }: QuickAddProps = {}) 
   return (
     <>
       {/* FAB button — hidden on mobile because the bottom nav has its own + button */}
-      <button
+      {!hideFab && <button
         onClick={() => setOpen(true)}
         className="hidden md:flex fixed bottom-6 right-6 z-40 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg items-center justify-center transition-all hover:scale-110 active:scale-95"
         title="Añadir transacción (N)"
       >
         <Plus className="w-7 h-7" />
-      </button>
+      </button>}
 
       {/* Modal */}
       {isOpen && (

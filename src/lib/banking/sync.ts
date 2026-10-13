@@ -6,6 +6,8 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { autoCategorize } from '@/lib/categorization/autoCategorize';
 import { EnableBankingError, getAllTransactions, getBalances } from './enableBanking';
 import { classifyKind, mapTransaction, normalizeIban, normalizeText, pickBalance } from './transform';
+import { matchLoan, merchantKey } from '@/lib/debts/detect';
+import { linkPaymentToLoan, loadActiveLoans } from '@/lib/debts/apply';
 
 /** Primera sincronización: cuántos días hacia atrás. Los bancos suelen dar 90 días sin volver a autenticar. */
 const INITIAL_DAYS = 90;
@@ -42,11 +44,12 @@ function isoDate(d: Date): string {
 }
 
 async function loadContext(userId: string) {
-  const [linksRes, profileRes, loansRes, categoriesRes] = await Promise.all([
+  const [linksRes, profileRes, loans, categoriesRes, rulesRes] = await Promise.all([
     supabaseAdmin.from('bank_links').select('iban').eq('user_id', userId),
     supabaseAdmin.from('profiles').select('full_name').eq('id', userId).maybeSingle(),
-    supabaseAdmin.from('loans').select('contact_name').eq('user_id', userId),
+    loadActiveLoans(userId),
     supabaseAdmin.from('categories').select('id, name, type').eq('user_id', userId),
+    supabaseAdmin.from('category_rules').select('pattern, category_id').eq('user_id', userId),
   ]);
 
   const ownIbans = new Set(
@@ -59,16 +62,21 @@ async function loadContext(userId: string) {
     ...(process.env.BANK_OWN_NAMES || '').split('|'),
   ].filter((n): n is string => Boolean(n && n.trim()));
 
-  const loanNames = (loansRes.data || [])
-    .map((l: { contact_name: string | null }) => l.contact_name || '')
-    .filter(Boolean);
+  // Para clasificar como pago de deuda: el texto del banco si lo tiene, si no el nombre
+  const loanNames = loans.map((l) => l.bank_match || l.contact_name).filter(Boolean);
+
+  // Reglas aprendidas al corregir categorías (vacío si falta la migración 012)
+  const learnedRules = new Map<string, string>();
+  for (const r of (rulesRes.error ? [] : rulesRes.data || []) as { pattern: string; category_id: string }[]) {
+    learnedRules.set(r.pattern, r.category_id);
+  }
 
   const categoryByName = new Map<string, string>();
   for (const c of (categoriesRes.data || []) as { id: string; name: string; type: string }[]) {
     categoryByName.set(`${c.type}:${normalizeText(c.name)}`, c.id);
   }
 
-  return { ownIbans, ownNames, loanNames, categoryByName };
+  return { ownIbans, ownNames, loanNames, loans, learnedRules, categoryByName };
 }
 
 export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof loadContext>>): Promise<LinkSyncResult> {
@@ -118,10 +126,20 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
       });
       if (kind === 'internal_transfer') result.internal++;
 
-      const categoryName = kind === 'regular' ? autoCategorize(m.description) : null;
-      const categoryId = categoryName
-        ? context.categoryByName.get(`${m.type}:${normalizeText(categoryName)}`) ?? null
-        : null;
+      // Categoría: primero lo que has enseñado tú, luego las reglas por defecto
+      let categoryId: string | null = null;
+      if (kind === 'regular') {
+        categoryId = context.learnedRules.get(merchantKey(m.counterparty, m.description)) ?? null;
+        if (!categoryId) {
+          const categoryName = autoCategorize(m.description);
+          categoryId = categoryName
+            ? context.categoryByName.get(`${m.type}:${normalizeText(categoryName)}`) ?? null
+            : null;
+        }
+      }
+
+      const loanId =
+        kind === 'debt_payment' ? matchLoan(`${m.counterparty ?? ''} ${m.description}`, context.loans) : null;
 
       rows.push({
         user_id: link.user_id,
@@ -136,14 +154,24 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
         kind,
         source: 'bank_sync',
         bank_link_id: link.id,
+        // Solo existe con la migración 012; si no hay deuda no se envía la columna
+        ...(loanId ? { loan_id: loanId } : {}),
       });
     }
 
+    const insertedRows: { id: string; amount: number; date: string; loan_id?: string | null }[] = [];
     for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await supabaseAdmin.from('transactions').insert(rows.slice(i, i + 500));
+      const { data, error } = await supabaseAdmin.from('transactions').insert(rows.slice(i, i + 500)).select('*');
       if (error) throw new Error(`Error guardando movimientos: ${error.message}`);
+      insertedRows.push(...((data || []) as typeof insertedRows));
     }
     result.inserted = rows.length;
+
+    // Pagos de deudas: se apuntan solos y bajan lo pendiente
+    for (const row of insertedRows) {
+      const loan = row.loan_id ? context.loans.find((l) => l.id === row.loan_id) : undefined;
+      if (loan) await linkPaymentToLoan(loan, { id: row.id, amount: Number(row.amount), date: row.date });
+    }
 
     // Saldo actual de la cuenta. Si el banco no lo da, no rompemos la sincronización.
     if (link.account_id) {
