@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
+import { loadAccounts } from '@/lib/accounts/load';
+import type { AccountRole } from '@/lib/accounts/roles';
+import { computeFlow, isOwnSpending, nextPayday, type FlowTx } from '@/lib/summary/flow';
 
 interface Tx {
   id: string;
@@ -48,7 +51,7 @@ export async function GET(request: NextRequest) {
 
   const histStart = monthBounds(shiftMonth(month, -3)).start;
 
-  const [txRes, accountsRes, linksRes, loansRes, categoriesRes] = await Promise.all([
+  const [txRes, accountsData, loansRes, categoriesRes] = await Promise.all([
     supabaseAdmin
       .from('transactions')
       .select('*, category:categories(id, name)')
@@ -56,34 +59,33 @@ export async function GET(request: NextRequest) {
       .gte('date', histStart)
       .lte('date', end)
       .order('date', { ascending: false }),
-    supabaseAdmin.from('accounts').select('id, name, balance, is_active').eq('user_id', userId),
-    supabaseAdmin.from('bank_links').select('last_synced_at, account_id').eq('user_id', userId),
+    loadAccounts(userId),
     supabaseAdmin.from('loans').select('*').eq('user_id', userId).eq('status', 'active'),
     supabaseAdmin.from('categories').select('id, name, type').eq('user_id', userId).order('name'),
   ]);
 
   if (txRes.error) return NextResponse.json({ error: txRes.error.message }, { status: 500 });
 
-  const all = (txRes.data || []) as Tx[];
-  const kindOf = (t: Tx) => t.kind || 'regular';
-  const inMonth = all.filter((t) => t.date >= start && t.date <= end);
+  const { accounts, rolesMigrated } = accountsData;
+  const roleById = new Map(accounts.map((a) => [a.id, a.role]));
+  const roleOf = (id: string | null): AccountRole | null => (id ? roleById.get(id) ?? null : null);
+  const linkedRoles = new Set(accounts.filter((a) => a.linked && a.role).map((a) => a.role as AccountRole));
 
-  let spent = 0, income = 0, invested = 0, debts = 0;
+  const all = (txRes.data || []) as Tx[];
+  const inMonth = all.filter((t) => t.date >= start && t.date <= end);
+  const asFlow = (t: Tx): FlowTx => ({ ...t, amount: Number(t.amount), kind: t.kind ?? null });
+
+  // Reparto del mes según el papel de cada cuenta
+  const flow = computeFlow(inMonth.map(asFlow), roleOf, linkedRoles);
+
+  // En qué se va: solo tu gasto (la cuenta de casa va aparte)
+  const ownSpending = inMonth.filter((t) => isOwnSpending(asFlow(t), roleOf));
   const byCategory = new Map<string, { id: string | null; name: string; amount: number }>();
-  for (const t of inMonth) {
-    const amount = Number(t.amount);
-    const kind = kindOf(t);
-    if (kind === 'investment' && t.type === 'expense') invested += amount;
-    else if (kind === 'debt_payment' && t.type === 'expense') debts += amount;
-    else if (kind === 'regular' && t.type === 'income') income += amount;
-    else if (kind === 'regular' && t.type === 'expense') {
-      spent += amount;
-      const key = t.category?.id || 'none';
-      const name = t.category?.name || 'Sin categoría';
-      const prev = byCategory.get(key) || { id: t.category?.id || null, name, amount: 0 };
-      prev.amount += amount;
-      byCategory.set(key, prev);
-    }
+  for (const t of ownSpending) {
+    const key = t.category?.id || 'none';
+    const prev = byCategory.get(key) || { id: t.category?.id || null, name: t.category?.name || 'Sin categoría', amount: 0 };
+    prev.amount += Number(t.amount);
+    byCategory.set(key, prev);
   }
 
   // Media de lo gastado hasta el mismo día en los 3 meses anteriores (solo meses con datos)
@@ -95,24 +97,27 @@ export async function GET(request: NextRequest) {
     const monthTx = all.filter((t) => t.date >= b.start && t.date <= b.end);
     if (monthTx.length === 0) continue;
     previous.push(
-      monthTx
-        .filter((t) => t.date <= cutoff && t.type === 'expense' && kindOf(t) === 'regular')
-        .reduce((s, t) => s + Number(t.amount), 0)
+      monthTx.filter((t) => t.date <= cutoff && isOwnSpending(asFlow(t), roleOf)).reduce((s, t) => s + Number(t.amount), 0)
     );
   }
   const average = previous.length ? previous.reduce((a, b) => a + b, 0) / previous.length : null;
 
-  const uncategorized = inMonth.filter((t) => kindOf(t) === 'regular' && t.type === 'expense' && !t.category_id);
+  const uncategorized = ownSpending.filter((t) => !t.category_id);
 
-  // Saldo en bancos: cuentas con banco conectado; si no hay ninguna, todas las activas
-  const accounts = (accountsRes.data || []) as { id: string; name: string; balance: number; is_active: boolean }[];
-  const linkedIds = new Set((linksRes.data || []).map((l: { account_id: string | null }) => l.account_id).filter(Boolean));
-  const balanceAccounts = linkedIds.size ? accounts.filter((a) => linkedIds.has(a.id)) : accounts.filter((a) => a.is_active);
-  const lastSync = (linksRes.data || [])
-    .map((l: { last_synced_at: string | null }) => l.last_synced_at)
-    .filter(Boolean)
-    .sort()
-    .pop() || null;
+  // Lo que te queda: saldo de la(s) cuenta(s) del día a día, y cuánto toca por día hasta la nómina
+  const daily = accounts.filter((a) => a.role === 'daily');
+  const remaining = daily.length ? round(daily.reduce((s, a) => s + a.balance, 0)) : null;
+  const dailyIds = new Set(daily.map((a) => a.id));
+  const payday = isCurrent
+    ? nextPayday(
+        all
+          .filter((t) => t.type === 'income' && (t.kind || 'regular') === 'regular' && (dailyIds.size ? dailyIds.has(t.account_id || '') : roleOf(t.account_id) !== 'home'))
+          .map((t) => ({ date: t.date, amount: Number(t.amount) })),
+        now
+      )
+    : null;
+
+  const lastSync = accounts.map((a) => a.lastSync).filter(Boolean).sort().pop() || null;
 
   // Próximo pago de deuda
   const today = now.getDate();
@@ -132,14 +137,15 @@ export async function GET(request: NextRequest) {
     isCurrent,
     dayOfMonth,
     daysInMonth: days,
-    spent: round(spent),
-    income: round(income),
-    invested: round(invested),
-    debts: round(debts),
+    remaining,
+    payday,
+    perDay: remaining !== null && payday ? round(Math.max(0, remaining) / payday.daysLeft) : null,
+    accounts: accounts.map(({ id, name, balance, role, guessed, linked, lastSync: synced }) => ({ id, name, balance, role, guessed, linked, lastSync: synced })),
+    rolesMigrated,
+    flow,
     average: average === null ? null : round(average),
-    balance: balanceAccounts.length ? round(balanceAccounts.reduce((s, a) => s + Number(a.balance || 0), 0)) : null,
     lastSync,
-    topCategories: [...byCategory.values()].sort((a, b) => b.amount - a.amount).slice(0, 4).map((c) => ({ ...c, amount: round(c.amount) })),
+    topCategories: [...byCategory.values()].sort((a, b) => b.amount - a.amount).slice(0, 5).map((c) => ({ ...c, amount: round(c.amount) })),
     uncategorized: {
       count: uncategorized.length,
       first: uncategorized[0]
