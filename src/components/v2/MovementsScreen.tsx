@@ -67,11 +67,10 @@ export function MovementsScreen({
   const [editing, setEditing] = useState<Tx | null>(null);
   const [learn, setLearn] = useState(true);
 
-  const [year, mm] = month.split('-');
   const txQuery = useQuery<Tx[]>({
     queryKey: ['transactions', 'v2', month],
     queryFn: async () => {
-      const res = await fetch(`/api/transactions?month=${mm}&year=${year}&include_internal=1`);
+      const res = await fetch(`/api/transactions?period=${month}&include_internal=1`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'No se pudieron cargar los movimientos');
       return body;

@@ -2,14 +2,19 @@
  * Reparto del mes según el papel de cada cuenta. Lógica pura.
  *
  *   Entró        → ingresos normales fuera de la cuenta de casa (la nómina)
- *   A deudas     → cuotas pagadas (movimientos marcados como pago de deuda)
- *   A ahorro     → lo que entra en la cuenta de ahorro desde tus cuentas, menos lo que sacas
+ *   A deudas     → lo que metes en la cuenta de deudas (Revolut)
+ *   A ahorro     → lo que metes en la cuenta de ahorro, menos lo que sacas
  *   A casa       → lo que tú metes en la conjunta (tu mitad)
  *   Gastado      → tu gasto normal, sin contar la cuenta de casa
+ *
+ * Los traspasos se miran por los dos lados: si la cuenta de destino está
+ * conectada, cuenta lo que llega allí; si no, se deduce del texto del
+ * movimiento de salida (Trade Republic, Revolut…).
  */
 import type { AccountRole } from '@/lib/accounts/roles';
 
 export interface FlowTx {
+  id?: string;
   date: string;
   type: 'income' | 'expense';
   amount: number;
@@ -21,76 +26,125 @@ export interface FlowTx {
 
 export interface MonthFlow {
   income: number;
-  debts: number;
-  /** null: no sabemos (la cuenta de ahorro no está conectada y no hay traspasos reconocibles) */
-  savings: number | null;
+  spent: number;
+  toDebts: number;
+  /** Cuotas que el banco ya ha cobrado este mes */
+  debtsPaid: number;
+  toSavings: number;
   invested: number;
-  /** null: la cuenta de casa no está conectada */
-  home: number | null;
+  toHome: number;
   /** Lo que se ha gastado desde la cuenta de casa (alquiler, compra…), entre los dos */
   homeSpent: number | null;
-  spent: number;
+  /** Traspasos a Revolut que no sé si fueron a la de deudas o a la conjunta */
+  toRevolutUnknown: number;
 }
+
+type RoleOf = (accountId: string | null) => AccountRole | null;
 
 const round = (n: number) => Math.round(n * 100) / 100;
 const kindOf = (t: FlowTx) => t.kind || 'regular';
+const dayNum = (d: string) => Date.UTC(+d.substring(0, 4), +d.substring(5, 7) - 1, +d.substring(8, 10)) / 86400000;
 
 /** ¿Este movimiento cuenta como gasto tuyo? (gasto normal fuera de la cuenta de casa) */
-export function isOwnSpending(t: FlowTx, roleOf: (accountId: string | null) => AccountRole | null): boolean {
+export function isOwnSpending(t: FlowTx, roleOf: RoleOf): boolean {
   return t.type === 'expense' && kindOf(t) === 'regular' && roleOf(t.account_id) !== 'home';
 }
 
-export function computeFlow(
-  txs: FlowTx[],
-  roleOf: (accountId: string | null) => AccountRole | null,
-  linkedRoles: Set<AccountRole>
-): MonthFlow {
-  let income = 0, debts = 0, invested = 0, spent = 0;
-  let savingsIn = 0, savingsOut = 0, savingsByText = 0;
-  let homeIn = 0, homeSpent = 0;
+const DEST_ROLES: AccountRole[] = ['debts', 'savings', 'home'];
+
+export function computeFlow(txs: FlowTx[], roleOf: RoleOf, linkedRoles: Set<AccountRole>): MonthFlow {
+  let income = 0, spent = 0, debtsPaid = 0, invested = 0, homeSpent = 0;
+  const into: Record<'debts' | 'savings' | 'home', number> = { debts: 0, savings: 0, home: 0 };
+  let outOfSavings = 0;
+  let revolutUnknown = 0;
+
+  const transfersOut: FlowTx[] = [];
+  const transfersIn: FlowTx[] = [];
+  // Entradas normales en cuentas con papel: pueden ser tu traspaso mal etiquetado por el banco
+  const plainIn: FlowTx[] = [];
 
   for (const t of txs) {
     const amount = Number(t.amount) || 0;
     const kind = kindOf(t);
     const role = roleOf(t.account_id);
 
-    if (kind === 'debt_payment' && t.type === 'expense') debts += amount;
+    if (kind === 'debt_payment' && t.type === 'expense') debtsPaid += amount;
     else if (kind === 'investment' && t.type === 'expense') invested += amount;
     else if (kind === 'regular' && t.type === 'income' && role !== 'home') income += amount;
     else if (isOwnSpending(t, roleOf)) spent += amount;
 
     if (role === 'home' && kind === 'regular' && t.type === 'expense') homeSpent += amount;
 
-    if (kind === 'internal_transfer') {
-      if (role === 'savings') {
-        if (t.type === 'income') savingsIn += amount;
-        else savingsOut += amount;
-      } else if (role === 'home' && t.type === 'income') {
-        homeIn += amount;
-      } else if (role !== 'home') {
-        // Sin la cuenta de ahorro conectada: reconocer el traspaso por el texto
-        const text = `${t.counterparty ?? ''} ${t.description ?? ''}`.toLowerCase();
-        if (/trade ?republic/.test(text)) savingsByText += t.type === 'expense' ? amount : -amount;
-      }
+    if (kind === 'internal_transfer') (t.type === 'expense' ? transfersOut : transfersIn).push(t);
+    else if (kind === 'regular' && t.type === 'income' && role && DEST_ROLES.includes(role)) plainIn.push(t);
+  }
+
+  // 1. Lo que llega como traspaso a una cuenta con papel (conectada) cuenta siempre
+  const usedIn = new Set<FlowTx>();
+  for (const t of transfersIn) {
+    const role = roleOf(t.account_id);
+    if (role === 'debts' || role === 'savings' || role === 'home') into[role] += Number(t.amount);
+  }
+
+  // 2. Salidas: si hay una entrada gemela en otra cuenta, ya está contada
+  for (const t of transfersOut) {
+    const amount = Number(t.amount);
+    const fromRole = roleOf(t.account_id);
+    if (fromRole === 'savings') outOfSavings += amount;
+
+    const isTwin = (i: FlowTx) =>
+      !usedIn.has(i) &&
+      i.account_id !== t.account_id &&
+      Math.abs(Number(i.amount) - amount) <= 0.01 &&
+      Math.abs(dayNum(i.date) - dayNum(t.date)) <= 4;
+    const twin = transfersIn.find(isTwin);
+    if (twin) {
+      usedIn.add(twin);
+      continue;
+    }
+    if (fromRole && DEST_ROLES.includes(fromRole)) continue;
+
+    // La entrada existe pero el banco la marcó como ingreso normal: cuenta igual
+    const plainTwin = plainIn.find(isTwin);
+    if (plainTwin) {
+      usedIn.add(plainTwin);
+      const role = roleOf(plainTwin.account_id);
+      if (role === 'debts' || role === 'savings' || role === 'home') into[role] += amount;
+      // En Revolut (deudas) un ingreso normal contaría como "Entró": ya no
+      if (role !== 'home') income -= Number(plainTwin.amount);
+      continue;
+    } // salidas de deudas/casa a cuentas no conectadas: no son reparto
+
+    // 3. Sin gemela: el destino no está conectado. Lo deduzco del texto.
+    const text = `${t.counterparty ?? ''} ${t.description ?? ''}`.toLowerCase();
+    if (/trade ?republic/.test(text)) {
+      into.savings += amount;
+    } else if (/revolut/.test(text)) {
+      const debtsLinked = linkedRoles.has('debts');
+      const homeLinked = linkedRoles.has('home');
+      // Si una de las dos Revolut está conectada y no ha llegado nada allí, fue a la otra
+      if (debtsLinked && !homeLinked) into.home += amount;
+      else if (homeLinked && !debtsLinked) into.debts += amount;
+      else revolutUnknown += amount;
     }
   }
 
-  const savingsLinked = linkedRoles.has('savings');
-  const homeLinked = linkedRoles.has('home');
   return {
     income: round(income),
-    debts: round(debts),
-    savings: savingsLinked ? round(savingsIn - savingsOut) : savingsByText !== 0 ? round(savingsByText) : null,
-    invested: round(invested),
-    home: homeLinked ? round(homeIn) : null,
-    homeSpent: homeLinked ? round(homeSpent) : null,
     spent: round(spent),
+    toDebts: round(into.debts),
+    debtsPaid: round(debtsPaid),
+    toSavings: round(into.savings - outOfSavings),
+    invested: round(invested),
+    toHome: round(into.home),
+    homeSpent: linkedRoles.has('home') ? round(homeSpent) : null,
+    toRevolutUnknown: round(revolutUnknown),
   };
 }
 
 /**
- * Próxima nómina: el día del último ingreso grande en la cuenta del día a día.
- * Devuelve null si no hay ninguno en el histórico que se le pasa.
+ * Próxima nómina cuando no hay día de cobro configurado: el día del último
+ * ingreso grande. Devuelve null si no hay ninguno.
  */
 export function nextPayday(
   incomes: { date: string; amount: number }[],

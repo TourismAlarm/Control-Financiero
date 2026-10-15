@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { loadAccounts } from '@/lib/accounts/load';
 import type { AccountRole } from '@/lib/accounts/roles';
 import { computeFlow, isOwnSpending, nextPayday, type FlowTx } from '@/lib/summary/flow';
+import { daysUntil, dayInPeriod, monthOfDate, normalizeStartDay, periodLabel, periodOf, sameHeight, shiftMonth, todayIso } from '@/lib/period';
 
 interface Tx {
   id: string;
@@ -22,34 +23,32 @@ interface Tx {
 
 const round = (n: number) => Math.round(n * 100) / 100;
 
-function monthBounds(month: string) {
-  const [y, m] = month.split('-').map(Number) as [number, number];
-  const last = new Date(y, m, 0).getDate();
-  return { start: `${month}-01`, end: `${month}-${String(last).padStart(2, '0')}`, days: last, y, m };
-}
-
-function shiftMonth(month: string, delta: number) {
-  const [y, m] = month.split('-').map(Number) as [number, number];
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
-// GET /api/summary?month=YYYY-MM — todo lo que necesita la pantalla de Inicio
+// GET /api/summary?month=YYYY-MM — todo lo que necesita la pantalla de Inicio.
+// "month" es el mes financiero: con día de cobro 26, octubre = 26 sep – 25 oct.
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   await ensureProfile(session);
   const userId = session.user.id;
 
+  const { data: profile } = await supabaseAdmin
+    .from('profiles')
+    .select('financial_month_start_day')
+    .eq('id', userId)
+    .maybeSingle();
+  const startDay = normalizeStartDay((profile as { financial_month_start_day?: number } | null)?.financial_month_start_day);
+
   const now = new Date();
-  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const today = todayIso(now);
+  const currentMonth = monthOfDate(today, startDay);
   const qMonth = new URL(request.url).searchParams.get('month');
   const month = qMonth && /^\d{4}-\d{2}$/.test(qMonth) ? qMonth : currentMonth;
-  const { start, end, days } = monthBounds(month);
+  const period = periodOf(month, startDay);
+  const { start, end } = period;
   const isCurrent = month === currentMonth;
-  const dayOfMonth = isCurrent ? now.getDate() : days;
+  const dayIndex = isCurrent ? dayInPeriod(period, today) : period.days;
 
-  const histStart = monthBounds(shiftMonth(month, -3)).start;
+  const histStart = periodOf(shiftMonth(month, -3), startDay).start;
 
   const [txRes, accountsData, loansRes, categoriesRes] = await Promise.all([
     supabaseAdmin
@@ -88,13 +87,12 @@ export async function GET(request: NextRequest) {
     byCategory.set(key, prev);
   }
 
-  // Media de lo gastado hasta el mismo día en los 3 meses anteriores (solo meses con datos)
+  // Media de lo gastado hasta la misma altura del mes en los 3 meses anteriores (solo meses con datos)
   const previous: number[] = [];
   for (let i = 1; i <= 3; i++) {
-    const pm = shiftMonth(month, -i);
-    const b = monthBounds(pm);
-    const cutoff = `${pm}-${String(Math.min(dayOfMonth, b.days)).padStart(2, '0')}`;
-    const monthTx = all.filter((t) => t.date >= b.start && t.date <= b.end);
+    const pp = periodOf(shiftMonth(month, -i), startDay);
+    const cutoff = sameHeight(pp, dayIndex);
+    const monthTx = all.filter((t) => t.date >= pp.start && t.date <= pp.end);
     if (monthTx.length === 0) continue;
     previous.push(
       monthTx.filter((t) => t.date <= cutoff && isOwnSpending(asFlow(t), roleOf)).reduce((s, t) => s + Number(t.amount), 0)
@@ -108,24 +106,31 @@ export async function GET(request: NextRequest) {
   const daily = accounts.filter((a) => a.role === 'daily');
   const remaining = daily.length ? round(daily.reduce((s, a) => s + a.balance, 0)) : null;
   const dailyIds = new Set(daily.map((a) => a.id));
-  const payday = isCurrent
-    ? nextPayday(
+  // Próxima nómina: el día de cobro de Ajustes; si no hay (día 1), el del último ingreso grande
+  let payday: { day: number; date: string; daysLeft: number } | null = null;
+  if (isCurrent) {
+    if (startDay > 1) {
+      const next = periodOf(shiftMonth(month, 1), startDay).start;
+      payday = { day: startDay, date: next, daysLeft: daysUntil(today, next) };
+    } else {
+      payday = nextPayday(
         all
           .filter((t) => t.type === 'income' && (t.kind || 'regular') === 'regular' && (dailyIds.size ? dailyIds.has(t.account_id || '') : roleOf(t.account_id) !== 'home'))
           .map((t) => ({ date: t.date, amount: Number(t.amount) })),
         now
-      )
-    : null;
+      );
+    }
+  }
 
   const lastSync = accounts.map((a) => a.lastSync).filter(Boolean).sort().pop() || null;
 
   // Próximo pago de deuda
-  const today = now.getDate();
+  const todayDay = now.getDate();
   const nextPayment = ((loansRes.data || []) as any[])
     .filter((l) => l.payment_day && Number(l.monthly_payment) > 0)
     .map((l) => {
       const day = Number(l.payment_day);
-      const d = day >= today
+      const d = day >= todayDay
         ? new Date(now.getFullYear(), now.getMonth(), Math.min(day, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()))
         : new Date(now.getFullYear(), now.getMonth() + 1, Math.min(day, new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate()));
       return { name: l.contact_name as string, amount: Number(l.monthly_payment), date: d.toISOString().substring(0, 10) };
@@ -135,8 +140,9 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     month,
     isCurrent,
-    dayOfMonth,
-    daysInMonth: days,
+    startDay,
+    period: { start, end, days: period.days, label: periodLabel(period) },
+    dayIndex,
     remaining,
     payday,
     perDay: remaining !== null && payday ? round(Math.max(0, remaining) / payday.daysLeft) : null,
