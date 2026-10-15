@@ -169,3 +169,60 @@ test('una devolución no se confunde con un traspaso desde otra cuenta', () => {
   assert.deepEqual(flow.transferIds, []);
   assert.equal(flow.spent, 0); // 60 pagados desde Revolut, 60 devueltos a BBVA
 });
+
+test('devolución parcial ligada a un gasto: el gasto cuenta solo lo que te costó', () => {
+  const flow = computeFlow(
+    [
+      tx({ id: 'cena', amount: 100, date: '2026-10-03' }),
+      tx({ id: 'vuelve', type: 'income', amount: 25, date: '2026-10-05', refund: true, refund_of: 'cena' }),
+      tx({ id: 'super', amount: 40 }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily'])
+  );
+  assert.equal(flow.income, 0);
+  assert.equal(flow.spent, 75 + 40);
+  assert.deepEqual(flow.refundedBy, { cena: 25 });
+  assert.deepEqual(flow.refundedIds, ['vuelve']);
+});
+
+test('devolución ligada a un gasto de otra cuenta: lo anula entero', () => {
+  const flow = computeFlow(
+    [
+      tx({ id: 'pago', amount: 60, account_id: 'rev' }),
+      tx({ id: 'vuelve', type: 'income', amount: 60, refund: true, refund_of: 'pago' }),
+      tx({ id: 'super', amount: 40 }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily', 'debts'])
+  );
+  assert.equal(flow.spent, 40);
+  assert.deepEqual(flow.refundedIds.sort(), ['pago', 'vuelve']);
+  assert.deepEqual(flow.byAccount, [{ accountId: 'bbva', amount: 40, debts: 0, total: 40 }]);
+});
+
+test('dos devoluciones parciales del mismo gasto y una que se pasa', () => {
+  const flow = computeFlow(
+    [
+      tx({ id: 'cena', amount: 100 }),
+      tx({ id: 'a', type: 'income', amount: 25, refund: true, refund_of: 'cena' }),
+      tx({ id: 'b', type: 'income', amount: 25, refund: true, refund_of: 'cena' }),
+      tx({ id: 'c', type: 'income', amount: 70, refund: true, refund_of: 'cena' }), // 20 de más
+      tx({ id: 'super', amount: 40 }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily'])
+  );
+  assert.equal(flow.spent, 40 - 20);
+  assert.ok(flow.refundedIds.includes('cena'));
+});
+
+test('devolución de un gasto de otro mes: resta del gasto de la cuenta', () => {
+  const flow = computeFlow(
+    [tx({ id: 'super', amount: 40 }), tx({ id: 'v', type: 'income', amount: 10, refund: true, refund_of: 'mes-pasado' })],
+    roleOf,
+    new Set<AccountRole>(['daily'])
+  );
+  assert.equal(flow.spent, 30);
+  assert.equal(flow.income, 0);
+});

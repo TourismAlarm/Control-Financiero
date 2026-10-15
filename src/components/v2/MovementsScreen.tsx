@@ -17,6 +17,18 @@ interface Tx {
   account_id?: string | null;
   category_id?: string | null;
   category?: { id: string; name: string } | null;
+  refund_of?: string | null;
+}
+
+interface Candidate {
+  id: string;
+  date: string;
+  amount: number;
+  description: string;
+  counterparty?: string | null;
+  account_id?: string | null;
+  category?: { id: string; name: string } | null;
+  exact: boolean;
 }
 
 interface Category {
@@ -34,7 +46,7 @@ const KIND_BADGE: Record<string, { label: string; bg: string; fg: string; short:
 };
 
 /** Nombre legible: ignora el campo que el banco enmascara con *** */
-function displayName(t: Tx): string {
+function displayName(t: { counterparty?: string | null; description?: string | null }): string {
   const masked = (v?: string | null) => !v || /^[\s*•·xX0-9-]*$/.test(v);
   if (!masked(t.counterparty)) return t.counterparty!;
   const d = (t.description || '').replace(/[*•]{2,}[0-9]*/g, ' ').replace(/^[\s·-]+|[\s·-]+$/g, '').trim();
@@ -67,6 +79,13 @@ export function MovementsScreen({
   const [showInternal, setShowInternal] = useState(false);
   const [editing, setEditing] = useState<Tx | null>(null);
   const [learn, setLearn] = useState(true);
+  /** Paso 2 al elegir "Devoluciones": qué gasto te devuelven */
+  const [refundCategory, setRefundCategory] = useState<string | null>(null);
+
+  const closeSheet = () => {
+    setEditing(null);
+    setRefundCategory(null);
+  };
 
   const txQuery = useQuery<Tx[]>({
     queryKey: ['transactions', 'v2', month],
@@ -86,10 +105,33 @@ export function MovementsScreen({
     queryFn: async () => (await fetch('/api/accounts')).json(),
   });
 
+  const candQuery = useQuery<Candidate[]>({
+    queryKey: ['refund-candidates', editing?.id],
+    enabled: Boolean(editing && refundCategory),
+    queryFn: async () => {
+      const res = await fetch(`/api/refund-candidates?id=${editing!.id}`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'No se pudieron cargar los gastos');
+      return body;
+    },
+  });
+
   const accountName = (id?: string | null) =>
     (Array.isArray(accQuery.data) ? accQuery.data : []).find((a) => a.id === id)?.name?.replace(/ ···\d+$/, '') || null;
 
   const all = txQuery.data || [];
+
+  // Lo que te han devuelto de cada gasto (devoluciones en las que dijiste qué gasto era)
+  const refundedBy = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of all) {
+      if (t.type === 'income' && t.refund_of && isRefundCategory(t.category?.name)) {
+        map.set(t.refund_of, (map.get(t.refund_of) || 0) + Number(t.amount));
+      }
+    }
+    return map;
+  }, [all]);
+  const byId = useMemo(() => new Map(all.map((t) => [t.id, t])), [all]);
   const internalCount = all.filter((t) => t.kind === 'internal_transfer').length;
   const uncategorizedCount = all.filter((t) => (t.kind ?? 'regular') === 'regular' && !t.category_id).length;
 
@@ -115,17 +157,24 @@ export function MovementsScreen({
     return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [visible]);
 
-  const categorize = async (categoryId: string) => {
+  const categorize = async (categoryId: string, refundOf?: string | null) => {
     if (!editing) return;
     const res = await fetch('/api/categorize', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: editing.id, category_id: categoryId, learn }),
+      body: JSON.stringify({ id: editing.id, category_id: categoryId, learn, ...(refundOf !== undefined ? { refund_of: refundOf } : {}) }),
     });
     const body = await res.json();
-    setEditing(null);
+    closeSheet();
     if (!res.ok) return toast(body.error || 'No se pudo guardar', 'error');
-    const what = body.kind === 'internal_transfer' ? 'Traspaso: ya no cuenta como gasto ni ingreso' : 'Hecho';
+    const what =
+      body.kind === 'internal_transfer'
+        ? 'Traspaso: ya no cuenta como gasto ni ingreso'
+        : refundOf
+          ? 'Hecho · ese gasto ya cuenta solo lo que te costó'
+          : refundOf === null
+            ? 'Hecho · resta del gasto del mes'
+            : 'Hecho';
     toast(
       body.alsoUpdated
         ? `${what} · ${body.alsoUpdated} más del mismo comercio`
@@ -198,7 +247,24 @@ export function MovementsScreen({
                 const needsCategory = kind === 'regular' && !t.category_id;
                 const catName = t.category?.name;
                 const refund = t.type === 'income' && isRefundCategory(catName);
-                const sub = badge ? badge.label : needsCategory ? 'Toca para categorizar' : refund ? 'Devolución · resta del gasto' : catName;
+                const original = refund && t.refund_of ? byId.get(t.refund_of) : undefined;
+                const back = t.type === 'expense' ? refundedBy.get(t.id) || 0 : 0;
+                const net = Math.max(0, Number(t.amount) - back);
+                const sub = badge
+                  ? badge.label
+                  : needsCategory
+                    ? 'Toca para categorizar'
+                    : refund
+                      ? original
+                        ? `Devolución de ${displayName(original)}`
+                        : t.refund_of
+                          ? 'Devolución de un gasto de otro mes'
+                          : 'Devolución · toca para decir de qué gasto'
+                      : back > 0
+                        ? net === 0
+                          ? `${catName ?? 'Gasto'} · te lo devolvieron entero`
+                          : `${catName ?? 'Gasto'} · ${money(Number(t.amount), true)} − ${money(back, true)} devueltos`
+                        : catName;
                 const acc = accountName(t.account_id);
                 return (
                   <button
@@ -226,8 +292,12 @@ export function MovementsScreen({
                         {sub}{acc && !needsCategory ? ` · ${acc}` : ''}
                       </span>
                     </span>
-                    <span className={`text-[15px] font-semibold tabular-nums shrink-0 ${t.type === 'income' ? 'text-[#17694A]' : ''}`}>
-                      {t.type === 'income' ? '+' : '-'}{money(t.amount, true)}
+                    <span
+                      className={`text-[15px] font-semibold tabular-nums shrink-0 ${
+                        refund ? 'text-[#5B6070]' : t.type === 'income' ? 'text-[#17694A]' : back > 0 && net === 0 ? 'text-[#5B6070] line-through' : ''
+                      }`}
+                    >
+                      {t.type === 'income' ? '+' : '-'}{money(back > 0 && net > 0 ? net : t.amount, true)}
                     </span>
                   </button>
                 );
@@ -251,8 +321,60 @@ export function MovementsScreen({
         </button>
       )}
 
-      <Sheet open={editing !== null} onClose={() => setEditing(null)} title="Categoría">
-        {editing && (
+      <Sheet open={editing !== null} onClose={closeSheet} title={refundCategory ? '¿Qué gasto te devuelven?' : 'Categoría'}>
+        {editing && refundCategory && (
+          <div className="flex flex-col gap-3">
+            <div className="bg-white rounded-xl px-3.5 py-3 flex justify-between gap-3">
+              <span className="text-sm font-medium truncate">Te devuelven · {displayName(editing)}</span>
+              <span className="text-sm font-semibold tabular-nums shrink-0 text-[#17694A]">+{money(editing.amount, true)}</span>
+            </div>
+            <span className="text-xs text-[#5B6070] px-0.5">
+              Gastos de los últimos 90 días de {money(editing.amount, true)} o más. Ese gasto pasará a contar solo lo que te costó.
+            </span>
+            {candQuery.isLoading ? (
+              <Loading />
+            ) : candQuery.error ? (
+              <ErrorBox text={(candQuery.error as Error).message} />
+            ) : (
+              <div className="bg-white rounded-2xl divide-y divide-[#EFEDE8]">
+                {(candQuery.data || []).map((c) => {
+                  const rest = Math.max(0, c.amount - Number(editing.amount));
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => categorize(refundCategory, c.id)}
+                      className={`w-full flex items-center gap-3 px-3.5 py-3 text-left ${editing.refund_of === c.id ? 'bg-[#F4F3EF]' : ''}`}
+                    >
+                      <span className="flex-1 min-w-0 flex flex-col gap-0.5">
+                        <span className="text-[15px] font-medium truncate">{displayName(c)}</span>
+                        <span className="text-xs text-[#5B6070] truncate">
+                          {new Date(`${String(c.date).substring(0, 10)}T12:00:00`).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                          {accountName(c.account_id) ? ` · ${accountName(c.account_id)}` : ''}
+                          {c.exact ? ' · mismo importe' : ` · contará ${money(rest, true)}`}
+                        </span>
+                      </span>
+                      <span className="text-[15px] font-semibold tabular-nums shrink-0">-{money(c.amount, true)}</span>
+                    </button>
+                  );
+                })}
+                {(candQuery.data || []).length === 0 && (
+                  <p className="text-sm text-[#5B6070] px-3.5 py-4">No encuentro gastos de este importe o más en los últimos 90 días.</p>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => categorize(refundCategory, null)}
+              className="rounded-xl border border-dashed border-[#C9C6BD] bg-[#F4F3EF] px-3.5 py-2.5 text-left flex flex-col gap-0.5"
+            >
+              <span className="text-sm font-semibold">No está en la lista</span>
+              <span className="text-xs text-[#5B6070]">Resta del gasto del mes, sin tocar ningún gasto concreto.</span>
+            </button>
+            <button onClick={() => setRefundCategory(null)} className="text-sm font-semibold text-[#3D414B] py-2">
+              Volver a categorías
+            </button>
+          </div>
+        )}
+        {editing && !refundCategory && (
           <div className="flex flex-col gap-3.5">
             <div className="bg-white rounded-xl px-3.5 py-3 flex justify-between gap-3">
               <span className="text-sm font-medium truncate">{displayName(editing)}</span>
@@ -281,14 +403,14 @@ export function MovementsScreen({
                 {specials.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => categorize(c.id)}
+                    onClick={() => (isRefundCategory(c.name) ? setRefundCategory(c.id) : categorize(c.id))}
                     className={`rounded-xl border border-dashed px-3.5 py-2.5 text-left flex flex-col gap-0.5 ${editing.category_id === c.id ? 'border-[#15171C] border-2 bg-white' : 'border-[#C9C6BD] bg-[#F4F3EF]'}`}
                   >
                     <span className="text-sm font-semibold">{c.name}</span>
                     <span className="text-xs text-[#5B6070]">
                       {isTransferCategory(c.name)
                         ? 'Dinero de una cuenta tuya a otra. No cuenta como gasto ni ingreso.'
-                        : 'Te devuelven algo que pagaste. Anula ese gasto (mismo importe en esta cuenta) o resta del gasto del mes. No se aplica solo a este contacto.'}
+                        : 'Te devuelven algo que pagaste, entero o una parte. Luego eliges qué gasto era y pasa a contar solo lo que te costó.'}
                     </span>
                   </button>
                 ))}

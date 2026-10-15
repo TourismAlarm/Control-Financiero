@@ -24,6 +24,7 @@ interface Tx {
   account_id: string | null;
   category_id: string | null;
   category?: { id: string; name: string } | null;
+  refund_of?: string | null;
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -105,7 +106,8 @@ export async function GET(request: NextRequest) {
     const key = isDebt ? 'debts' : t.category?.id || 'none';
     const name = isDebt ? 'Cuotas de deudas' : t.category?.name || 'Sin categoría';
     const prev = byCategory.get(key) || { id: isDebt ? null : t.category?.id || null, name, amount: 0 };
-    prev.amount += Number(t.amount) * shareOf(asFlow(t), roleOf, HOME_SHARE);
+    const net = Number(t.amount) - (flow.refundedBy[t.id] || 0);
+    prev.amount += net * shareOf(asFlow(t), roleOf, HOME_SHARE);
     byCategory.set(key, prev);
   }
 
