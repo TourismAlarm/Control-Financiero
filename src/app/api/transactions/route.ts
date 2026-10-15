@@ -5,6 +5,7 @@ import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { transactionInsertSchema, transactionSchema } from '@/lib/validations/schemas';
 import { runAgentsAndSave } from '@/lib/agents/runner';
+import { normalizeStartDay, periodOf } from '@/lib/period';
 
 // GET /api/transactions - Get all transactions for current user
 export async function GET(request: NextRequest) {
@@ -24,6 +25,18 @@ export async function GET(request: NextRequest) {
 
     const includeInternal = searchParams.get('include_internal') === '1';
 
+    // ?period=YYYY-MM → mes financiero según el día de cobro de Ajustes
+    const periodParam = searchParams.get('period');
+    let range: { start: string; end: string } | null = null;
+    if (periodParam && /^\d{4}-\d{2}$/.test(periodParam)) {
+      const { data: profile } = await supabaseAdmin
+        .from('profiles')
+        .select('financial_month_start_day')
+        .eq('id', session.user.id)
+        .maybeSingle();
+      range = periodOf(periodParam, normalizeStartDay((profile as { financial_month_start_day?: number } | null)?.financial_month_start_day));
+    }
+
     const buildQuery = (filterInternal: boolean) => {
       let query = supabaseAdmin
         .from('transactions')
@@ -31,7 +44,9 @@ export async function GET(request: NextRequest) {
         .eq('user_id', session.user.id)
         .order('date', { ascending: false });
 
-      if (month && year) {
+      if (range) {
+        query = query.gte('date', range.start).lte('date', range.end);
+      } else if (month && year) {
         const startDate = `${year}-${month.padStart(2, '0')}-01`;
         // Calculate last day of month properly
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();

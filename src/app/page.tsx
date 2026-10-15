@@ -10,12 +10,14 @@ import { HomeScreen } from '@/components/v2/HomeScreen';
 import { MovementsScreen } from '@/components/v2/MovementsScreen';
 import { DebtsScreen } from '@/components/v2/DebtsScreen';
 import { appFont, monthLabel } from '@/components/v2/ui';
+import { useProfile } from '@/hooks/useProfile';
+import { monthOfDate, periodLabel, periodOf, todayIso } from '@/lib/period';
 
 type Tab = 'home' | 'movements' | 'debts';
 
-function currentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+/** Mes financiero actual: con día de cobro 26, el 26 de octubre ya es "noviembre". */
+function currentMonth(startDay = 1) {
+  return monthOfDate(todayIso(), startDay);
 }
 
 const ICONS: Record<Tab | 'settings', ReactNode> = {
@@ -54,7 +56,10 @@ export default function Home() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('home');
-  const [month, setMonth] = useState(currentMonth);
+  const { profile, isLoading: profileLoading } = useProfile();
+  const startDay = profile?.financial_month_start_day ?? 1;
+  const [pickedMonth, setMonth] = useState<string | null>(null);
+  const month = pickedMonth ?? currentMonth(startDay);
   const [movementsFilter, setMovementsFilter] = useState<'all' | 'uncategorized'>('all');
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const monthInput = useRef<HTMLInputElement>(null);
@@ -96,30 +101,38 @@ export default function Home() {
           <div className="flex items-center justify-between mb-3">
             <div className="relative">
               <button onClick={openMonthPicker} className="flex items-center gap-1.5 py-2 text-xl font-bold" aria-label={`Mes: ${monthLabel(month)}. Cambiar mes`}>
-                {monthLabel(month)}
+                <span className="flex flex-col items-start leading-tight">
+                  {monthLabel(month)}
+                  {startDay > 1 && <span className="text-[13px] font-medium text-[#5B6070]">{periodLabel(periodOf(month, startDay))}</span>}
+                </span>
                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
               </button>
               <input
                 ref={monthInput}
                 type="month"
                 value={month}
-                max={currentMonth()}
+                max={currentMonth(startDay)}
                 onChange={(e) => e.target.value && setMonth(e.target.value)}
                 className="absolute inset-0 opacity-0 pointer-events-none"
                 tabIndex={-1}
                 aria-hidden="true"
               />
             </div>
-            {month !== currentMonth() && (
-              <button onClick={() => setMonth(currentMonth())} className="text-sm font-semibold text-[#17694A] h-11 px-2">
+            {month !== currentMonth(startDay) && (
+              <button onClick={() => setMonth(null)} className="text-sm font-semibold text-[#17694A] h-11 px-2">
                 Volver a hoy
               </button>
             )}
           </div>
         )}
 
-        {tab === 'home' && <HomeScreen month={month} onGoto={goto} />}
-        {tab === 'movements' && (
+        {profileLoading && tab !== 'debts' ? (
+          <div className="flex justify-center py-16" aria-label="Cargando">
+            <div className="w-8 h-8 rounded-full border-[3px] border-[#D9D6CE] border-t-[#15171C] animate-spin" />
+          </div>
+        ) : null}
+        {!profileLoading && tab === 'home' && <HomeScreen month={month} onGoto={goto} />}
+        {!profileLoading && tab === 'movements' && (
           <MovementsScreen key={`${month}-${movementsFilter}`} month={month} initialFilter={movementsFilter} onAdd={() => setQuickAddOpen(true)} />
         )}
         {tab === 'debts' && <DebtsScreen />}
