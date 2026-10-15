@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { classifyKind, cleanMasked, mapTransaction, pickBalance, type ClassifyContext } from './transform';
+import { classifyKind, cleanMasked, fingerprintOf, mapTransaction, pickBalance, type ClassifyContext } from './transform';
 import type { EbTransaction } from './enableBanking';
 
 const tx = (overrides: Partial<EbTransaction>): EbTransaction => ({
@@ -137,4 +137,12 @@ test('movimiento con nombre enmascarado: muestra el concepto, mismo id que antes
 test('todo enmascarado: texto de reserva', () => {
   const m = mapTransaction(tx({ creditor: { name: '***' }, remittance_information: ['****'] }), 'a');
   assert.equal(m?.description, 'Movimiento bancario');
+});
+
+test('la huella no cambia al reconectar el banco', () => {
+  const a = mapTransaction(tx({}), 'uid-viejo')!;
+  const b = mapTransaction(tx({}), 'uid-nuevo')!;
+  assert.notEqual(a.external_id, b.external_id);
+  assert.equal(fingerprintOf(a.external_id), fingerprintOf(b.external_id));
+  assert.equal(fingerprintOf('manual-123'), 'manual-123');
 });

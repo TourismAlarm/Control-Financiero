@@ -9,42 +9,38 @@ const roles: Record<string, AccountRole> = { bbva: 'daily', rev: 'debts', tr: 's
 const roleOf = (id: string | null) => (id ? roles[id] ?? null : null);
 const tx = (p: Partial<FlowTx>): FlowTx => ({ date: '2026-10-05', type: 'expense', amount: 10, kind: 'regular', account_id: 'bbva', ...p });
 
-test('reparto del mes con las cuatro cuentas conectadas', () => {
+test('traspasos nunca son gasto; el gasto se cuenta en la cuenta donde se paga', () => {
   const flow = computeFlow(
     [
-      tx({ type: 'income', amount: 2000 }), // nómina en BBVA
+      tx({ id: 'n', type: 'income', amount: 2000 }), // nómina en BBVA
       tx({ amount: 50 }), // súper en BBVA
-      tx({ amount: 30, account_id: 'rev' }), // gasto suelto desde Revolut
       tx({ kind: 'internal_transfer', amount: 400, date: '2026-10-01' }), // BBVA → Revolut
       tx({ kind: 'internal_transfer', type: 'income', amount: 400, account_id: 'rev', date: '2026-10-02' }),
-      tx({ kind: 'debt_payment', amount: 250, account_id: 'rev' }),
+      tx({ amount: 30, account_id: 'rev' }), // pago suelto desde Revolut
+      tx({ kind: 'debt_payment', amount: 250, account_id: 'rev' }), // cuota
       tx({ kind: 'internal_transfer', amount: 300 }), // BBVA → Trade Republic
       tx({ kind: 'internal_transfer', type: 'income', amount: 300, account_id: 'tr' }),
       tx({ kind: 'internal_transfer', amount: 50, account_id: 'tr' }), // saco 50 del ahorro
-      tx({ kind: 'internal_transfer', type: 'income', amount: 50 }), // y llegan a BBVA
+      tx({ kind: 'internal_transfer', type: 'income', amount: 50 }),
       tx({ kind: 'investment', amount: 100, account_id: 'tr' }),
       tx({ kind: 'internal_transfer', amount: 650 }), // BBVA → conjunta
-      tx({ kind: 'internal_transfer', type: 'income', amount: 650, account_id: 'joint' }), // mi mitad
+      tx({ kind: 'internal_transfer', type: 'income', amount: 650, account_id: 'joint' }),
       tx({ type: 'income', amount: 650, account_id: 'joint' }), // la mitad de mi pareja
       tx({ amount: 1200, account_id: 'joint' }), // alquiler
     ],
     roleOf,
     new Set<AccountRole>(['daily', 'debts', 'savings', 'home'])
   );
-  assert.deepEqual(flow, {
-    income: 2000,
-    spent: 50, // lo de Revolut se paga con los 400 que ya contaron como "a deudas"
-    toDebts: 400,
-    paidFromDebts: 280,
-    debtsPaid: 250,
-    toSavings: 250,
-    invested: 100,
-    toHome: 650,
-    homeSpent: 1200,
-    toRevolutUnknown: 0,
-    spentByAccount: [{ accountId: 'bbva', amount: 50 }],
-    transferIds: [],
-  });
+  assert.equal(flow.income, 2000);
+  assert.equal(flow.spent, 50 + 30 + 250 + 600); // 600 = tu mitad del alquiler
+  assert.deepEqual(flow.byAccount, [
+    { accountId: 'joint', amount: 600, debts: 0, total: 1200 },
+    { accountId: 'rev', amount: 280, debts: 250, total: 280 },
+    { accountId: 'bbva', amount: 50, debts: 0, total: 50 },
+  ]);
+  assert.equal(flow.debtsPaid, 250);
+  assert.equal(flow.invested, 100);
+  assert.deepEqual(flow.moved, { toDebts: 400, toSavings: 250, toHome: 650, toRevolutUnknown: 0 });
 });
 
 test('solo BBVA conectado: los traspasos se reparten por el texto', () => {
@@ -57,9 +53,9 @@ test('solo BBVA conectado: los traspasos se reparten por el texto', () => {
     roleOf,
     new Set<AccountRole>(['daily'])
   );
-  assert.equal(flow.toSavings, 200);
-  assert.equal(flow.toRevolutUnknown, 1050);
-  assert.equal(flow.homeSpent, null);
+  assert.equal(flow.spent, 0);
+  assert.equal(flow.moved.toSavings, 200);
+  assert.equal(flow.moved.toRevolutUnknown, 1050);
 });
 
 test('una Revolut conectada: lo que no llega a ella fue a la otra', () => {
@@ -72,48 +68,30 @@ test('una Revolut conectada: lo que no llega a ella fue a la otra', () => {
     roleOf,
     new Set<AccountRole>(['daily', 'debts'])
   );
-  assert.equal(flow.toDebts, 400);
-  assert.equal(flow.toHome, 650);
-  assert.equal(flow.toRevolutUnknown, 0);
+  assert.equal(flow.moved.toDebts, 400);
+  assert.equal(flow.moved.toHome, 650);
 });
 
-test('traspaso que el banco de destino marca como ingreso normal', () => {
+test('traspasos que los bancos marcan como gasto o ingreso normal', () => {
   const flow = computeFlow(
     [
-      tx({ type: 'income', amount: 2000 }),
-      tx({ kind: 'internal_transfer', amount: 650, description: 'Alquiler', date: '2026-09-27' }),
-      tx({ type: 'income', amount: 650, account_id: 'joint', date: '2026-09-27' }),
-      tx({ kind: 'internal_transfer', amount: 420, description: 'Deudas', date: '2026-09-27' }),
-      tx({ type: 'income', amount: 420, account_id: 'rev', date: '2026-09-28' }),
+      tx({ id: 'n', type: 'income', amount: 1757 }),
+      tx({ amount: 600 }), // gasto real en BBVA
+      // BBVA → conjunta, marcado como traspaso en BBVA pero como ingreso en la conjunta
+      tx({ kind: 'internal_transfer', amount: 650, date: '2026-09-27' }),
+      tx({ id: 'j', type: 'income', amount: 650, account_id: 'joint', date: '2026-09-27' }),
+      // BBVA → Revolut, marcado como gasto en BBVA y como ingreso en Revolut
+      tx({ id: 'o', amount: 420, description: 'Transferencia', date: '2026-09-27' }),
+      tx({ id: 'i', type: 'income', amount: 420, account_id: 'rev', date: '2026-09-28' }),
     ],
     roleOf,
     new Set<AccountRole>(['daily', 'debts', 'savings', 'home'])
   );
-  assert.equal(flow.toHome, 650);
-  assert.equal(flow.toDebts, 420);
-  assert.equal(flow.income, 2000);
-  assert.equal(flow.toRevolutUnknown, 0);
-});
-
-test('sin contar dos veces: pagos desde Revolut y traspasos que el banco toma por gasto', () => {
-  const flow = computeFlow(
-    [
-      tx({ type: 'income', amount: 1757 }),
-      tx({ amount: 900 }), // gasto real en BBVA
-      // BBVA → Revolut deudas, pero BBVA lo marca como gasto normal
-      tx({ amount: 500, description: 'Transferencia', date: '2026-09-26' }),
-      tx({ type: 'income', amount: 500, account_id: 'rev', date: '2026-09-26' }),
-      // desde Revolut se pagan dos financiaciones no registradas
-      tx({ amount: 200, account_id: 'rev', description: 'COFIDIS' }),
-      tx({ amount: 137, account_id: 'rev', description: 'ONEY' }),
-    ],
-    roleOf,
-    new Set<AccountRole>(['daily', 'debts', 'savings', 'home'])
-  );
-  assert.equal(flow.spent, 900);
-  assert.equal(flow.toDebts, 500);
-  assert.equal(flow.paidFromDebts, 337);
+  assert.equal(flow.spent, 600);
   assert.equal(flow.income, 1757);
+  assert.equal(flow.moved.toHome, 650);
+  assert.equal(flow.moved.toDebts, 420);
+  assert.deepEqual(flow.transferIds.sort(), ['i', 'j', 'o']);
 });
 
 test('próxima nómina', () => {

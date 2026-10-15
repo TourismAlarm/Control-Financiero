@@ -31,15 +31,10 @@ interface Summary {
   flow: {
     income: number;
     spent: number;
-    toDebts: number;
-    paidFromDebts: number;
     debtsPaid: number;
-    toSavings: number;
     invested: number;
-    toHome: number;
-    homeSpent: number | null;
-    toRevolutUnknown: number;
-    spentByAccount: { name: string; amount: number }[];
+    moved: { toDebts: number; toSavings: number; toHome: number; toRevolutUnknown: number };
+    byAccount: { name: string; role: Role | null; amount: number; debts: number; total: number }[];
   };
   average: number | null;
   lastSync: string | null;
@@ -146,53 +141,26 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
   const anyGuessed = accounts.some((a) => a.guessed);
   const unassigned = accounts.some((a) => !a.role);
 
-  // Reparto: qué se ha hecho con lo que entró
-  const used = flow.toDebts + flow.toSavings + flow.toHome + flow.toRevolutUnknown + flow.spent;
-  const left = flow.income - used;
-  const scale = Math.max(1, flow.income, used);
+  // Traspasos entre tus cuentas: no son gasto, solo para saber dónde está el dinero
   const linkedRole = (r: Role) => data.accounts.some((a) => a.role === r && a.linked);
   const bothRevolutLinked = linkedRole('debts') && linkedRole('home');
-  const rows: { role: Role | 'spent' | 'unknown'; label: string; value: number; sub?: string; onClick?: () => void }[] = [
-    {
-      role: 'debts',
-      label: 'A deudas',
-      value: flow.toDebts,
-      sub: flow.paidFromDebts > 0 || flow.debtsPaid > 0
-        ? `Han salido ${money(Math.max(flow.paidFromDebts, flow.debtsPaid))} en pagos${flow.debtsPaid > 0 ? ` (${money(flow.debtsPaid)} de deudas apuntadas)` : ''}`
-        : undefined,
-      onClick: () => onGoto('debts'),
-    },
-    {
-      role: 'savings',
-      label: 'A ahorro',
-      value: flow.toSavings,
-      sub: flow.invested > 0 ? `${money(flow.invested)} invertido` : undefined,
-    },
-    {
-      role: 'home',
-      label: 'A casa (tu parte)',
-      value: flow.toHome,
-      sub: flow.homeSpent ? `En casa se han gastado ${money(flow.homeSpent)} entre los dos` : undefined,
-    },
-    ...(flow.toRevolutUnknown > 0
+  const { moved } = flow;
+  const movedRows: { role: Role | 'unknown'; label: string; value: number; sub?: string }[] = [
+    { role: 'debts' as const, label: 'A Revolut (deudas)', value: moved.toDebts },
+    { role: 'savings' as const, label: 'A ahorro', value: moved.toSavings, sub: flow.invested > 0 ? `${money(flow.invested)} invertido` : undefined },
+    { role: 'home' as const, label: 'A la conjunta', value: moved.toHome },
+    ...(moved.toRevolutUnknown > 0
       ? [{
           role: 'unknown' as const,
           label: 'A Revolut',
-          value: flow.toRevolutUnknown,
-          sub: bothRevolutLinked
-            ? 'No sé si fue a la de deudas o a la conjunta'
-            : 'Conecta tus dos Revolut y lo separo entre deudas y casa',
+          value: moved.toRevolutUnknown,
+          sub: bothRevolutLinked ? 'No sé si fue a la de deudas o a la conjunta' : 'Conecta tus dos Revolut y lo separo',
         }]
       : []),
-    {
-      role: 'spent',
-      label: 'Gastado por ti',
-      value: flow.spent,
-      sub: flow.spentByAccount.length > 1 ? flow.spentByAccount.map((a) => `${a.name} ${money(a.amount)}`).join(' · ') : undefined,
-      onClick: () => onGoto('movements'),
-    },
-  ];
-  const rowColor = (r: (typeof rows)[number]['role']) => (r === 'spent' ? C.ink : r === 'unknown' ? C.muted : ROLE_INFO[r].color);
+  ].filter((r) => r.value !== 0);
+  const movedTotal = movedRows.reduce((s, r) => s + r.value, 0);
+  const maxAccount = Math.max(1, ...flow.byAccount.map((a) => a.amount));
+  const accountColor = (r: Role | null) => (r ? ROLE_INFO[r].color : C.muted);
 
   return (
     <div className="flex flex-col gap-4">
@@ -213,21 +181,19 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
           </div>
           <div className="h-px bg-[#3A3E48]" />
           <div className="flex justify-between items-baseline gap-3 text-sm">
-            <span className="text-[#C9CCD4]">Ha salido este mes</span>
-            <span className="font-semibold tabular-nums">{money(used)}</span>
+            <span className="text-[#C9CCD4]">Gastado este mes</span>
+            <span className="font-semibold tabular-nums">{money(flow.spent)}</span>
           </div>
           <span className="text-[13px] text-[#C9CCD4] -mt-2">
-            {money(flow.spent)} gastado por ti{used > flow.spent ? ` + ${money(used - flow.spent)} a deudas, ahorro y casa` : ''}
-            {comparison ? ` · ${comparison} a estas alturas` : ''}
+            Entró {money(flow.income)}{comparison ? ` · ${comparison} a estas alturas` : ''}
           </span>
         </Card>
       ) : (
         <Card tone="dark" className="!p-5 flex flex-col gap-1 !rounded-[20px]">
-          <span className="text-sm text-[#C9CCD4]">Salió ese mes</span>
-          <span className="text-[40px] leading-tight font-bold tracking-tight tabular-nums">{money(used)}</span>
+          <span className="text-sm text-[#C9CCD4]">Gastaste ese mes</span>
+          <span className="text-[40px] leading-tight font-bold tracking-tight tabular-nums">{money(flow.spent)}</span>
           <span className="text-sm text-[#C9CCD4]">
-            {money(flow.spent)} gastado por ti{used > flow.spent ? ` + ${money(used - flow.spent)} a deudas, ahorro y casa` : ''}
-            {comparison ? ` · ${comparison}` : ''}
+            Entró {money(flow.income)}{comparison ? ` · ${comparison}` : ''}
           </span>
         </Card>
       )}
@@ -270,40 +236,56 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
       <Card className="flex flex-col gap-3">
         <div className="flex justify-between items-baseline">
           <span className="flex flex-col">
-            <span className="text-[15px] font-semibold">Reparto de {data.isCurrent ? 'este mes' : 'ese mes'}</span>
+            <span className="text-[15px] font-semibold">Gasto por cuenta</span>
             {data.startDay > 1 && <span className="text-xs text-[#5B6070]">{data.period.label}</span>}
           </span>
-          <span className="text-sm">
-            Entró <span className="font-semibold tabular-nums" style={{ color: C.green }}>+{money(flow.income)}</span>
-          </span>
+          <span className="text-[15px] font-semibold tabular-nums">{money(flow.spent)}</span>
         </div>
-        <div className="flex flex-col gap-3">
-          {rows.map((r) => {
-            const color = rowColor(r.role);
-            const inner = (
-              <div className="flex flex-col gap-1 w-full">
+        {flow.byAccount.length === 0 ? (
+          <span className="text-sm text-[#5B6070]">Aún no hay gastos este mes.</span>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {flow.byAccount.map((a) => (
+              <button key={a.name} onClick={() => onGoto('movements')} className="text-left flex flex-col gap-1 w-full">
                 <div className="flex justify-between text-sm gap-3">
-                  <span className="flex items-center gap-1.5"><Dot color={color} />{r.label}</span>
-                  <span className="font-semibold tabular-nums">{money(r.value)}</span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Dot color={accountColor(a.role)} />
+                    <span className="truncate">{a.role ? ROLE_INFO[a.role].label : a.name}</span>
+                    <span className="text-xs text-[#5B6070] truncate">{a.role ? a.name : ''}</span>
+                  </span>
+                  <span className="font-semibold tabular-nums shrink-0">{money(a.amount)}</span>
                 </div>
-                <Bar value={Math.max(0, r.value) / scale} color={color} />
-                {r.sub && <span className="text-xs text-[#5B6070]">{r.sub}</span>}
-              </div>
-            );
-            return r.onClick ? (
-              <button key={r.label} onClick={r.onClick} className="text-left">{inner}</button>
-            ) : (
-              <div key={r.label}>{inner}</div>
-            );
-          })}
-        </div>
-        {flow.income > 0 && (
-          <div className="flex justify-between text-sm pt-2.5 border-t border-[#EFEDE8]">
-            <span className="text-[#5B6070]">{left >= 0 ? 'Sin repartir' : 'Más de lo que entró'}</span>
-            <span className="font-semibold tabular-nums" style={{ color: left >= 0 ? C.ink : '#9B1C1C' }}>{money(Math.abs(left))}</span>
+                <Bar value={a.amount / maxAccount} color={accountColor(a.role)} />
+                {a.role === 'home' && a.total !== a.amount && (
+                  <span className="text-xs text-[#5B6070]">Tu mitad · entre los dos {money(a.total)}</span>
+                )}
+                {a.debts > 0 && <span className="text-xs text-[#5B6070]">{money(a.debts)} son cuotas de deudas</span>}
+              </button>
+            ))}
           </div>
         )}
       </Card>
+
+      {movedRows.length > 0 && (
+        <Card className="flex flex-col gap-2.5">
+          <div className="flex justify-between items-baseline">
+            <span className="flex flex-col">
+              <span className="text-[15px] font-semibold">Movido entre tus cuentas</span>
+              <span className="text-xs text-[#5B6070]">Traspasos: no cuentan como gasto</span>
+            </span>
+            <span className="text-[15px] font-semibold tabular-nums">{money(movedTotal)}</span>
+          </div>
+          {movedRows.map((r) => (
+            <div key={r.label} className="flex flex-col gap-0.5">
+              <div className="flex justify-between text-sm gap-3">
+                <span className="flex items-center gap-1.5"><Dot color={r.role === 'unknown' ? C.muted : ROLE_INFO[r.role].color} />{r.label}</span>
+                <span className="font-semibold tabular-nums">{money(r.value)}</span>
+              </div>
+              {r.sub && <span className="text-xs text-[#5B6070]">{r.sub}</span>}
+            </div>
+          ))}
+        </Card>
+      )}
 
       {first && (
         <Card tone="amber" className="flex flex-col gap-2.5">

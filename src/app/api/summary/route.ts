@@ -5,7 +5,11 @@ import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { loadAccounts } from '@/lib/accounts/load';
 import type { AccountRole } from '@/lib/accounts/roles';
-import { computeFlow, isOwnSpending, nextPayday, type FlowTx } from '@/lib/summary/flow';
+import { computeFlow, isSpending, nextPayday, shareOf, type FlowTx } from '@/lib/summary/flow';
+import { fingerprintOf } from '@/lib/banking/transform';
+
+/** Gastos de la cuenta conjunta: pagáis a medias */
+const HOME_SHARE = 0.5;
 import { daysUntil, dayInPeriod, monthOfDate, normalizeStartDay, periodLabel, periodOf, sameHeight, shiftMonth, todayIso } from '@/lib/period';
 
 interface Tx {
@@ -70,21 +74,31 @@ export async function GET(request: NextRequest) {
   const roleOf = (id: string | null): AccountRole | null => (id ? roleById.get(id) ?? null : null);
   const linkedRoles = new Set(accounts.filter((a) => a.linked && a.role).map((a) => a.role as AccountRole));
 
-  const all = (txRes.data || []) as Tx[];
+  // Por si quedan duplicados de reconectar el banco: un movimiento por cuenta y huella
+  const seen = new Set<string>();
+  const all = ((txRes.data || []) as (Tx & { external_id?: string | null })[]).filter((t) => {
+    if (!t.external_id) return true;
+    const key = `${t.account_id}|${fingerprintOf(t.external_id)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const inMonth = all.filter((t) => t.date >= start && t.date <= end);
   const asFlow = (t: Tx): FlowTx => ({ ...t, amount: Number(t.amount), kind: t.kind ?? null });
 
-  // Reparto del mes según el papel de cada cuenta
-  const flow = computeFlow(inMonth.map(asFlow), roleOf, linkedRoles);
+  // Gasto real por cuenta y traspasos del mes
+  const flow = computeFlow(inMonth.map(asFlow), roleOf, linkedRoles, HOME_SHARE);
 
-  // En qué se va: solo tu gasto (la cuenta de casa va aparte)
+  // En qué se va: todo tu gasto real (de la conjunta, tu mitad)
   const notSpending = new Set(flow.transferIds);
-  const ownSpending = inMonth.filter((t) => isOwnSpending(asFlow(t), roleOf) && !notSpending.has(t.id));
+  const ownSpending = inMonth.filter((t) => isSpending(asFlow(t)) && !notSpending.has(t.id));
   const byCategory = new Map<string, { id: string | null; name: string; amount: number }>();
   for (const t of ownSpending) {
-    const key = t.category?.id || 'none';
-    const prev = byCategory.get(key) || { id: t.category?.id || null, name: t.category?.name || 'Sin categoría', amount: 0 };
-    prev.amount += Number(t.amount);
+    const isDebt = (t.kind || 'regular') === 'debt_payment';
+    const key = isDebt ? 'debts' : t.category?.id || 'none';
+    const name = isDebt ? 'Cuotas de deudas' : t.category?.name || 'Sin categoría';
+    const prev = byCategory.get(key) || { id: isDebt ? null : t.category?.id || null, name, amount: 0 };
+    prev.amount += Number(t.amount) * shareOf(asFlow(t), roleOf, HOME_SHARE);
     byCategory.set(key, prev);
   }
 
@@ -95,11 +109,11 @@ export async function GET(request: NextRequest) {
     const cutoff = sameHeight(pp, dayIndex);
     const monthTx = all.filter((t) => t.date >= pp.start && t.date <= pp.end);
     if (monthTx.length === 0) continue;
-    previous.push(computeFlow(monthTx.filter((t) => t.date <= cutoff).map(asFlow), roleOf, linkedRoles).spent);
+    previous.push(computeFlow(monthTx.filter((t) => t.date <= cutoff).map(asFlow), roleOf, linkedRoles, HOME_SHARE).spent);
   }
   const average = previous.length ? previous.reduce((a, b) => a + b, 0) / previous.length : null;
 
-  const uncategorized = ownSpending.filter((t) => !t.category_id);
+  const uncategorized = ownSpending.filter((t) => (t.kind || 'regular') === 'regular' && !t.category_id);
 
   // Lo que te queda: saldo de la(s) cuenta(s) del día a día, y cuánto toca por día hasta la nómina
   const daily = accounts.filter((a) => a.role === 'daily');
@@ -148,12 +162,15 @@ export async function GET(request: NextRequest) {
     accounts: accounts.map(({ id, name, balance, role, guessed, linked, lastSync: synced }) => ({ id, name, balance, role, guessed, linked, lastSync: synced })),
     rolesMigrated,
     flow: {
-      ...flow,
-      transferIds: undefined,
-      spentByAccount: flow.spentByAccount.map((s) => ({
-        name: accounts.find((a) => a.id === s.accountId)?.name || 'Sin cuenta',
-        amount: s.amount,
-      })),
+      income: flow.income,
+      spent: flow.spent,
+      debtsPaid: flow.debtsPaid,
+      invested: flow.invested,
+      moved: flow.moved,
+      byAccount: flow.byAccount.map((s) => {
+        const acc = accounts.find((a) => a.id === s.accountId);
+        return { name: acc?.name || 'Sin cuenta', role: acc?.role ?? null, amount: s.amount, debts: s.debts, total: s.total };
+      }),
     },
     average: average === null ? null : round(average),
     lastSync,

@@ -46,6 +46,15 @@ export function cleanMasked(value?: string | null): string | null {
   return (cleaned.match(/[a-zA-ZÀ-ÿ]/g) || []).length >= 2 ? cleaned : null;
 }
 
+/**
+ * Huella del movimiento sin el uid de la cuenta (que Enable Banking cambia al
+ * reconectar): "eb:<uid>:<huella>" → "<huella>".
+ */
+export function fingerprintOf(externalId: string): string {
+  const parts = externalId.split(':');
+  return parts.length >= 3 && parts[0] === 'eb' ? parts.slice(2).join(':') : externalId;
+}
+
 /** Devuelve null si el movimiento está pendiente (cambia de id al contabilizarse) o es inválido. */
 export function mapTransaction(tx: EbTransaction, accountUid: string): MappedTransaction | null {
   if (tx.status && tx.status !== 'BOOK') return null;

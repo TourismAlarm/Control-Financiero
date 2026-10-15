@@ -5,7 +5,7 @@
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { autoCategorize } from '@/lib/categorization/autoCategorize';
 import { EnableBankingError, getAllTransactions, getBalances } from './enableBanking';
-import { classifyKind, mapTransaction, normalizeIban, normalizeText, pickBalance } from './transform';
+import { classifyKind, fingerprintOf, mapTransaction, normalizeIban, normalizeText, pickBalance } from './transform';
 import { matchLoan, merchantKey } from '@/lib/debts/detect';
 import { linkPaymentToLoan, loadActiveLoans } from '@/lib/debts/apply';
 
@@ -106,20 +106,44 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
     const raw = await getAllTransactions(link.account_uid, isoDate(from));
     result.fetched = raw.length;
 
-    const mapped = raw
+    const mapped: (NonNullable<ReturnType<typeof mapTransaction>> & { storedId?: string })[] = raw
       .map((tx) => mapTransaction(tx, link.account_uid))
       .filter((t): t is NonNullable<typeof t> => t !== null);
 
-    // Deduplicado: lo que ya está guardado no se vuelve a insertar
-    const ids = Array.from(new Set(mapped.map((m) => m.external_id)));
+    // Deduplicado: lo que ya está guardado no se vuelve a insertar.
+    // Al reconectar un banco, Enable Banking cambia el uid de la cuenta y con él el
+    // external_id: por eso se compara la huella del movimiento dentro de la misma
+    // cuenta de la app, no el external_id entero.
+    const minDate = mapped.reduce((min, m) => (m.date < min ? m.date : min), '9999-12-31');
+    const stored = new Map<string, string>(); // huella → external_id guardado
+    if (mapped.length) {
+      const pageOf = (page: number) => {
+        const q = supabaseAdmin
+          .from('transactions')
+          .select('external_id')
+          .eq('user_id', link.user_id)
+          .not('external_id', 'is', null)
+          .gte('date', minDate);
+        return (link.account_id ? q.eq('account_id', link.account_id) : q.eq('bank_link_id', link.id))
+          .order('created_at', { ascending: true })
+          .range(page * 1000, page * 1000 + 999);
+      };
+      for (let page = 0; ; page++) {
+        const { data } = await pageOf(page);
+        for (const row of (data || []) as { external_id: string }[]) {
+          if (!stored.has(fingerprintOf(row.external_id))) stored.set(fingerprintOf(row.external_id), row.external_id);
+        }
+        if (!data || data.length < 1000) break;
+      }
+    }
     const existing = new Set<string>();
-    for (let i = 0; i < ids.length; i += 200) {
-      const { data } = await supabaseAdmin
-        .from('transactions')
-        .select('external_id')
-        .eq('user_id', link.user_id)
-        .in('external_id', ids.slice(i, i + 200));
-      for (const row of data || []) existing.add((row as { external_id: string }).external_id);
+    for (const m of mapped) {
+      const prev = stored.get(fingerprintOf(m.external_id));
+      if (prev) {
+        existing.add(m.external_id);
+        if (toRepair.has(prev)) toRepair.add(m.external_id);
+        m.storedId = prev;
+      }
     }
 
     for (const m of mapped) {
@@ -128,7 +152,7 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
         .from('transactions')
         .update({ description: m.description, counterparty: m.counterparty })
         .eq('user_id', link.user_id)
-        .eq('external_id', m.external_id);
+        .eq('external_id', m.storedId ?? m.external_id);
     }
 
     const seen = new Set<string>();
