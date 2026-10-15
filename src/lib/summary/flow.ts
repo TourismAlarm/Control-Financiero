@@ -60,6 +60,8 @@ export function computeFlow(txs: FlowTx[], roleOf: RoleOf, linkedRoles: Set<Acco
 
   const transfersOut: FlowTx[] = [];
   const transfersIn: FlowTx[] = [];
+  // Entradas normales en cuentas con papel: pueden ser tu traspaso mal etiquetado por el banco
+  const plainIn: FlowTx[] = [];
 
   for (const t of txs) {
     const amount = Number(t.amount) || 0;
@@ -74,9 +76,10 @@ export function computeFlow(txs: FlowTx[], roleOf: RoleOf, linkedRoles: Set<Acco
     if (role === 'home' && kind === 'regular' && t.type === 'expense') homeSpent += amount;
 
     if (kind === 'internal_transfer') (t.type === 'expense' ? transfersOut : transfersIn).push(t);
+    else if (kind === 'regular' && t.type === 'income' && role && DEST_ROLES.includes(role)) plainIn.push(t);
   }
 
-  // 1. Lo que llega a una cuenta con papel (conectada) cuenta siempre
+  // 1. Lo que llega como traspaso a una cuenta con papel (conectada) cuenta siempre
   const usedIn = new Set<FlowTx>();
   for (const t of transfersIn) {
     const role = roleOf(t.account_id);
@@ -89,18 +92,28 @@ export function computeFlow(txs: FlowTx[], roleOf: RoleOf, linkedRoles: Set<Acco
     const fromRole = roleOf(t.account_id);
     if (fromRole === 'savings') outOfSavings += amount;
 
-    const twin = transfersIn.find(
-      (i) =>
-        !usedIn.has(i) &&
-        i.account_id !== t.account_id &&
-        Math.abs(Number(i.amount) - amount) <= 0.01 &&
-        Math.abs(dayNum(i.date) - dayNum(t.date)) <= 4
-    );
+    const isTwin = (i: FlowTx) =>
+      !usedIn.has(i) &&
+      i.account_id !== t.account_id &&
+      Math.abs(Number(i.amount) - amount) <= 0.01 &&
+      Math.abs(dayNum(i.date) - dayNum(t.date)) <= 4;
+    const twin = transfersIn.find(isTwin);
     if (twin) {
       usedIn.add(twin);
       continue;
     }
-    if (fromRole && DEST_ROLES.includes(fromRole)) continue; // salidas de deudas/casa a cuentas no conectadas: no son reparto
+    if (fromRole && DEST_ROLES.includes(fromRole)) continue;
+
+    // La entrada existe pero el banco la marcó como ingreso normal: cuenta igual
+    const plainTwin = plainIn.find(isTwin);
+    if (plainTwin) {
+      usedIn.add(plainTwin);
+      const role = roleOf(plainTwin.account_id);
+      if (role === 'debts' || role === 'savings' || role === 'home') into[role] += amount;
+      // En Revolut (deudas) un ingreso normal contaría como "Entró": ya no
+      if (role !== 'home') income -= Number(plainTwin.amount);
+      continue;
+    } // salidas de deudas/casa a cuentas no conectadas: no son reparto
 
     // 3. Sin gemela: el destino no está conectado. Lo deduzco del texto.
     const text = `${t.counterparty ?? ''} ${t.description ?? ''}`.toLowerCase();

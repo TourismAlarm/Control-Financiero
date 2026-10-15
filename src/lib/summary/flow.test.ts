@@ -74,6 +74,24 @@ test('una Revolut conectada: lo que no llega a ella fue a la otra', () => {
   assert.equal(flow.toRevolutUnknown, 0);
 });
 
+test('traspaso que el banco de destino marca como ingreso normal', () => {
+  const flow = computeFlow(
+    [
+      tx({ type: 'income', amount: 2000 }),
+      tx({ kind: 'internal_transfer', amount: 650, description: 'Alquiler', date: '2026-09-27' }),
+      tx({ type: 'income', amount: 650, account_id: 'joint', date: '2026-09-27' }),
+      tx({ kind: 'internal_transfer', amount: 420, description: 'Deudas', date: '2026-09-27' }),
+      tx({ type: 'income', amount: 420, account_id: 'rev', date: '2026-09-28' }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily', 'debts', 'savings', 'home'])
+  );
+  assert.equal(flow.toHome, 650);
+  assert.equal(flow.toDebts, 420);
+  assert.equal(flow.income, 2000);
+  assert.equal(flow.toRevolutUnknown, 0);
+});
+
 test('próxima nómina', () => {
   const p = nextPayday([{ date: '2026-09-28', amount: 1900 }, { date: '2026-10-02', amount: 40 }], new Date(2026, 9, 14));
   assert.deepEqual(p, { day: 28, date: '2026-10-28', daysLeft: 14 });
