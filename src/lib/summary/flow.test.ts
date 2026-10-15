@@ -33,14 +33,17 @@ test('reparto del mes con las cuatro cuentas conectadas', () => {
   );
   assert.deepEqual(flow, {
     income: 2000,
-    spent: 80,
+    spent: 50, // lo de Revolut se paga con los 400 que ya contaron como "a deudas"
     toDebts: 400,
+    paidFromDebts: 280,
     debtsPaid: 250,
     toSavings: 250,
     invested: 100,
     toHome: 650,
     homeSpent: 1200,
     toRevolutUnknown: 0,
+    spentByAccount: [{ accountId: 'bbva', amount: 50 }],
+    transferIds: [],
   });
 });
 
@@ -90,6 +93,27 @@ test('traspaso que el banco de destino marca como ingreso normal', () => {
   assert.equal(flow.toDebts, 420);
   assert.equal(flow.income, 2000);
   assert.equal(flow.toRevolutUnknown, 0);
+});
+
+test('sin contar dos veces: pagos desde Revolut y traspasos que el banco toma por gasto', () => {
+  const flow = computeFlow(
+    [
+      tx({ type: 'income', amount: 1757 }),
+      tx({ amount: 900 }), // gasto real en BBVA
+      // BBVA → Revolut deudas, pero BBVA lo marca como gasto normal
+      tx({ amount: 500, description: 'Transferencia', date: '2026-09-26' }),
+      tx({ type: 'income', amount: 500, account_id: 'rev', date: '2026-09-26' }),
+      // desde Revolut se pagan dos financiaciones no registradas
+      tx({ amount: 200, account_id: 'rev', description: 'COFIDIS' }),
+      tx({ amount: 137, account_id: 'rev', description: 'ONEY' }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily', 'debts', 'savings', 'home'])
+  );
+  assert.equal(flow.spent, 900);
+  assert.equal(flow.toDebts, 500);
+  assert.equal(flow.paidFromDebts, 337);
+  assert.equal(flow.income, 1757);
 });
 
 test('próxima nómina', () => {

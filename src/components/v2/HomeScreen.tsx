@@ -32,12 +32,14 @@ interface Summary {
     income: number;
     spent: number;
     toDebts: number;
+    paidFromDebts: number;
     debtsPaid: number;
     toSavings: number;
     invested: number;
     toHome: number;
     homeSpent: number | null;
     toRevolutUnknown: number;
+    spentByAccount: { name: string; amount: number }[];
   };
   average: number | null;
   lastSync: string | null;
@@ -155,7 +157,9 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
       role: 'debts',
       label: 'A deudas',
       value: flow.toDebts,
-      sub: flow.debtsPaid > 0 ? `Cuotas cobradas: ${money(flow.debtsPaid)}` : undefined,
+      sub: flow.paidFromDebts > 0 || flow.debtsPaid > 0
+        ? `Han salido ${money(Math.max(flow.paidFromDebts, flow.debtsPaid))} en pagos${flow.debtsPaid > 0 ? ` (${money(flow.debtsPaid)} de deudas apuntadas)` : ''}`
+        : undefined,
       onClick: () => onGoto('debts'),
     },
     {
@@ -180,7 +184,13 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
             : 'Conecta tus dos Revolut y lo separo entre deudas y casa',
         }]
       : []),
-    { role: 'spent', label: 'Gastado por ti', value: flow.spent, onClick: () => onGoto('movements') },
+    {
+      role: 'spent',
+      label: 'Gastado por ti',
+      value: flow.spent,
+      sub: flow.spentByAccount.length > 1 ? flow.spentByAccount.map((a) => `${a.name} ${money(a.amount)}`).join(' · ') : undefined,
+      onClick: () => onGoto('movements'),
+    },
   ];
   const rowColor = (r: (typeof rows)[number]['role']) => (r === 'spent' ? C.ink : r === 'unknown' ? C.muted : ROLE_INFO[r].color);
 
