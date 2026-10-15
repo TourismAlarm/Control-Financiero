@@ -8,6 +8,10 @@
  *
  * Un movimiento que el banco no marcó como traspaso, pero que sale de una cuenta tuya y
  * llega a otra (mismo importe, ±4 días), también es traspaso.
+ *
+ * Devoluciones (ingresos con la categoría "Devoluciones") no son ingreso: si hay un gasto
+ * del mismo importe en la misma cuenta en los 60 días anteriores, se anulan los dos
+ * (el Bizum de 90 € que te devuelven). Si no, restan del gasto de esa cuenta.
  */
 import type { AccountRole } from '@/lib/accounts/roles';
 
@@ -20,6 +24,8 @@ export interface FlowTx {
   account_id: string | null;
   description?: string | null;
   counterparty?: string | null;
+  /** Ingreso con la categoría "Devoluciones" */
+  refund?: boolean;
 }
 
 export interface AccountSpending {
@@ -44,6 +50,10 @@ export interface MonthFlow {
   moved: { toDebts: number; toSavings: number; toHome: number; toRevolutUnknown: number };
   /** Ids de movimientos que parecían gasto o ingreso pero eran traspasos tuyos */
   transferIds: string[];
+  /** Devoluciones del mes (lo que te han devuelto, ya descontado del gasto) */
+  refunded: number;
+  /** Ids de gastos anulados por una devolución, y de esas devoluciones */
+  refundedIds: string[];
 }
 
 type RoleOf = (accountId: string | null) => AccountRole | null;
@@ -53,6 +63,8 @@ const kindOf = (t: FlowTx) => t.kind || 'regular';
 const dayNum = (d: string) => Date.UTC(+d.substring(0, 4), +d.substring(5, 7) - 1, +d.substring(8, 10)) / 86400000;
 
 const DEST_ROLES: AccountRole[] = ['debts', 'savings', 'home'];
+/** Días hacia atrás en los que se busca el gasto que te devuelven */
+const REFUND_WINDOW = 60;
 
 /** Gasto real: pagos normales y cuotas, desde cualquier cuenta. */
 export function isSpending(t: FlowTx): boolean {
@@ -79,11 +91,13 @@ export function computeFlow(
   const transfersIn: FlowTx[] = [];
   const plainIn: FlowTx[] = [];
   const plainOut: FlowTx[] = [];
+  const refunds: FlowTx[] = [];
 
   for (const t of txs) {
     const kind = kindOf(t);
     if (kind === 'internal_transfer') (t.type === 'expense' ? transfersOut : transfersIn).push(t);
     else if (kind === 'investment' && t.type === 'expense') invested += Number(t.amount);
+    else if (t.type === 'income' && t.refund) refunds.push(t);
     else if (t.type === 'income') plainIn.push(t);
     else if (isSpending(t)) plainOut.push(t);
   }
@@ -155,6 +169,32 @@ export function computeFlow(
   }
   for (const t of plainIn) if (used.has(t) && t.id && !transferIds.includes(t.id)) transferIds.push(t.id);
 
+  // 3b. Devoluciones: anulan el gasto que devuelven (misma cuenta, mismo importe, antes)
+  const refundedIds: string[] = [];
+  const looseRefunds: FlowTx[] = [];
+  let refunded = 0;
+  for (const r of [...refunds].sort((a, b) => a.date.localeCompare(b.date))) {
+    refunded += Number(r.amount);
+    const candidates = realOut
+      .filter(
+        (t) =>
+          kindOf(t) === 'regular' &&
+          t.account_id === r.account_id &&
+          Math.abs(Number(t.amount) - Number(r.amount)) <= 0.01 &&
+          dayNum(r.date) - dayNum(t.date) >= 0 &&
+          dayNum(r.date) - dayNum(t.date) <= REFUND_WINDOW
+      )
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const original = candidates[0];
+    if (original) {
+      realOut.splice(realOut.indexOf(original), 1);
+      if (original.id) refundedIds.push(original.id);
+      if (r.id) refundedIds.push(r.id);
+    } else {
+      looseRefunds.push(r);
+    }
+  }
+
   // 4. Ingresos: lo que no viene de una cuenta tuya, fuera de la conjunta (allí entra lo de tu pareja)
   let income = 0;
   for (const t of plainIn) {
@@ -179,6 +219,16 @@ export function computeFlow(
     byAccount.set(t.account_id, entry);
     spent += amount * share;
   }
+  // Devoluciones de gastos de otro mes: restan del gasto de la cuenta donde llegan
+  for (const r of looseRefunds) {
+    const amount = Number(r.amount);
+    const share = shareOf(r, roleOf, homeShare);
+    const entry = byAccount.get(r.account_id) || { accountId: r.account_id, amount: 0, debts: 0, total: 0 };
+    entry.amount -= amount * share;
+    entry.total -= amount;
+    byAccount.set(r.account_id, entry);
+    spent -= amount * share;
+  }
 
   return {
     income: round(income),
@@ -195,6 +245,8 @@ export function computeFlow(
       toRevolutUnknown: round(moved.unknown),
     },
     transferIds,
+    refunded: round(refunded),
+    refundedIds,
   };
 }
 

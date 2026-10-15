@@ -135,3 +135,37 @@ test('mes financiero que empieza el 26', () => {
   assert.equal(sameHeight(periodOf('2026-09', 26), 20), '2026-09-14');
   assert.equal(periodLabel(p), '26 sept – 25 oct');
 });
+
+test('devoluciones: anulan el gasto que devuelven y no cuentan como ingreso', () => {
+  const flow = computeFlow(
+    [
+      tx({ id: 'nomina', type: 'income', amount: 2000 }),
+      tx({ id: 'bizum', amount: 90, date: '2026-10-03', description: 'Bizum enviado' }),
+      tx({ id: 'vuelve', type: 'income', amount: 90, date: '2026-10-04', refund: true }),
+      tx({ id: 'super', amount: 40 }),
+      // Devolución de una compra de otro mes: resta del gasto de BBVA
+      tx({ id: 'amazon', type: 'income', amount: 15, refund: true }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily'])
+  );
+  assert.equal(flow.income, 2000);
+  assert.equal(flow.spent, 40 - 15);
+  assert.equal(flow.refunded, 105);
+  assert.deepEqual(flow.refundedIds.sort(), ['bizum', 'vuelve']);
+  assert.deepEqual(flow.byAccount, [{ accountId: 'bbva', amount: 25, debts: 0, total: 25 }]);
+});
+
+test('una devolución no se confunde con un traspaso desde otra cuenta', () => {
+  const flow = computeFlow(
+    [
+      tx({ id: 'pago', amount: 60, account_id: 'rev' }),
+      tx({ id: 'vuelve', type: 'income', amount: 60, refund: true }),
+    ],
+    roleOf,
+    new Set<AccountRole>(['daily', 'debts'])
+  );
+  assert.equal(flow.income, 0);
+  assert.deepEqual(flow.transferIds, []);
+  assert.equal(flow.spent, 0); // 60 pagados desde Revolut, 60 devueltos a BBVA
+});

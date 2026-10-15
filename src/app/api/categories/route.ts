@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { ensureProfile } from '@/lib/ensureProfile';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { categoryInsertSchema, categorySchema } from '@/lib/validations/schemas';
+import { ensureSpecialCategories } from '@/lib/categorization/special';
 
 /**
  * GET /api/categories
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     await ensureProfile(session);
+    await ensureSpecialCategories(session.user.id);
 
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
