@@ -7,6 +7,7 @@ import { loadAccounts } from '@/lib/accounts/load';
 import type { AccountRole } from '@/lib/accounts/roles';
 import { computeFlow, isSpending, nextPayday, shareOf, type FlowTx } from '@/lib/summary/flow';
 import { fingerprintOf } from '@/lib/banking/transform';
+import { ensureSpecialCategories, isRefundCategory } from '@/lib/categorization/special';
 
 /** Gastos de la cuenta conjunta: pagáis a medias */
 const HOME_SHARE = 0.5;
@@ -34,6 +35,7 @@ export async function GET(request: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   await ensureProfile(session);
   const userId = session.user.id;
+  await ensureSpecialCategories(userId);
 
   const { data: profile } = await supabaseAdmin
     .from('profiles')
@@ -84,13 +86,18 @@ export async function GET(request: NextRequest) {
     return true;
   });
   const inMonth = all.filter((t) => t.date >= start && t.date <= end);
-  const asFlow = (t: Tx): FlowTx => ({ ...t, amount: Number(t.amount), kind: t.kind ?? null });
+  const asFlow = (t: Tx): FlowTx => ({
+    ...t,
+    amount: Number(t.amount),
+    kind: t.kind ?? null,
+    refund: t.type === 'income' && isRefundCategory(t.category?.name),
+  });
 
   // Gasto real por cuenta y traspasos del mes
   const flow = computeFlow(inMonth.map(asFlow), roleOf, linkedRoles, HOME_SHARE);
 
   // En qué se va: todo tu gasto real (de la conjunta, tu mitad)
-  const notSpending = new Set(flow.transferIds);
+  const notSpending = new Set([...flow.transferIds, ...flow.refundedIds]);
   const ownSpending = inMonth.filter((t) => isSpending(asFlow(t)) && !notSpending.has(t.id));
   const byCategory = new Map<string, { id: string | null; name: string; amount: number }>();
   for (const t of ownSpending) {
@@ -166,6 +173,7 @@ export async function GET(request: NextRequest) {
       spent: flow.spent,
       debtsPaid: flow.debtsPaid,
       invested: flow.invested,
+      refunded: flow.refunded,
       moved: flow.moved,
       byAccount: flow.byAccount.map((s) => {
         const acc = accounts.find((a) => a.id === s.accountId);

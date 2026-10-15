@@ -33,6 +33,7 @@ interface Summary {
     spent: number;
     debtsPaid: number;
     invested: number;
+    refunded?: number;
     moved: { toDebts: number; toSavings: number; toHome: number; toRevolutUnknown: number };
     byAccount: { name: string; role: Role | null; amount: number; debts: number; total: number }[];
   };
@@ -263,6 +264,9 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
               </button>
             ))}
           </div>
+        )}
+        {(flow.refunded ?? 0) > 0 && (
+          <span className="text-xs text-[#5B6070]">Ya descontado lo que te han devuelto: {money(flow.refunded!)}</span>
         )}
       </Card>
 

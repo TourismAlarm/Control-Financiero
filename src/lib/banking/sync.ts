@@ -4,6 +4,7 @@
  */
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { autoCategorize } from '@/lib/categorization/autoCategorize';
+import { isTransferCategory } from '@/lib/categorization/special';
 import { EnableBankingError, getAllTransactions, getBalances } from './enableBanking';
 import { classifyKind, fingerprintOf, mapTransaction, normalizeIban, normalizeText, pickBalance } from './transform';
 import { matchLoan, merchantKey } from '@/lib/debts/detect';
@@ -72,11 +73,13 @@ async function loadContext(userId: string) {
   }
 
   const categoryByName = new Map<string, string>();
+  const transferCategoryIds = new Set<string>();
   for (const c of (categoriesRes.data || []) as { id: string; name: string; type: string }[]) {
     categoryByName.set(`${c.type}:${normalizeText(c.name)}`, c.id);
+    if (isTransferCategory(c.name)) transferCategoryIds.add(c.id);
   }
 
-  return { ownIbans, ownNames, loanNames, loans, learnedRules, categoryByName };
+  return { ownIbans, ownNames, loanNames, loans, learnedRules, categoryByName, transferCategoryIds };
 }
 
 export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof loadContext>>): Promise<LinkSyncResult> {
@@ -161,18 +164,18 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
       if (existing.has(m.external_id) || seen.has(m.external_id)) continue;
       seen.add(m.external_id);
 
-      const kind = classifyKind(m, {
+      let kind = classifyKind(m, {
         providerName: link.aspsp_name,
         ownIbans: context.ownIbans,
         ownNames: context.ownNames,
         loanNames: context.loanNames,
       });
-      if (kind === 'internal_transfer') result.internal++;
-
       // Categoría: primero lo que has enseñado tú, luego las reglas por defecto
       let categoryId: string | null = null;
       if (kind === 'regular') {
         categoryId = context.learnedRules.get(merchantKey(m.counterparty, m.description)) ?? null;
+        // Le enseñaste que esto es "Entre cuentas": traspaso
+        if (categoryId && context.transferCategoryIds.has(categoryId)) kind = 'internal_transfer';
         if (!categoryId) {
           const categoryName = autoCategorize(m.description);
           categoryId = categoryName
@@ -180,6 +183,8 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
             : null;
         }
       }
+
+      if (kind === 'internal_transfer') result.internal++;
 
       const loanId =
         kind === 'debt_payment' ? matchLoan(`${m.counterparty ?? ''} ${m.description}`, context.loans) : null;

@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useGlobalToast } from '@/components/Toaster';
 import { Sheet, money, Loading, ErrorBox } from './ui';
+import { isRefundCategory, isSpecialCategory, isTransferCategory } from '@/lib/categorization/special-names';
 
 interface Tx {
   id: string;
@@ -124,7 +125,15 @@ export function MovementsScreen({
     const body = await res.json();
     setEditing(null);
     if (!res.ok) return toast(body.error || 'No se pudo guardar', 'error');
-    toast(body.alsoUpdated ? `Hecho · ${body.alsoUpdated} más del mismo comercio` : learn ? 'Hecho · la próxima vez lo hago solo' : 'Hecho', 'success');
+    const what = body.kind === 'internal_transfer' ? 'Traspaso: ya no cuenta como gasto ni ingreso' : 'Hecho';
+    toast(
+      body.alsoUpdated
+        ? `${what} · ${body.alsoUpdated} más del mismo comercio`
+        : body.learned
+          ? `${what} · la próxima vez lo hago solo`
+          : what,
+      'success'
+    );
     queryClient.invalidateQueries({ queryKey: ['transactions'] });
     queryClient.invalidateQueries({ queryKey: ['summary'] });
   };
@@ -143,7 +152,12 @@ export function MovementsScreen({
     );
   };
 
-  const categories = (Array.isArray(catQuery.data) ? catQuery.data : []).filter((c) => c.type === (editing?.type ?? 'expense'));
+  const ofType = (Array.isArray(catQuery.data) ? catQuery.data : []).filter((c) => c.type === (editing?.type ?? 'expense'));
+  const categories = ofType.filter((c) => !isSpecialCategory(c.name));
+  const specials = ofType
+    .filter((c) => isSpecialCategory(c.name))
+    .sort((a, b) => Number(isTransferCategory(b.name)) - Number(isTransferCategory(a.name)));
+  const editable = (kind: string) => kind === 'regular' || kind === 'internal_transfer';
 
   return (
     <div className="flex flex-col gap-3.5">
@@ -183,13 +197,14 @@ export function MovementsScreen({
                 const badge = KIND_BADGE[kind];
                 const needsCategory = kind === 'regular' && !t.category_id;
                 const catName = t.category?.name;
-                const sub = badge ? badge.label : needsCategory ? 'Toca para categorizar' : catName;
+                const refund = t.type === 'income' && isRefundCategory(catName);
+                const sub = badge ? badge.label : needsCategory ? 'Toca para categorizar' : refund ? 'Devolución · resta del gasto' : catName;
                 const acc = accountName(t.account_id);
                 return (
                   <button
                     key={t.id}
-                    onClick={() => kind === 'regular' && setEditing(t)}
-                    disabled={kind !== 'regular'}
+                    onClick={() => editable(kind) && setEditing(t)}
+                    disabled={!editable(kind)}
                     className={`w-full flex items-center gap-3 px-3.5 py-3 text-left ${kind === 'internal_transfer' ? 'opacity-60' : ''}`}
                   >
                     <span
@@ -258,6 +273,27 @@ export function MovementsScreen({
                 </button>
               ))}
             </div>
+            {specials.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="text-[13px] font-semibold text-[#5B6070] px-0.5">
+                  {editing.type === 'income' ? 'No es un ingreso de verdad' : 'No es un gasto de verdad'}
+                </span>
+                {specials.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => categorize(c.id)}
+                    className={`rounded-xl border border-dashed px-3.5 py-2.5 text-left flex flex-col gap-0.5 ${editing.category_id === c.id ? 'border-[#15171C] border-2 bg-white' : 'border-[#C9C6BD] bg-[#F4F3EF]'}`}
+                  >
+                    <span className="text-sm font-semibold">{c.name}</span>
+                    <span className="text-xs text-[#5B6070]">
+                      {isTransferCategory(c.name)
+                        ? 'Dinero de una cuenta tuya a otra. No cuenta como gasto ni ingreso.'
+                        : 'Te devuelven algo que pagaste. Anula ese gasto (mismo importe en esta cuenta) o resta del gasto del mes. No se aplica solo a este contacto.'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </Sheet>
