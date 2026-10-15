@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabase/admin';
 import { transactionInsertSchema, transactionSchema } from '@/lib/validations/schemas';
 import { runAgentsAndSave } from '@/lib/agents/runner';
 import { normalizeStartDay, periodOf } from '@/lib/period';
+import { fingerprintOf } from '@/lib/banking/transform';
 
 // GET /api/transactions - Get all transactions for current user
 export async function GET(request: NextRequest) {
@@ -78,7 +79,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const validated = (data || []).map((item) => transactionSchema.parse(item));
+    // Por si quedan duplicados de reconectar el banco: un movimiento por cuenta y huella
+    const seenFingerprints = new Set<string>();
+    const unique = (data || []).filter((item: { account_id?: string | null; external_id?: string | null }) => {
+      if (!item.external_id) return true;
+      const key = `${item.account_id}|${fingerprintOf(item.external_id)}`;
+      if (seenFingerprints.has(key)) return false;
+      seenFingerprints.add(key);
+      return true;
+    });
+
+    const validated = unique.map((item) => transactionSchema.parse(item));
 
     return NextResponse.json(validated);
   } catch (error: any) {
