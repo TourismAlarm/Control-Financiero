@@ -9,9 +9,11 @@
  * Un movimiento que el banco no marcó como traspaso, pero que sale de una cuenta tuya y
  * llega a otra (mismo importe, ±4 días), también es traspaso.
  *
- * Devoluciones (ingresos con la categoría "Devoluciones") no son ingreso: si hay un gasto
- * del mismo importe en la misma cuenta en los 60 días anteriores, se anulan los dos
- * (el Bizum de 90 € que te devuelven). Si no, restan del gasto de esa cuenta.
+ * Devoluciones (ingresos con la categoría "Devoluciones") no son ingreso: rebajan el gasto
+ * que devuelven. Si dijiste cuál (refund_of), ese gasto pasa a valer lo que te costó
+ * (100 € con 25 devueltos → 75 €). Si no, se busca un gasto del mismo importe en la misma
+ * cuenta en los 60 días anteriores (el Bizum de 90 € que te devuelven) y se anulan los dos.
+ * Si el gasto es de otro mes o no aparece, la devolución resta del gasto de esa cuenta.
  */
 import type { AccountRole } from '@/lib/accounts/roles';
 
@@ -26,6 +28,8 @@ export interface FlowTx {
   counterparty?: string | null;
   /** Ingreso con la categoría "Devoluciones" */
   refund?: boolean;
+  /** Devolución: id del gasto que te devuelven */
+  refund_of?: string | null;
 }
 
 export interface AccountSpending {
@@ -52,8 +56,10 @@ export interface MonthFlow {
   transferIds: string[];
   /** Devoluciones del mes (lo que te han devuelto, ya descontado del gasto) */
   refunded: number;
-  /** Ids de gastos anulados por una devolución, y de esas devoluciones */
+  /** Ids de gastos devueltos enteros, y de las devoluciones ya aplicadas a un gasto del mes */
   refundedIds: string[];
+  /** Gastos devueltos en parte: id → lo devuelto (cuentan solo la diferencia) */
+  refundedBy: Record<string, number>;
 }
 
 type RoleOf = (accountId: string | null) => AccountRole | null;
@@ -169,29 +175,49 @@ export function computeFlow(
   }
   for (const t of plainIn) if (used.has(t) && t.id && !transferIds.includes(t.id)) transferIds.push(t.id);
 
-  // 3b. Devoluciones: anulan el gasto que devuelven (misma cuenta, mismo importe, antes)
+  // 3b. Devoluciones: rebajan el gasto que devuelven
   const refundedIds: string[] = [];
-  const looseRefunds: FlowTx[] = [];
+  const reduced = new Map<FlowTx, number>();
+  const looseRefunds: { tx: FlowTx; amount: number }[] = [];
+  const left = (t: FlowTx) => Number(t.amount) - (reduced.get(t) || 0);
   let refunded = 0;
   for (const r of [...refunds].sort((a, b) => a.date.localeCompare(b.date))) {
-    refunded += Number(r.amount);
-    const candidates = realOut
-      .filter(
-        (t) =>
-          kindOf(t) === 'regular' &&
-          t.account_id === r.account_id &&
-          Math.abs(Number(t.amount) - Number(r.amount)) <= 0.01 &&
-          dayNum(r.date) - dayNum(t.date) >= 0 &&
-          dayNum(r.date) - dayNum(t.date) <= REFUND_WINDOW
-      )
-      .sort((a, b) => b.date.localeCompare(a.date));
-    const original = candidates[0];
-    if (original) {
-      realOut.splice(realOut.indexOf(original), 1);
-      if (original.id) refundedIds.push(original.id);
-      if (r.id) refundedIds.push(r.id);
+    const amount = Number(r.amount);
+    refunded += amount;
+    let original: FlowTx | undefined;
+    if (r.refund_of) {
+      original = realOut.find((t) => t.id === r.refund_of && kindOf(t) === 'regular');
     } else {
-      looseRefunds.push(r);
+      // Sin decir cuál: un gasto del mismo importe, misma cuenta, en los días anteriores
+      original = realOut
+        .filter(
+          (t) =>
+            kindOf(t) === 'regular' &&
+            !reduced.has(t) &&
+            t.account_id === r.account_id &&
+            Math.abs(Number(t.amount) - amount) <= 0.01 &&
+            dayNum(r.date) - dayNum(t.date) >= 0 &&
+            dayNum(r.date) - dayNum(t.date) <= REFUND_WINDOW
+        )
+        .sort((a, b) => b.date.localeCompare(a.date))[0];
+    }
+    if (!original) {
+      looseRefunds.push({ tx: r, amount });
+      continue;
+    }
+    const applied = Math.min(amount, left(original));
+    reduced.set(original, (reduced.get(original) || 0) + applied);
+    if (r.id) refundedIds.push(r.id);
+    // Te devuelven más de lo que costó: el resto resta del gasto de la cuenta
+    if (amount - applied > 0.005) looseRefunds.push({ tx: r, amount: amount - applied });
+  }
+  const refundedBy: Record<string, number> = {};
+  for (const [t, amount] of reduced) {
+    if (left(t) <= 0.005) {
+      realOut.splice(realOut.indexOf(t), 1);
+      if (t.id) refundedIds.push(t.id);
+    } else if (t.id) {
+      refundedBy[t.id] = round(amount);
     }
   }
 
@@ -207,7 +233,7 @@ export function computeFlow(
   const byAccount = new Map<string | null, AccountSpending>();
   let spent = 0;
   for (const t of realOut) {
-    const amount = Number(t.amount);
+    const amount = left(t);
     const share = shareOf(t, roleOf, homeShare);
     const entry = byAccount.get(t.account_id) || { accountId: t.account_id, amount: 0, debts: 0, total: 0 };
     entry.amount += amount * share;
@@ -220,8 +246,7 @@ export function computeFlow(
     spent += amount * share;
   }
   // Devoluciones de gastos de otro mes: restan del gasto de la cuenta donde llegan
-  for (const r of looseRefunds) {
-    const amount = Number(r.amount);
+  for (const { tx: r, amount } of looseRefunds) {
     const share = shareOf(r, roleOf, homeShare);
     const entry = byAccount.get(r.account_id) || { accountId: r.account_id, amount: 0, debts: 0, total: 0 };
     entry.amount -= amount * share;
@@ -247,6 +272,7 @@ export function computeFlow(
     transferIds,
     refunded: round(refunded),
     refundedIds,
+    refundedBy,
   };
 }
 

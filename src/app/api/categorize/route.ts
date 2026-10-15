@@ -10,6 +10,8 @@ const schema = z.object({
   id: z.string().uuid(),
   category_id: z.string().uuid(),
   learn: z.boolean().default(true),
+  /** Solo con "Devoluciones": el gasto que te devuelven (null = no lo sé / otro mes) */
+  refund_of: z.string().uuid().nullable().optional(),
 });
 
 /**
@@ -38,7 +40,23 @@ export async function POST(request: NextRequest) {
   // "Entre cuentas" convierte el movimiento en traspaso; otra categoría lo devuelve a normal.
   // "Devoluciones" no se aprende por comercio: un Bizum de alguien no siempre es devolución.
   const toTransfer = isTransferCategory(cat.name);
-  const learn = parsed.data.learn && !isRefundCategory(cat.name);
+  const toRefund = isRefundCategory(cat.name);
+  const learn = parsed.data.learn && !toRefund;
+
+  // El gasto que te devuelven tiene que ser un gasto tuyo
+  const refundOf = toRefund ? parsed.data.refund_of ?? null : null;
+  if (refundOf) {
+    if (refundOf === id) return NextResponse.json({ error: 'Un movimiento no se devuelve a sí mismo' }, { status: 400 });
+    const { data: original } = await supabaseAdmin
+      .from('transactions')
+      .select('id, type')
+      .eq('id', refundOf)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!original || (original as { type: string }).type !== 'expense') {
+      return NextResponse.json({ error: 'No encuentro ese gasto' }, { status: 404 });
+    }
+  }
 
   const { data: current } = await supabaseAdmin
     .from('transactions')
@@ -53,13 +71,26 @@ export async function POST(request: NextRequest) {
   }
   const kind = toTransfer ? 'internal_transfer' : 'regular';
 
-  const { data: tx, error } = await supabaseAdmin
-    .from('transactions')
-    .update({ category_id, kind })
-    .eq('id', id)
-    .eq('user_id', userId)
-    .select('id, description, counterparty, type')
-    .maybeSingle();
+  const save = (fields: Record<string, unknown>) =>
+    supabaseAdmin
+      .from('transactions')
+      .update(fields)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('id, description, counterparty, type')
+      .maybeSingle();
+
+  let { data: tx, error } = await save({ category_id, kind, refund_of: refundOf });
+  if (error && /refund_of/.test(error.message)) {
+    // Falta la migración 015: sin ella no se puede decir qué gasto te devuelven
+    if (refundOf) {
+      return NextResponse.json(
+        { error: 'Para elegir el gasto que te devuelven falta aplicar la migración 015 en Supabase' },
+        { status: 409 }
+      );
+    }
+    ({ data: tx, error } = await save({ category_id, kind }));
+  }
   if (error || !tx) return NextResponse.json({ error: error?.message || 'Movimiento no encontrado' }, { status: 404 });
 
   let alsoUpdated = 0;
@@ -90,5 +121,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, alsoUpdated, kind, learned: learn });
+  return NextResponse.json({ ok: true, alsoUpdated, kind, learned: learn, refund_of: refundOf });
 }

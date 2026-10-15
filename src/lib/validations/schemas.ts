@@ -53,6 +53,8 @@ export const transactionSchema = z.object({
   source: z.enum(['manual', 'csv', 'bank_sync', 'recurring']).optional(),
   counterparty: z.string().nullable().optional(),
   bank_link_id: z.string().uuid().nullable().optional(),
+  // Devolución: el gasto que te devuelven (migración 015)
+  refund_of: z.string().uuid().nullable().optional(),
   created_at: z.string().or(z.date()).optional(),
   updated_at: z.string().or(z.date()).optional(),
 });
