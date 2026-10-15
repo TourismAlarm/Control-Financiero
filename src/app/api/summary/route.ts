@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
   const flow = computeFlow(inMonth.map(asFlow), roleOf, linkedRoles);
 
   // En qué se va: solo tu gasto (la cuenta de casa va aparte)
-  const ownSpending = inMonth.filter((t) => isOwnSpending(asFlow(t), roleOf));
+  const notSpending = new Set(flow.transferIds);
+  const ownSpending = inMonth.filter((t) => isOwnSpending(asFlow(t), roleOf) && !notSpending.has(t.id));
   const byCategory = new Map<string, { id: string | null; name: string; amount: number }>();
   for (const t of ownSpending) {
     const key = t.category?.id || 'none';
@@ -94,9 +95,7 @@ export async function GET(request: NextRequest) {
     const cutoff = sameHeight(pp, dayIndex);
     const monthTx = all.filter((t) => t.date >= pp.start && t.date <= pp.end);
     if (monthTx.length === 0) continue;
-    previous.push(
-      monthTx.filter((t) => t.date <= cutoff && isOwnSpending(asFlow(t), roleOf)).reduce((s, t) => s + Number(t.amount), 0)
-    );
+    previous.push(computeFlow(monthTx.filter((t) => t.date <= cutoff).map(asFlow), roleOf, linkedRoles).spent);
   }
   const average = previous.length ? previous.reduce((a, b) => a + b, 0) / previous.length : null;
 
@@ -148,7 +147,14 @@ export async function GET(request: NextRequest) {
     perDay: remaining !== null && payday ? round(Math.max(0, remaining) / payday.daysLeft) : null,
     accounts: accounts.map(({ id, name, balance, role, guessed, linked, lastSync: synced }) => ({ id, name, balance, role, guessed, linked, lastSync: synced })),
     rolesMigrated,
-    flow,
+    flow: {
+      ...flow,
+      transferIds: undefined,
+      spentByAccount: flow.spentByAccount.map((s) => ({
+        name: accounts.find((a) => a.id === s.accountId)?.name || 'Sin cuenta',
+        amount: s.amount,
+      })),
+    },
     average: average === null ? null : round(average),
     lastSync,
     topCategories: [...byCategory.values()].sort((a, b) => b.amount - a.amount).slice(0, 5).map((c) => ({ ...c, amount: round(c.amount) })),
