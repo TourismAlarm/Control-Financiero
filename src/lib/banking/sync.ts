@@ -10,10 +10,14 @@ import { classifyKind, fingerprintOf, mapTransaction, normalizeIban, normalizeTe
 import { matchLoan, merchantKey } from '@/lib/debts/detect';
 import { linkPaymentToLoan, loadActiveLoans } from '@/lib/debts/apply';
 
-/** Primera sincronización: cuántos días hacia atrás. Los bancos suelen dar 90 días sin volver a autenticar. */
-const INITIAL_DAYS = 90;
+/**
+ * Máximo de días hacia atrás que pedimos. PSD2: pasada la ventana posterior a la autorización,
+ * bancos como BBVA solo dan ~90 días y rechazan con 422 ("Wrong transactions period requested")
+ * cualquier `date_from` más antiguo. 89 deja margen por zona horaria.
+ */
+const MAX_DAYS = 89;
 /** Margen de solape en sincronizaciones siguientes (movimientos que se contabilizan con retraso). */
-const OVERLAP_DAYS = 7;
+const OVERLAP_DAYS = 5;
 
 export interface BankLink {
   id: string;
@@ -40,9 +44,12 @@ export interface LinkSyncResult {
   error?: string;
 }
 
+/** Fecha YYYY-MM-DD en hora de Madrid (la que usan los bancos). */
 function isoDate(d: Date): string {
-  return d.toISOString().substring(0, 10);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid' }).format(d);
 }
+
+const daysAgo = (days: number) => new Date(Date.now() - days * 86400000);
 
 async function loadContext(userId: string) {
   const [linksRes, profileRes, loans, categoriesRes, rulesRes] = await Promise.all([
@@ -100,13 +107,26 @@ export async function syncLink(link: BankLink, ctx?: Awaited<ReturnType<typeof l
     .limit(1000);
   const toRepair = new Set((maskedRows || []).map((r: { external_id: string }) => r.external_id));
 
-  const from =
+  // date_from = max(última sync - margen, hoy - 89 días). Sin date_to (el banco usa hoy).
+  const oldest = daysAgo(MAX_DAYS);
+  const incremental =
     link.last_synced_at && toRepair.size === 0
       ? new Date(new Date(link.last_synced_at).getTime() - OVERLAP_DAYS * 86400000)
-      : new Date(Date.now() - INITIAL_DAYS * 86400000);
+      : oldest;
+  const from = incremental > oldest ? incremental : oldest;
 
   try {
-    const raw = await getAllTransactions(link.account_uid, isoDate(from));
+    let raw;
+    try {
+      raw = await getAllTransactions(link.account_uid, isoDate(from));
+    } catch (err) {
+      // 422 por periodo no permitido: reintento con la ventana máxima segura antes de dar error
+      if (err instanceof EnableBankingError && err.status === 422 && from !== oldest) {
+        raw = await getAllTransactions(link.account_uid, isoDate(oldest));
+      } else {
+        throw err;
+      }
+    }
     result.fetched = raw.length;
 
     const mapped: (NonNullable<ReturnType<typeof mapTransaction>> & { storedId?: string })[] = raw
