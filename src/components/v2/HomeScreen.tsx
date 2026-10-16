@@ -46,7 +46,10 @@ interface Summary {
   };
   expenseCategories: { id: string; name: string }[];
   nextPayment: { name: string; amount: number; date: string } | null;
+  tips?: { tipo: 'alerta' | 'idea' | 'bien'; texto: string }[];
 }
+
+const TIP_COLOR = { alerta: C.amber, idea: C.blue, bien: C.green } as const;
 
 const ROLE_ORDER: Role[] = ['daily', 'debts', 'savings', 'home'];
 const ROLE_INFO: Record<Role, { label: string; hint: string; color: string }> = {
@@ -196,6 +199,20 @@ export function HomeScreen({ month, onGoto }: { month: string; onGoto: (tab: 'mo
           <span className="text-sm text-[#C9CCD4]">
             Entró {money(flow.income)}{comparison ? ` · ${comparison}` : ''}
           </span>
+        </Card>
+      )}
+
+      {data.tips && data.tips.length > 0 && (
+        <Card className="flex flex-col gap-2.5">
+          <span className="text-[15px] font-semibold">Consejos del mes</span>
+          <ul className="flex flex-col gap-2">
+            {data.tips.map((t) => (
+              <li key={t.texto} className="flex gap-2.5 text-sm leading-snug">
+                <span className="mt-[7px]"><Dot color={TIP_COLOR[t.tipo]} /></span>
+                <span>{t.texto}</span>
+              </li>
+            ))}
+          </ul>
         </Card>
       )}
 
