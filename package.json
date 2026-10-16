@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3000",
     "lint": "next lint",
-    "test:banking": "npx --yes tsx --test src/lib/banking/transform.test.ts src/lib/debts/detect.test.ts src/lib/summary/flow.test.ts"
+    "test:banking": "npx --yes tsx --test src/lib/banking/transform.test.ts src/lib/debts/detect.test.ts src/lib/summary/flow.test.ts src/lib/summary/insights.test.ts"
   },
   "dependencies": {
     "@auth/supabase-adapter": "^1.11.1",
