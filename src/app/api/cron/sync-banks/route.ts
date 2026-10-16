@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { syncAll } from '@/lib/banking/sync';
 import { isEnableBankingConfigured } from '@/lib/banking/enableBanking';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // GET /api/cron/sync-banks - Lo llama el cron de Vercel una vez al día.
 // Vercel manda "Authorization: Bearer <CRON_SECRET>" automáticamente.

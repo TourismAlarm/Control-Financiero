@@ -108,7 +108,14 @@ export function BankConnections() {
     setNotice(null);
     try {
       const res = await fetch('/api/banking/sync', { method: 'POST' });
-      const body = await res.json();
+      const text = await res.text();
+      let body: { error?: string; results?: unknown } = {};
+      try {
+        body = JSON.parse(text);
+      } catch {
+        // Respuesta no JSON (p.ej. timeout de la función): mensaje legible
+        throw new Error('La sincronización tardó demasiado. Reintenta: continúa desde donde se quedó.');
+      }
       if (!res.ok) throw new Error(body.error || 'Error sincronizando');
       const results = body.results as { inserted: number; status: string; bank: string }[];
       const nuevos = results.reduce((s, r) => s + r.inserted, 0);
