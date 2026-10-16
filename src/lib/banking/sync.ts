@@ -286,10 +286,10 @@ export async function syncAll(userId?: string): Promise<LinkSyncResult[]> {
   const results: LinkSyncResult[] = [];
   const contexts = new Map<string, Awaited<ReturnType<typeof loadContext>>>();
 
-  // Secuencial: pocas cuentas y así no saturamos la API del agregador
+  // En paralelo: la sync secuencial de varias cuentas superaba el límite de la función (timeout)
   for (const link of links) {
     if (!contexts.has(link.user_id)) contexts.set(link.user_id, await loadContext(link.user_id));
-    results.push(await syncLink(link, contexts.get(link.user_id)));
   }
+  results.push(...(await Promise.all(links.map((link) => syncLink(link, contexts.get(link.user_id))))));
   return results;
 }

@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { ensureProfile } from '@/lib/ensureProfile';
 import { syncAll } from '@/lib/banking/sync';
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 // POST /api/banking/sync - "Sincronizar ahora" para el usuario actual
 export async function POST() {
